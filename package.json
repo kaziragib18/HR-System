@@ -1,0 +1,27 @@
+{
+  "name": "hr-system",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "pnpm --filter @hr-system/prisma run migrate",
+    "db:generate": "pnpm --filter @hr-system/prisma run generate",
+    "db:studio": "pnpm --filter @hr-system/prisma run studio",
+    "db:seed": "pnpm --filter @hr-system/prisma run seed",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "prettier": "^3.2.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
