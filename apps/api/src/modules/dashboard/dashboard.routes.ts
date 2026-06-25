@@ -1,6 +1,6 @@
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
 import { prisma } from '../../config/prisma'
-import { authenticate } from '../../middleware/auth.middleware'
+import { authenticate, type AuthRequest } from '../../middleware/auth.middleware'
 import { requireRole } from '../../middleware/rbac.middleware'
 import { officeScope, type OfficeScopedRequest } from '../../middleware/office.middleware'
 import { sendSuccess } from '../../utils/response'
@@ -16,6 +16,98 @@ function todayRange() {
   end.setHours(23, 59, 59, 999)
   return { start, end }
 }
+
+function monthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  return { start, end }
+}
+
+// ─── Employee self-service dashboard ──────────────────────────────────────────
+router.get('/me', async (req: Request, res: Response) => {
+  const employeeId = (req as AuthRequest).user.employeeId
+  const { start: todayStart, end: todayEnd } = todayRange()
+  const { start: monthStart, end: monthEnd } = monthRange()
+  const year = new Date().getFullYear()
+
+  const me = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { id: true, departmentId: true, firstName: true, lastName: true, avatarUrl: true },
+  })
+
+  const [today, leaveBalances, myApplications, attendanceMonth, teamRaw] = await Promise.all([
+    prisma.attendance.findFirst({
+      where: { employeeId, date: { gte: todayStart, lte: todayEnd } },
+    }),
+    prisma.leaveBalance.findMany({
+      where: { employeeId, year },
+      include: { leaveType: { select: { name: true, code: true } } },
+    }),
+    prisma.leaveApplication.findMany({
+      where: { employeeId },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: { leaveType: { select: { name: true, code: true } } },
+    }),
+    prisma.attendance.findMany({
+      where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
+      select: { date: true, status: true, checkIn: true, checkOut: true },
+      orderBy: { date: 'asc' },
+    }),
+    me?.departmentId
+      ? prisma.employee.findMany({
+          where: {
+            departmentId: me.departmentId,
+            employmentStatus: { not: 'TERMINATED' },
+          },
+          select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+          take: 8,
+        })
+      : Promise.resolve([]),
+  ])
+
+  // Resolve today's status for each teammate
+  const teamIds = teamRaw.map((t) => t.id)
+  const teamAttendance = await prisma.attendance.findMany({
+    where: { employeeId: { in: teamIds }, date: { gte: todayStart, lte: todayEnd } },
+    select: { employeeId: true, status: true },
+  })
+  const statusByEmp = Object.fromEntries(teamAttendance.map((a) => [a.employeeId, a.status]))
+  const team = teamRaw.map((t) => ({
+    id: t.id,
+    firstName: t.firstName,
+    lastName: t.lastName,
+    avatarUrl: t.avatarUrl,
+    todayStatus: statusByEmp[t.id] ?? 'ABSENT',
+    isSelf: t.id === employeeId,
+  }))
+
+  sendSuccess(res, {
+    me,
+    today,
+    leaveBalances: leaveBalances.map((b) => ({
+      code: b.leaveType.code,
+      name: b.leaveType.name,
+      entitled: Number(b.entitled),
+      taken: Number(b.taken),
+      pending: Number(b.pending),
+      remaining: Number(b.entitled) + Number(b.carriedForward) - Number(b.taken),
+    })),
+    myApplications: myApplications.map((a) => ({
+      id: a.id,
+      type: a.leaveType.name,
+      code: a.leaveType.code,
+      startDate: a.startDate,
+      endDate: a.endDate,
+      totalDays: Number(a.totalDays),
+      status: a.status,
+      createdAt: a.createdAt,
+    })),
+    attendanceMonth,
+    team,
+  })
+})
 
 router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: Response) => {
   const scope = (req as OfficeScopedRequest).officeScope
