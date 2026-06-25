@@ -8,6 +8,7 @@ interface AuthState {
   isLoading: boolean
   setAuth: (user: AuthUser, accessToken: string) => void
   setAccessToken: (token: string) => void
+  updateUser: (patch: Partial<AuthUser>) => void
   clearAuth: () => void
   setLoading: (loading: boolean) => void
 }
@@ -22,6 +23,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user, accessToken, isAuthenticated: true, isLoading: false }),
 
   setAccessToken: (accessToken) => set({ accessToken }),
+
+  updateUser: (patch) =>
+    set((state) => ({ user: state.user ? { ...state.user, ...patch } : state.user })),
 
   clearAuth: () =>
     set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false }),

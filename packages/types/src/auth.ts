@@ -10,6 +10,7 @@ export interface AuthUser {
   firstName: string
   lastName: string
   avatarUrl?: string | null
+  isTwoFactorEnabled?: boolean
 }
 
 export interface AuthTokens {
