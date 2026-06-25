@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Inbox,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -27,7 +28,8 @@ const NAV_ITEMS = [
   { href: '/employees', label: 'Employees', icon: Users, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD] },
   { href: '/departments', label: 'Departments', icon: Building2, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN] },
   { href: '/attendance', label: 'Attendance', icon: Clock, roles: null },
-  { href: '/leave', label: 'Leave', icon: CalendarDays, roles: null },
+  { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null },
+  { href: '/leave/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD] },
   { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: null },
   { href: '/documents', label: 'Documents', icon: FileText, roles: null },
   { href: '/notifications', label: 'Notifications', icon: Bell, roles: null },

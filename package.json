@@ -11,6 +11,7 @@
     "db:generate": "pnpm --filter @hr-system/prisma run generate",
     "db:studio": "pnpm --filter @hr-system/prisma run studio",
     "db:seed": "pnpm --filter @hr-system/prisma run seed",
+    "db:seed-demo": "pnpm --filter @hr-system/prisma run seed:demo",
     "clean": "turbo run clean"
   },
   "devDependencies": {
