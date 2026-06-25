@@ -42,23 +42,15 @@ export function StatCard({
   )
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-800',
-  PROBATION: 'bg-amber-100 text-amber-800',
-  NOTICE_PERIOD: 'bg-orange-100 text-orange-800',
-  TERMINATED: 'bg-red-100 text-red-800',
-  ON_LEAVE: 'bg-blue-100 text-blue-800',
-}
-
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-        STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-700'
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize',
+        `st-${status.toLowerCase()}`
       )}
     >
-      {status.replace(/_/g, ' ')}
+      {label ?? status.replace(/_/g, ' ').toLowerCase()}
     </span>
   )
 }
