@@ -82,6 +82,8 @@ async function cleanup() {
   await prisma.onboardingTask.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.bankInfo.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.user.deleteMany({ where: { employeeId: { in: ids } } })
+  // Second pass in case new records arrived after the first delete (e.g. from a stuck concurrent run)
+  await prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.employee.deleteMany({ where: { id: { in: ids } } })
   console.log(`✓ Cleaned up ${ids.length} prior demo employees`)
 }
@@ -264,19 +266,34 @@ async function main() {
   console.log('✓ Leave applications created (2 on leave today, 3 pending, 1 past)')
 
   // ── Attendance: last 30 days ──────────────────────────────────────────────────
+  // Build all records in-memory first, then batch insert (much faster than 450 individual upserts)
   const onLeaveToday = new Set([idByKey['karim'], idByKey['nusrat']])
-  let attendanceCount = 0
 
-  for (const e of EMPLOYEES) {
+  // Deterministic pseudo-random (avoids Math.random variance across runs)
+  function seededRoll(empIdx: number, offset: number): number {
+    return ((empIdx * 31 + offset * 17) % 100) / 100
+  }
+
+  // Delete existing attendance for these employees to allow createMany
+  const empIds = EMPLOYEES.map(e => idByKey[e.key])
+  await prisma.attendance.deleteMany({ where: { employeeId: { in: empIds } } })
+
+  const attendanceRows: {
+    employeeId: string; date: Date; status: string; checkIn: Date | null; checkOut: Date | null
+    lateMinutes: number; workingMinutes: number; overtimeMinutes: number; source: string
+  }[] = []
+
+  EMPLOYEES.forEach((e, empIdx) => {
     const empId = idByKey[e.key]
     const joining = new Date(e.joiningDate)
 
     for (let offset = 30; offset >= 0; offset--) {
       const day = dateOnly(addDays(today, -offset))
-      if (day < dateOnly(joining)) continue // not yet joined
+      if (day < dateOnly(joining)) continue
 
-      const dow = day.getDay() // 0 Sun .. 6 Sat
+      const dow = day.getDay()
       const isWeekend = dow === 0 || dow === 6
+      const isToday = offset === 0
 
       let status = 'PRESENT'
       let checkIn: Date | null = null
@@ -285,53 +302,36 @@ async function main() {
       let workingMinutes = 0
       let overtimeMinutes = 0
 
-      const isToday = offset === 0
-
       if (isWeekend) {
         status = 'WEEKEND'
       } else if (isToday && onLeaveToday.has(empId)) {
         status = 'ON_LEAVE'
       } else {
-        const roll = Math.random()
+        const roll = seededRoll(empIdx, offset)
         if (roll < 0.05) {
           status = 'ABSENT'
         } else if (roll < 0.18) {
-          // LATE
           status = 'LATE'
-          const lateBy = 16 + Math.floor(Math.random() * 35) // 16-50 min after 9:00
+          const lateBy = 16 + (empIdx * 7 + offset * 3) % 35
           checkIn = atTime(day, 9, lateBy)
-          checkOut = atTime(day, 18, Math.floor(Math.random() * 30))
-          lateMinutes = lateBy - 15 // 15 min grace
+          checkOut = atTime(day, 18, (empIdx + offset) % 30)
+          lateMinutes = lateBy - 15
           workingMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60000)
         } else {
-          // PRESENT
           status = 'PRESENT'
-          checkIn = atTime(day, 8, 50 + Math.floor(Math.random() * 15))
-          checkOut = atTime(day, 18, Math.floor(Math.random() * 45))
+          checkIn = atTime(day, 8, 50 + (empIdx + offset) % 15)
+          checkOut = atTime(day, 18, (empIdx * 3 + offset) % 45)
           workingMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60000)
           overtimeMinutes = Math.max(0, workingMinutes - 540)
         }
       }
 
-      await prisma.attendance.upsert({
-        where: { employeeId_date: { employeeId: empId, date: day } },
-        update: { status, checkIn, checkOut, lateMinutes, workingMinutes, overtimeMinutes },
-        create: {
-          employeeId: empId,
-          date: day,
-          status,
-          checkIn,
-          checkOut,
-          lateMinutes,
-          workingMinutes,
-          overtimeMinutes,
-          source: 'BIOMETRIC',
-        },
-      })
-      attendanceCount++
+      attendanceRows.push({ employeeId: empId, date: day, status, checkIn, checkOut, lateMinutes, workingMinutes, overtimeMinutes, source: 'BIOMETRIC' })
     }
-  }
-  console.log(`✓ Created ${attendanceCount} attendance records (last 30 days)`)
+  })
+
+  await prisma.attendance.createMany({ data: attendanceRows })
+  console.log(`✓ Created ${attendanceRows.length} attendance records (last 30 days)`)
 
   console.log('\n──────────────────────────────────────────────')
   console.log('Demo logins (all in the BD/UK demo dataset):')

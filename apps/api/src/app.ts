@@ -12,6 +12,10 @@ import { departmentsRouter } from './modules/departments/departments.routes'
 import { jobGradesRouter } from './modules/job-grades/job-grades.routes'
 import { holidaysRouter } from './modules/holidays/holidays.routes'
 import { dashboardRouter } from './modules/dashboard/dashboard.routes'
+import { attendanceRouter } from './modules/attendance/attendance.routes'
+import { leaveRouter } from './modules/leave/leave.routes'
+import { timesheetsRouter } from './modules/timesheets/timesheets.routes'
+import { notificationsRouter } from './modules/notifications/notifications.routes'
 import { env } from './config/env'
 
 export function createApp(): Express {
@@ -58,6 +62,10 @@ export function createApp(): Express {
   app.use('/api/v1/job-grades', jobGradesRouter)
   app.use('/api/v1/holidays', holidaysRouter)
   app.use('/api/v1/dashboard', dashboardRouter)
+  app.use('/api/v1/attendance', attendanceRouter)
+  app.use('/api/v1/leave', leaveRouter)
+  app.use('/api/v1/timesheets', timesheetsRouter)
+  app.use('/api/v1/notifications', notificationsRouter)
 
   // 404
   app.use((_req, res) => {

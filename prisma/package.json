@@ -7,8 +7,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "generate": "prisma generate",
     "studio": "prisma studio",
-    "seed": "tsx src/seed.ts",
-    "seed:demo": "tsx src/seed-demo.ts",
+    "seed": "dotenv -e ../.env tsx src/seed.ts",
+    "seed:demo": "dotenv -e ../.env tsx src/seed-demo.ts",
     "reset": "prisma migrate reset"
   },
   "dependencies": {
@@ -16,11 +16,12 @@
     "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
+    "@hr-system/types": "workspace:*",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.0.0",
+    "dotenv-cli": "^11.0.0",
     "prisma": "^5.14.0",
     "tsx": "^4.15.0",
-    "typescript": "^5.4.0",
-    "@types/node": "^20.0.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@hr-system/types": "workspace:*"
+    "typescript": "^5.4.0"
   }
 }
