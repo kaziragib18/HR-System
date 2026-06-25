@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import jwt, { type SignOptions } from 'jsonwebtoken'
 import { env } from '../config/env'
 import type { AuthUser } from '@hr-system/types'
 
@@ -32,7 +32,7 @@ export function signAccessToken(user: AuthUser): string {
       officeCode: user.officeCode,
     } satisfies AccessTokenPayload,
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN }
+    { expiresIn: env.JWT_EXPIRES_IN } as SignOptions
   )
 }
 
@@ -40,7 +40,7 @@ export function signRefreshToken(userId: string, sessionId: string): string {
   return jwt.sign(
     { sub: userId, sessionId } satisfies RefreshTokenPayload,
     env.JWT_REFRESH_SECRET,
-    { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as SignOptions
   )
 }
 

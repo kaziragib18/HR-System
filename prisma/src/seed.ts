@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client'
-import { createHash } from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-// Simple hash for seed — in production the API uses bcrypt
+// Must match the API's hashing (apps/api/src/utils/hash.ts) so the seeded
+// admin can log in.
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
+  return bcrypt.hashSync(password, 12)
 }
 
 async function main() {
