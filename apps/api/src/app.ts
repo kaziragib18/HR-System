@@ -7,6 +7,11 @@ import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
 import { errorHandler } from './middleware/error.middleware'
 import { authRouter } from './modules/auth/auth.routes'
+import { employeesRouter } from './modules/employees/employees.routes'
+import { departmentsRouter } from './modules/departments/departments.routes'
+import { jobGradesRouter } from './modules/job-grades/job-grades.routes'
+import { holidaysRouter } from './modules/holidays/holidays.routes'
+import { dashboardRouter } from './modules/dashboard/dashboard.routes'
 import { env } from './config/env'
 
 export function createApp(): Express {
@@ -48,7 +53,11 @@ export function createApp(): Express {
 
   // API routes
   app.use('/api/v1/auth', authRouter)
-  // app.use('/api/v1/employees', employeesRouter)  ← added in next module
+  app.use('/api/v1/employees', employeesRouter)
+  app.use('/api/v1/departments', departmentsRouter)
+  app.use('/api/v1/job-grades', jobGradesRouter)
+  app.use('/api/v1/holidays', holidaysRouter)
+  app.use('/api/v1/dashboard', dashboardRouter)
 
   // 404
   app.use((_req, res) => {
