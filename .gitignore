@@ -9,6 +9,8 @@ build
 .env.*.local
 *.log
 coverage
+*.tsbuildinfo
+next-env.d.ts
 .DS_Store
 .vercel
 .render

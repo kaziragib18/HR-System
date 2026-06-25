@@ -10,6 +10,7 @@ config({ path: path.resolve(__dirname, '../../../../.env') })
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_PORT: z.coerce.number().default(4000),
+  WEB_APP_URL: z.string().url().default('http://localhost:3000'),
   DATABASE_URL: z.string().url(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),

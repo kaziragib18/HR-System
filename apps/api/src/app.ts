@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
 import { errorHandler } from './middleware/error.middleware'
 import { authRouter } from './modules/auth/auth.routes'
+import { env } from './config/env'
 
 export function createApp(): Express {
   const app = express()
@@ -16,7 +17,7 @@ export function createApp(): Express {
   app.use(compression())
   app.use(
     cors({
-      origin: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000',
+      origin: env.WEB_APP_URL,
       credentials: true,
     })
   )

@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { useUiStore } from '@/store/ui.store'
+import { logout } from '@/lib/api/auth'
 import { UserRole } from '@hr-system/types'
 import {
   LayoutDashboard,
@@ -35,8 +36,14 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { user, clearAuth } = useAuthStore()
+  const router = useRouter()
+  const { user } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUiStore()
+
+  const handleLogout = async () => {
+    await logout()
+    router.replace('/login')
+  }
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.roles || (user && item.roles.includes(user.role as UserRole))
@@ -100,7 +107,7 @@ export function Sidebar() {
             </div>
           )}
           <button
-            onClick={clearAuth}
+            onClick={handleLogout}
             className={cn(
               'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
               sidebarCollapsed && 'justify-center px-2'
