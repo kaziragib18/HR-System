@@ -1,4 +1,11 @@
 import { z } from 'zod'
+import { config } from 'dotenv'
+import path from 'path'
+
+// Load the monorepo-root .env (apps/api/src/config → repo root is 4 levels up).
+// In production (Render/Vercel) the file is absent and env vars are injected —
+// dotenv silently no-ops, which is the desired behaviour.
+config({ path: path.resolve(__dirname, '../../../../.env') })
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

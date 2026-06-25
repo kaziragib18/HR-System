@@ -1,12 +1,14 @@
-import express from 'express'
+import express, { type Express } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
 import morgan from 'morgan'
+import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
 import { errorHandler } from './middleware/error.middleware'
+import { authRouter } from './modules/auth/auth.routes'
 
-export function createApp() {
+export function createApp(): Express {
   const app = express()
 
   // Security & compression
@@ -25,6 +27,7 @@ export function createApp() {
   // Body parsing
   app.use(express.json({ limit: '10mb' }))
   app.use(express.urlencoded({ extended: true }))
+  app.use(cookieParser())
 
   // Global rate limit
   app.use(
@@ -42,10 +45,9 @@ export function createApp() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() })
   })
 
-  // API routes (registered here as modules are built)
-  // app.use('/api/v1/auth', authRouter)
-  // app.use('/api/v1/employees', employeesRouter)
-  // ...
+  // API routes
+  app.use('/api/v1/auth', authRouter)
+  // app.use('/api/v1/employees', employeesRouter)  ← added in next module
 
   // 404
   app.use((_req, res) => {
