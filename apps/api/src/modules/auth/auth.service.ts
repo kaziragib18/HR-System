@@ -52,6 +52,7 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
     firstName: user.employee.firstName,
     lastName: user.employee.lastName,
     avatarUrl: user.employee.avatarUrl,
+    isTwoFactorEnabled: user.isTwoFactorEnabled,
   }
 }
 
