@@ -97,3 +97,18 @@ export function useRejectTimesheet() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['timesheets'] }),
   })
 }
+
+export function useAllTimesheets(params?: { status?: string; month?: number; year?: number }) {
+  return useQuery({
+    queryKey: ['timesheets', 'all', params],
+    queryFn: async () => {
+      const p = new URLSearchParams()
+      if (params?.status) p.set('status', params.status)
+      if (params?.month) p.set('month', String(params.month))
+      if (params?.year) p.set('year', String(params.year))
+      const { data } = await apiClient.get(`/timesheets?${p}`)
+      return (data.data ?? []) as Timesheet[]
+    },
+    staleTime: 30_000,
+  })
+}
