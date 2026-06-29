@@ -18,6 +18,7 @@ import { timesheetsRouter } from './modules/timesheets/timesheets.routes'
 import { notificationsRouter } from './modules/notifications/notifications.routes'
 import { salaryRouter } from './modules/salary/salary.routes'
 import { payrollRouter } from './modules/payroll/payroll.routes'
+import { companyRouter } from './modules/company/company.routes'
 import { env } from './config/env'
 
 export function createApp(): Express {
@@ -70,6 +71,7 @@ export function createApp(): Express {
   app.use('/api/v1/notifications', notificationsRouter)
   app.use('/api/v1/salary', salaryRouter)
   app.use('/api/v1/payroll', payrollRouter)
+  app.use('/api/v1/company', companyRouter)
 
   // 404
   app.use((_req, res) => {

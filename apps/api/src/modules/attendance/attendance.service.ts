@@ -159,11 +159,23 @@ export async function listAttendance(officeScope: string | undefined, query: Lis
     dateFilter = { date: { gte: start, lte: end } }
   }
 
+  const employeeFilter: Prisma.EmployeeWhereInput = {
+    ...(officeScope ? { officeId: officeScope } : {}),
+    ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+    ...(query.search ? {
+      OR: [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { employeeId: { contains: query.search, mode: 'insensitive' } },
+      ],
+    } : {}),
+  }
+
   const where: Prisma.AttendanceWhereInput = {
     ...(query.employeeId ? { employeeId: query.employeeId } : {}),
     ...(query.status ? { status: query.status } : {}),
     ...dateFilter,
-    ...(officeScope ? { employee: { officeId: officeScope } } : {}),
+    ...(Object.keys(employeeFilter).length > 0 ? { employee: employeeFilter } : {}),
   }
 
   const [items, total] = await Promise.all([

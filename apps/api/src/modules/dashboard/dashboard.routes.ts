@@ -208,14 +208,24 @@ router.get('/headcount-by-department', requireRole(UserRole.TEAM_LEAD), async (r
   const departments = await prisma.department.findMany({
     where: { isActive: true, ...(scope ? { officeId: scope } : {}) },
     select: {
+      id: true,
       name: true,
+      code: true,
+      office: { select: { code: true } },
+      manager: { select: { firstName: true, lastName: true, jobTitle: { select: { name: true } } } },
       _count: { select: { employees: { where: { employmentStatus: { not: 'TERMINATED' } } } } },
     },
+    orderBy: [{ office: { code: 'asc' } }, { name: 'asc' }],
   })
-  sendSuccess(
-    res,
-    departments.map((d) => ({ department: d.name, count: d._count.employees }))
-  )
+  sendSuccess(res, departments.map((d) => ({
+    id: d.id,
+    department: d.name,
+    code: d.code,
+    officeCode: d.office.code,
+    count: d._count.employees,
+    manager: d.manager ? `${d.manager.firstName} ${d.manager.lastName}` : null,
+    managerTitle: d.manager?.jobTitle?.name ?? null,
+  })))
 })
 
 router.get('/on-leave-today', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: Response) => {

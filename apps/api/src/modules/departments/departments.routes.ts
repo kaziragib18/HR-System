@@ -28,5 +28,6 @@ router.post('/', HR, validate(createDepartmentSchema), controller.create)
 router.patch('/:id', HR, validate(updateDepartmentSchema), controller.update)
 router.delete('/:id', HR, controller.remove)
 router.patch('/:id/manager', HR, validate(assignManagerSchema), controller.assignManager)
+router.delete('/:id/manager', HR, controller.removeManager)
 
 export { router as departmentsRouter }

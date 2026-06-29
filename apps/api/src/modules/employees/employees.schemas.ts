@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EmploymentType, EmploymentStatus } from '@hr-system/types'
+import { EmploymentType, EmploymentStatus, UserRole } from '@hr-system/types'
 
 const addressSchema = z.object({
   line1: z.string(),
@@ -32,6 +32,7 @@ export const createEmployeeSchema = z.object({
   jobGradeId: z.string().optional(),
   reportingToId: z.string().optional(),
   employmentType: z.nativeEnum(EmploymentType),
+  role: z.nativeEnum(UserRole).optional(),
   joiningDate: z.string().datetime(),
   probationEndDate: z.string().datetime().optional(),
   presentAddress: addressSchema.optional(),

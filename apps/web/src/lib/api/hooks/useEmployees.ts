@@ -14,6 +14,7 @@ export interface EmployeeListParams {
   limit?: number
   search?: string
   departmentId?: string
+  officeId?: string
   employmentStatus?: string
 }
 
@@ -58,6 +59,21 @@ export function useUpdateEmployee(id: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['employee', id] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+    },
+  })
+}
+
+// Table-level mutation — takes id in payload so one instance handles all rows
+export function useUpdateEmployeeById() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: string } & UpdateEmployeeRequest) => {
+      const { data } = await apiClient.patch(`/employees/${id}`, payload)
+      return data.data as EmployeeProfile
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['employee', vars.id] })
       qc.invalidateQueries({ queryKey: ['employees'] })
     },
   })

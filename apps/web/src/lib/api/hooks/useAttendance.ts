@@ -125,6 +125,53 @@ export function useSubmitLateExcuse() {
   })
 }
 
+export function useAllAttendance(params?: {
+  employeeId?: string
+  departmentId?: string
+  search?: string
+  month?: number
+  year?: number
+  limit?: number
+  page?: number
+}) {
+  return useQuery({
+    queryKey: ['attendance', 'all', params],
+    queryFn: async () => {
+      const p = new URLSearchParams()
+      if (params?.employeeId) p.set('employeeId', params.employeeId)
+      if (params?.departmentId) p.set('departmentId', params.departmentId)
+      if (params?.search) p.set('search', params.search)
+      if (params?.month) p.set('month', String(params.month))
+      if (params?.year) p.set('year', String(params.year))
+      if (params?.limit) p.set('limit', String(params.limit))
+      if (params?.page) p.set('page', String(params.page))
+      const { data } = await apiClient.get(`/attendance?${p}`)
+      return (data.data ?? []) as AttendanceRecord[]
+    },
+    enabled: !!params,
+    staleTime: 60_000,
+  })
+}
+
+export function useManualEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      employeeId: string
+      date: string
+      checkIn?: string | null
+      checkOut?: string | null
+      remarks?: string
+    }) => {
+      const { data } = await apiClient.post('/attendance', input)
+      return data.data as AttendanceRecord
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+    },
+  })
+}
+
 export function usePendingExcuses() {
   return useQuery({
     queryKey: ['attendance', 'late-excuses'],
