@@ -1,8 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../client'
 
+export interface ManagerInfo {
+  id: string
+  firstName: string
+  lastName: string
+  avatarUrl?: string | null
+  jobTitle?: string | null
+  relation: string
+}
+
 export interface MyDashboard {
-  me: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null
+  me: {
+    id: string
+    firstName: string
+    lastName: string
+    avatarUrl?: string | null
+    department?: string | null
+    managerName?: string | null
+  } | null
+  managers: ManagerInfo[]
   today: {
     status: string
     checkIn: string | null

@@ -21,6 +21,9 @@ import {
   ChevronRight,
   LogOut,
   Inbox,
+  Banknote,
+  Wallet,
+  DollarSign,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -31,6 +34,9 @@ const NAV_ITEMS = [
   { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null },
   { href: '/leave/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD] },
   { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: null },
+  { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN] },
+  { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null },
+  { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN] },
   { href: '/documents', label: 'Documents', icon: FileText, roles: null },
   { href: '/notifications', label: 'Notifications', icon: Bell, roles: null },
   { href: '/settings', label: 'Settings', icon: Settings, roles: null },
@@ -77,6 +83,14 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-2">
+        {/* Department label above Dashboard */}
+        {!sidebarCollapsed && user?.departmentName && (
+          <div className="mb-1 px-3 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+              {user.departmentName}
+            </p>
+          </div>
+        )}
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (

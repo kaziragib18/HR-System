@@ -15,8 +15,14 @@ async function start() {
       logger.info(`API server running on http://localhost:${env.API_PORT}`)
     })
 
+    // Keep the DB connection alive — Supabase pooler drops idle connections after ~5 min
+    const keepAlive = setInterval(async () => {
+      try { await prisma.$queryRaw`SELECT 1` } catch { /* reconnect on next request */ }
+    }, 4 * 60 * 1000) // every 4 minutes
+
     // Graceful shutdown
     const shutdown = async (signal: string) => {
+      clearInterval(keepAlive)
       logger.info(`${signal} received — shutting down`)
       server.close(async () => {
         await prisma.$disconnect()

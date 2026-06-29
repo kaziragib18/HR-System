@@ -7,12 +7,21 @@ export interface ShiftConfig {
   earlyDepartureGraceMinutes: number
 }
 
-const DEFAULT_SHIFT: ShiftConfig = {
+export const UK_SHIFT: ShiftConfig = {
   startTime: '09:00',
-  endTime: '18:00',
+  endTime: '17:00',
   lateGraceMinutes: 15,
   earlyDepartureGraceMinutes: 15,
 }
+
+export const BD_SHIFT: ShiftConfig = {
+  startTime: '13:30',
+  endTime: '22:00',
+  lateGraceMinutes: 15,
+  earlyDepartureGraceMinutes: 15,
+}
+
+const DEFAULT_SHIFT: ShiftConfig = UK_SHIFT
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)

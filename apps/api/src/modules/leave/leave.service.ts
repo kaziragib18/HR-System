@@ -43,8 +43,14 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
   today.setUTCHours(0, 0, 0, 0)
   const startDate = new Date(input.startDate)
   const noticeDiff = Math.floor((startDate.getTime() - today.getTime()) / 86400000)
-  if (noticeDiff < leaveType.minNoticeDays) {
-    throw new LeaveError(`This leave type requires ${leaveType.minNoticeDays} day(s) notice`)
+  const isSickLeave = leaveType.code === 'SL'
+  // Sick leave may be applied retroactively; all other types must meet the notice requirement
+  // and cannot be applied for past dates
+  if (!isSickLeave) {
+    if (noticeDiff < 0) throw new LeaveError('You cannot apply for past dates for this leave type')
+    if (leaveType.minNoticeDays > 0 && noticeDiff < leaveType.minNoticeDays) {
+      throw new LeaveError(`This leave type requires ${leaveType.minNoticeDays} day(s) advance notice`)
+    }
   }
 
   // Fetch holidays for the office to calculate working days accurately
@@ -55,8 +61,21 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
   })
   const holidayDates = holidays.map(h => ({ date: h.date.toISOString().split('T')[0] }))
 
-  const totalDays = calculateTotalLeaveDays(input.startDate, input.endDate, holidayDates)
-  if (totalDays <= 0) throw new LeaveError('Leave period has no working days')
+  let totalDays: number
+  const consumeType = input.consumeType ?? 'FULL_DAY'
+
+  if (consumeType === 'FIRST_HALF' || consumeType === 'SECOND_HALF') {
+    // Half-day: must be a single working day
+    if (input.startDate !== input.endDate) {
+      throw new LeaveError('Half-day leave must be for a single day (start and end date must be the same)')
+    }
+    const workingDays = calculateTotalLeaveDays(input.startDate, input.endDate, holidayDates)
+    if (workingDays <= 0) throw new LeaveError('Selected date is not a working day')
+    totalDays = 0.5
+  } else {
+    totalDays = calculateTotalLeaveDays(input.startDate, input.endDate, holidayDates)
+    if (totalDays <= 0) throw new LeaveError('Leave period has no working days')
+  }
 
   if (leaveType.maxConsecutiveDays && totalDays > leaveType.maxConsecutiveDays) {
     throw new LeaveError(`Maximum consecutive days allowed is ${leaveType.maxConsecutiveDays}`)
@@ -106,10 +125,12 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
       data: {
         employeeId,
         leaveTypeId: input.leaveTypeId,
+        consumeType: consumeType,
         startDate: new Date(input.startDate),
         endDate: new Date(input.endDate),
         totalDays,
         reason: input.reason,
+        location: input.location,
         attachmentPath: input.attachmentPath,
         status: approvalChain.length === 0 ? LeaveStatus.APPROVED : LeaveStatus.PENDING,
         approvalLevel: 1,
@@ -290,11 +311,17 @@ export async function rejectLeave(applicationId: string, rejectingEmployeeId: st
   return { message: 'Application rejected' }
 }
 
-/** Cancel own leave application. */
-export async function cancelLeave(applicationId: string, employeeId: string) {
+/** Cancel own leave application.
+ *  - PENDING → instant cancel (no reason required), removes from manager's queue
+ *  - APPROVED → sets CANCEL_REQUESTED with reason, notifies the manager for approval
+ */
+export async function cancelLeave(applicationId: string, employeeId: string, cancelReason?: string) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id: applicationId },
-    include: { leaveType: true },
+    include: {
+      leaveType: true,
+      employee: { select: { firstName: true, lastName: true, officeId: true } },
+    },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
   if (app.employeeId !== employeeId) throw new LeaveError('You can only cancel your own applications', 403)
@@ -303,28 +330,188 @@ export async function cancelLeave(applicationId: string, employeeId: string) {
   }
 
   const year = app.startDate.getFullYear()
-  const wasApproved = app.status === LeaveStatus.APPROVED
 
-  await prisma.$transaction(async (tx) => {
-    await tx.leaveApplication.update({
-      where: { id: applicationId },
-      data: { status: LeaveStatus.CANCELLED, cancelledAt: new Date(), currentApproverId: null },
-    })
+  // Approved leaves: can only cancel before the leave has started
+  if (app.status === LeaveStatus.APPROVED) {
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    if (app.startDate <= today) {
+      throw new LeaveError('Cannot cancel a leave that has already started or passed. Cancellation must be requested at least one day before the leave starts.')
+    }
+  }
 
-    if (wasApproved) {
-      await tx.leaveBalance.updateMany({
-        where: { employeeId, leaveTypeId: app.leaveTypeId, year },
-        data: { taken: { decrement: Number(app.totalDays) } },
+  if (app.status === LeaveStatus.PENDING) {
+    // Instant cancel — no reason needed, clear from manager's queue
+    await prisma.$transaction(async (tx) => {
+      await tx.leaveApplication.update({
+        where: { id: applicationId },
+        data: { status: LeaveStatus.CANCELLED, cancelledAt: new Date(), currentApproverId: null },
       })
-    } else {
       await tx.leaveBalance.updateMany({
         where: { employeeId, leaveTypeId: app.leaveTypeId, year },
         data: { pending: { decrement: Number(app.totalDays) } },
       })
-    }
+    })
+    return { message: 'Application cancelled' }
+  }
+
+  // APPROVED → request cancellation, needs manager approval
+  if (!cancelReason?.trim()) throw new LeaveError('A reason is required to cancel an approved leave')
+
+  // Find the original approver or any team lead in the office
+  let managerId = app.currentApproverId
+  if (!managerId) {
+    const mgr = await prisma.user.findFirst({
+      where: {
+        employee: { officeId: app.employee.officeId, employmentStatus: { in: ['ACTIVE', 'PROBATION'] } },
+        role: { in: ['TEAM_LEAD', 'HR_MANAGER', 'DEPT_HEAD'] },
+      },
+      select: { employeeId: true },
+    })
+    managerId = mgr?.employeeId ?? null
+  }
+
+  await prisma.leaveApplication.update({
+    where: { id: applicationId },
+    data: {
+      status: LeaveStatus.CANCEL_REQUESTED,
+      cancelReason: cancelReason.trim(),
+      cancelRequestedAt: new Date(),
+      currentApproverId: managerId,
+    },
   })
 
-  return { message: 'Application cancelled' }
+  if (managerId) {
+    const name = `${app.employee.firstName} ${app.employee.lastName}`
+    await createNotification(
+      managerId,
+      NotificationType.LEAVE_CANCEL_REQUESTED,
+      'Leave cancellation requested',
+      `${name} has requested to cancel their approved ${app.leaveType.name} leave. Reason: ${cancelReason.trim()}`,
+      { applicationId }
+    )
+  }
+
+  return { message: 'Cancellation request submitted. Awaiting manager approval.' }
+}
+
+/** Employee updates the cancel reason while the request is still pending manager review. */
+export async function updateCancelReason(applicationId: string, employeeId: string, newReason: string) {
+  const app = await prisma.leaveApplication.findUnique({
+    where: { id: applicationId },
+    select: { employeeId: true, status: true },
+  })
+  if (!app) throw new LeaveError('Leave application not found', 404)
+  if (app.employeeId !== employeeId) throw new LeaveError('Not authorised', 403)
+  if (app.status !== LeaveStatus.CANCEL_REQUESTED) {
+    throw new LeaveError('Cancel reason can only be updated while the cancellation is awaiting approval')
+  }
+
+  await prisma.leaveApplication.update({
+    where: { id: applicationId },
+    data: { cancelReason: newReason.trim() },
+  })
+
+  return { message: 'Cancel reason updated' }
+}
+
+/** Manager approves a cancellation request — restores leave balance and notifies employee. */
+export async function approveCancelLeave(applicationId: string, approvingEmployeeId: string) {
+  const app = await prisma.leaveApplication.findUnique({
+    where: { id: applicationId },
+    include: {
+      leaveType: true,
+      employee: { select: { id: true, firstName: true, lastName: true } },
+    },
+  })
+  if (!app) throw new LeaveError('Leave application not found', 404)
+  if (app.status !== LeaveStatus.CANCEL_REQUESTED) throw new LeaveError('This application has no pending cancellation request')
+
+  const year = app.startDate.getFullYear()
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leaveApprovalHistory.create({
+      data: {
+        applicationId,
+        approverId: approvingEmployeeId,
+        action: 'CANCEL_APPROVED',
+        level: app.approvalLevel,
+        comment: 'Cancellation approved',
+      },
+    })
+
+    await tx.leaveApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: LeaveStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelApprovedById: approvingEmployeeId,
+        cancelApprovedAt: new Date(),
+        currentApproverId: null,
+      },
+    })
+
+    // Restore taken balance
+    await tx.leaveBalance.updateMany({
+      where: { employeeId: app.employeeId, leaveTypeId: app.leaveTypeId, year },
+      data: { taken: { decrement: Number(app.totalDays) } },
+    })
+  })
+
+  await createNotification(
+    app.employeeId,
+    NotificationType.LEAVE_CANCEL_APPROVED,
+    'Leave cancellation approved',
+    `Your cancellation request for ${app.leaveType.name} leave has been approved. Your leave balance has been restored.`,
+    { applicationId }
+  )
+
+  return { message: 'Cancellation approved' }
+}
+
+/** Manager rejects a cancellation request — leave stays APPROVED, employee notified. */
+export async function rejectCancelLeave(applicationId: string, rejectingEmployeeId: string, reason: string) {
+  const app = await prisma.leaveApplication.findUnique({
+    where: { id: applicationId },
+    include: {
+      leaveType: true,
+      employee: { select: { id: true } },
+    },
+  })
+  if (!app) throw new LeaveError('Leave application not found', 404)
+  if (app.status !== LeaveStatus.CANCEL_REQUESTED) throw new LeaveError('This application has no pending cancellation request')
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leaveApprovalHistory.create({
+      data: {
+        applicationId,
+        approverId: rejectingEmployeeId,
+        action: 'CANCEL_REJECTED',
+        level: app.approvalLevel,
+        comment: reason,
+      },
+    })
+
+    await tx.leaveApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: LeaveStatus.APPROVED,
+        cancelReason: null,
+        cancelRequestedAt: null,
+        currentApproverId: null,
+      },
+    })
+  })
+
+  await createNotification(
+    app.employeeId,
+    NotificationType.LEAVE_CANCEL_REJECTED,
+    'Leave cancellation rejected',
+    `Your cancellation request for ${app.leaveType.name} leave was rejected. Reason: ${reason}`,
+    { applicationId }
+  )
+
+  return { message: 'Cancellation request rejected' }
 }
 
 /** List applications — self or all (for manager/HR). */
@@ -379,10 +566,13 @@ export async function getApplication(id: string, requestingEmployeeId: string, i
   return app
 }
 
-/** Pending applications waiting for a specific approver. */
+/** Pending (new + cancel-requested) applications waiting for a specific approver. */
 export async function pendingForApprover(approvingEmployeeId: string) {
   return prisma.leaveApplication.findMany({
-    where: { status: LeaveStatus.PENDING, currentApproverId: approvingEmployeeId },
+    where: {
+      status: { in: [LeaveStatus.PENDING, LeaveStatus.CANCEL_REQUESTED] },
+      currentApproverId: approvingEmployeeId,
+    },
     include: {
       employee: { select: { id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true } },
       leaveType: { select: { id: true, name: true, code: true } },

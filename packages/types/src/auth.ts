@@ -11,6 +11,7 @@ export interface AuthUser {
   lastName: string
   avatarUrl?: string | null
   isTwoFactorEnabled?: boolean
+  departmentName?: string | null
 }
 
 export interface AuthTokens {

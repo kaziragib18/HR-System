@@ -33,7 +33,32 @@ router.get('/me', async (req: Request, res: Response) => {
 
   const me = await prisma.employee.findUnique({
     where: { id: employeeId },
-    select: { id: true, departmentId: true, firstName: true, lastName: true, avatarUrl: true },
+    select: {
+      id: true,
+      departmentId: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+      department: { select: { name: true } },
+      reportingTo: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          jobTitle: { select: { name: true } },
+          reportingTo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              jobTitle: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
   })
 
   const [today, leaveBalances, myApplications, attendanceMonth, teamRaw] = await Promise.all([
@@ -83,8 +108,35 @@ router.get('/me', async (req: Request, res: Response) => {
     isSelf: t.id === employeeId,
   }))
 
+  const managerChain = me?.reportingTo ? [
+    {
+      id: me.reportingTo.id,
+      firstName: me.reportingTo.firstName,
+      lastName: me.reportingTo.lastName,
+      avatarUrl: me.reportingTo.avatarUrl,
+      jobTitle: me.reportingTo.jobTitle?.name ?? null,
+      relation: 'Direct Supervisor',
+    },
+    ...(me.reportingTo.reportingTo ? [{
+      id: me.reportingTo.reportingTo.id,
+      firstName: me.reportingTo.reportingTo.firstName,
+      lastName: me.reportingTo.reportingTo.lastName,
+      avatarUrl: me.reportingTo.reportingTo.avatarUrl,
+      jobTitle: me.reportingTo.reportingTo.jobTitle?.name ?? null,
+      relation: 'Dotted Supervisor',
+    }] : []),
+  ] : []
+
   sendSuccess(res, {
-    me,
+    me: me ? {
+      id: me.id,
+      firstName: me.firstName,
+      lastName: me.lastName,
+      avatarUrl: me.avatarUrl,
+      department: me.department?.name ?? null,
+      managerName: me.reportingTo ? `${me.reportingTo.firstName} ${me.reportingTo.lastName}` : null,
+    } : null,
+    managers: managerChain,
     today,
     leaveBalances: leaveBalances.map((b) => ({
       code: b.leaveType.code,

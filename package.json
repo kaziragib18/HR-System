@@ -4,6 +4,11 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "start": "npx pm2 start ecosystem.config.js",
+    "stop": "npx pm2 stop ecosystem.config.js",
+    "restart": "npx pm2 restart ecosystem.config.js",
+    "logs": "npx pm2 logs",
+    "status": "npx pm2 status",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",

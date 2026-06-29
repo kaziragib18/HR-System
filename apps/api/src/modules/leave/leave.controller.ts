@@ -5,8 +5,9 @@ import { sendSuccess, sendCreated, sendError } from '../../utils/response'
 import { UserRole } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery } from './leave.schemas'
+import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery, RejectCancelLeaveInput, UpdateCancelReasonInput } from './leave.schemas'
 import { prisma } from '../../config/prisma'
+import { supabase } from '../../config/supabase'
 
 const MANAGER_ROLES: string[] = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD]
 
@@ -88,8 +89,56 @@ export async function reject(req: Request, res: Response) {
 
 export async function cancel(req: Request, res: Response) {
   try {
-    const result = await service.cancelLeave(req.params.id, user(req).employeeId)
+    const result = await service.cancelLeave(req.params.id, user(req).employeeId, req.body?.cancelReason)
     sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function approveCancel(req: Request, res: Response) {
+  try {
+    const result = await service.approveCancelLeave(req.params.id, user(req).employeeId)
+    sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function rejectCancel(req: Request, res: Response) {
+  try {
+    const result = await service.rejectCancelLeave(req.params.id, user(req).employeeId, (req.body as RejectCancelLeaveInput).reason)
+    sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function updateCancelReason(req: Request, res: Response) {
+  try {
+    const result = await service.updateCancelReason(req.params.id, user(req).employeeId, (req.body as UpdateCancelReasonInput).cancelReason)
+    sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function uploadAttachment(req: Request, res: Response) {
+  try {
+    const file = (req as Request & { file?: Express.Multer.File }).file
+    if (!file) { sendError(res, 'No file provided', 400); return }
+
+    const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.mimetype)) {
+      sendError(res, 'Only PDF and image files are allowed', 400); return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      sendError(res, 'File size must be under 5MB', 400); return
+    }
+
+    const employeeId = user(req).employeeId
+    const ext = file.originalname.split('.').pop() ?? 'bin'
+    const path = `leave-attachments/${employeeId}/${Date.now()}.${ext}`
+
+    const { error } = await supabase.storage.from('documents').upload(path, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    })
+    if (error) { sendError(res, 'File upload failed', 500); return }
+
+    sendSuccess(res, { path })
   } catch (err) { handle(res, err) }
 }
 

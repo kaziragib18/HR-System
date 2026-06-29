@@ -36,6 +36,8 @@ export interface LeaveApplication {
   reason: string | null
   status: string
   approvalLevel: number
+  cancelReason: string | null
+  cancelRequestedAt: string | null
   createdAt: string
   employee?: { id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null }
   leaveType?: { id: string; name: string; code: string }
@@ -43,9 +45,12 @@ export interface LeaveApplication {
 
 export interface ApplyLeavePayload {
   leaveTypeId: string
+  consumeType: 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF'
   startDate: string
   endDate: string
-  reason?: string
+  location: string
+  reason: string
+  attachmentPath?: string
 }
 
 export function useLeaveTypes() {
@@ -67,7 +72,8 @@ export function useLeaveBalances(year?: number) {
       const { data } = await apiClient.get(`/leave/balances?year=${y}`)
       return (data.data ?? []) as LeaveBalance[]
     },
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -114,6 +120,20 @@ export function useApplyLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
       qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
+    },
+  })
+}
+
+export function useUploadLeaveAttachment() {
+  return useMutation({
+    mutationFn: async (file: File): Promise<string> => {
+      const form = new FormData()
+      form.append('file', file)
+      const { data } = await apiClient.post('/leave/attachments', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data.data.path as string
     },
   })
 }
@@ -127,6 +147,8 @@ export function useApproveLeave() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
+      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
     },
   })
 }
@@ -140,6 +162,7 @@ export function useRejectLeave() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
     },
   })
 }
@@ -147,13 +170,56 @@ export function useRejectLeave() {
 export function useCancelLeave() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await apiClient.patch(`/leave/applications/${id}/cancel`)
+    mutationFn: async ({ id, cancelReason }: { id: string; cancelReason?: string }) => {
+      const { data } = await apiClient.patch(`/leave/applications/${id}/cancel`, { cancelReason })
       return data.data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
       qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
+    },
+  })
+}
+
+export function useApproveCancelLeave() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await apiClient.patch(`/leave/applications/${id}/cancel-approve`)
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leave'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
+      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+    },
+  })
+}
+
+export function useRejectCancelLeave() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data } = await apiClient.patch(`/leave/applications/${id}/cancel-reject`, { reason })
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leave'] })
+      qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
+    },
+  })
+}
+
+export function useUpdateCancelReason() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, cancelReason }: { id: string; cancelReason: string }) => {
+      const { data } = await apiClient.patch(`/leave/applications/${id}/cancel-reason`, { cancelReason })
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leave'] })
     },
   })
 }
