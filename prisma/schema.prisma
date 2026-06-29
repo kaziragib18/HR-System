@@ -277,6 +277,10 @@ model Attendance {
   deviceId              String?
   remarks               String?
   approvedById          String?
+  lateExcuse            String?   // employee-submitted reason for late > 30 min
+  excuseStatus          String?   // PENDING | APPROVED | REJECTED
+  excuseReviewedAt      DateTime?
+  excuseReviewedBy      String?   // employeeId of reviewing manager
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -325,6 +329,8 @@ model LeaveApplication {
   endDate           DateTime  @db.Date
   totalDays         Decimal   @db.Decimal(5, 1)
   reason            String?
+  consumeType       String    @default("FULL_DAY") // LeaveConsumeType enum
+  location          String?
   status            String    @default("PENDING") // LeaveStatus enum
   approvalLevel     Int       @default(1)
   currentApproverId String?
@@ -333,7 +339,11 @@ model LeaveApplication {
   rejectedById      String?
   rejectedAt        DateTime?
   rejectionReason   String?
-  cancelledAt       DateTime?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  cancelRequestedAt   DateTime?
+  cancelApprovedById  String?
+  cancelApprovedAt    DateTime?
   attachmentPath    String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

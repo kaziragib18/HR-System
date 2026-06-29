@@ -112,7 +112,10 @@ async function main() {
       isPaid: true,
       isCarryForward: true,
       maxCarryForward: 10,
-      approvalChain: [{ level: 1, role: 'TEAM_LEAD' }, { level: 2, role: 'HR_MANAGER' }],
+      approvalChain: [
+        { level: 1, role: 'TEAM_LEAD' },
+        { level: 2, role: 'HR_MANAGER' },
+      ],
     },
     {
       code: 'SL',
@@ -164,7 +167,10 @@ async function main() {
       isPaid: true,
       isCarryForward: true,
       maxCarryForward: 10,
-      approvalChain: [{ level: 1, role: 'TEAM_LEAD' }, { level: 2, role: 'HR_MANAGER' }],
+      approvalChain: [
+        { level: 1, role: 'TEAM_LEAD' },
+        { level: 2, role: 'HR_MANAGER' },
+      ],
     },
     {
       code: 'SL',
@@ -194,48 +200,68 @@ async function main() {
 
   console.log('✓ Leave types seeded')
 
-  // ─── Public Holidays 2025 (BD) ───────────────────────────────────────────
-  const bdHolidays2025 = [
-    { name: 'New Year\'s Day', date: '2025-01-01' },
-    { name: 'International Mother Language Day', date: '2025-02-21' },
-    { name: 'Independence Day', date: '2025-03-26' },
-    { name: 'Bengali New Year (Pohela Boishakh)', date: '2025-04-14' },
-    { name: 'Eid ul-Fitr (Day 1)', date: '2025-03-31' },
-    { name: 'Eid ul-Fitr (Day 2)', date: '2025-04-01' },
-    { name: 'Eid ul-Adha (Day 1)', date: '2025-06-07' },
-    { name: 'Eid ul-Adha (Day 2)', date: '2025-06-08' },
-    { name: 'National Mourning Day', date: '2025-08-15' },
-    { name: 'Victory Day', date: '2025-12-16' },
+  // ─── Public Holidays 2026 ─────────────────────────────────────────────────
+  // Clear stale 2026 records before reinserting with correct dates
+  await prisma.publicHoliday.deleteMany({ where: { officeId: bdOffice.id, year: 2026 } })
+  await prisma.publicHoliday.deleteMany({ where: { officeId: ukOffice.id, year: 2026 } })
+
+  const bdHolidays2026 = [
+    { name: 'Shab-e-Barat',                     date: '2026-02-04' },
+    { name: 'International Mother Language Day', date: '2026-02-21' },
+    { name: 'Shab-e-Qadar',                      date: '2026-03-17' },
+    { name: 'Eid-Ul-Fitr (Day 1)',               date: '2026-03-20' },
+    { name: 'Eid-Ul-Fitr (Day 2)',               date: '2026-03-21' },
+    { name: 'Eid-Ul-Fitr (Day 3)',               date: '2026-03-22' },
+    { name: 'Eid-Ul-Fitr (Day 4)',               date: '2026-03-23' },
+    { name: 'Independence Day',                  date: '2026-03-26' },
+    { name: 'Bengali New Year',                  date: '2026-04-14' },
+    { name: 'May Day / Buddha Purnima',          date: '2026-05-01' },
+    { name: 'Eid-Ul-Adha (Day 1)',               date: '2026-05-27' },
+    { name: 'Eid-Ul-Adha (Day 2)',               date: '2026-05-28' },
+    { name: 'Eid-Ul-Adha (Day 3)',               date: '2026-05-29' },
+    { name: 'Eid-Ul-Adha (Day 4)',               date: '2026-05-30' },
+    { name: 'July Mass Uprising Day',            date: '2026-08-05' },
+    { name: 'Eid-e-Miladunnabi',                 date: '2026-08-26' },
+    { name: 'Durga Puja (Day 1)',                date: '2026-10-20' },
+    { name: 'Durga Puja (Day 2)',                date: '2026-10-21' },
+    { name: 'Victory Day',                       date: '2026-12-16' },
   ]
 
-  for (const h of bdHolidays2025) {
-    await prisma.publicHoliday.upsert({
-      where: { officeId_date: { officeId: bdOffice.id, date: new Date(h.date) } },
-      update: {},
-      create: { name: h.name, date: new Date(h.date), year: 2025, officeId: bdOffice.id },
-    })
-  }
+  await prisma.publicHoliday.createMany({
+    data: bdHolidays2026.map(h => ({
+      name: h.name,
+      date: new Date(h.date),
+      year: 2026,
+      officeId: bdOffice.id,
+      isRecurring: false,
+    })),
+  })
 
-  const ukHolidays2025 = [
-    { name: 'New Year\'s Day', date: '2025-01-01' },
-    { name: 'Good Friday', date: '2025-04-18' },
-    { name: 'Easter Monday', date: '2025-04-21' },
-    { name: 'Early May Bank Holiday', date: '2025-05-05' },
-    { name: 'Spring Bank Holiday', date: '2025-05-26' },
-    { name: 'Summer Bank Holiday', date: '2025-08-25' },
-    { name: 'Christmas Day', date: '2025-12-25' },
-    { name: 'Boxing Day', date: '2025-12-26' },
+  const ukHolidays2026 = [
+    { name: "New Year's Day",        date: '2026-01-01' },
+    { name: 'Good Friday',           date: '2026-04-03' },
+    { name: 'Easter Monday',         date: '2026-04-06' },
+    { name: 'Early May Bank Holiday',date: '2026-05-04' },
+    { name: 'Spring Bank Holiday',   date: '2026-05-25' },
+    { name: 'Summer Bank Holiday',   date: '2026-08-31' },
+    { name: 'Christmas Day',         date: '2026-12-25' },
+    { name: 'Boxing Day',            date: '2026-12-28' },
+    { name: 'Christmas Break (Day 1)',date: '2026-12-29' },
+    { name: 'Christmas Break (Day 2)',date: '2026-12-30' },
+    { name: 'Christmas Break (Day 3)',date: '2026-12-31' },
   ]
 
-  for (const h of ukHolidays2025) {
-    await prisma.publicHoliday.upsert({
-      where: { officeId_date: { officeId: ukOffice.id, date: new Date(h.date) } },
-      update: {},
-      create: { name: h.name, date: new Date(h.date), year: 2025, officeId: ukOffice.id },
-    })
-  }
+  await prisma.publicHoliday.createMany({
+    data: ukHolidays2026.map(h => ({
+      name: h.name,
+      date: new Date(h.date),
+      year: 2026,
+      officeId: ukOffice.id,
+      isRecurring: false,
+    })),
+  })
 
-  console.log('✓ Public holidays seeded')
+  console.log('✓ Public holidays 2026 seeded (BD: 19, UK: 11)')
 
   // ─── Super Admin Employee + User ─────────────────────────────────────────
   const hrDeptId = createdDepts['BD-HR']
@@ -269,6 +295,74 @@ async function main() {
   })
 
   console.log('✓ Super admin seeded (email: admin@company.com, password: Admin@123)')
+
+  // ─── Job-grade salary structures ─────────────────────────────────────────
+  // These are defaults: any employee assigned to a grade inherits these
+  // amounts unless they have an employee-specific structure.
+  const bdGradeSalaries = [
+    { level: 1, basicSalary: 25000 },   // L1 Junior
+    { level: 2, basicSalary: 40000 },   // L2 Mid
+    { level: 3, basicSalary: 60000 },   // L3 Senior
+    { level: 4, basicSalary: 85000 },   // L4 Lead
+    { level: 5, basicSalary: 120000 },  // L5 Principal
+    { level: 6, basicSalary: 180000 },  // L6 Director
+  ]
+
+  // BD allowances: 40% house rent + 10% medical on basic
+  const bdComponents = [
+    { name: 'House Rent Allowance', type: 'ALLOWANCE', amount: 40, isPercentage: true },
+    { name: 'Medical Allowance', type: 'ALLOWANCE', amount: 10, isPercentage: true },
+  ]
+
+  for (const { level, basicSalary } of bdGradeSalaries) {
+    const grade = await prisma.jobGrade.findFirst({ where: { officeId: bdOffice.id, level } })
+    if (!grade) continue
+    const existing = await prisma.salaryStructure.findFirst({ where: { jobGradeId: grade.id, employeeId: null } })
+    if (!existing) {
+      await prisma.salaryStructure.create({
+        data: {
+          jobGradeId: grade.id,
+          basicSalary,
+          currency: 'BDT',
+          components: bdComponents,
+          effectiveFrom: new Date('2024-01-01'),
+        },
+      })
+    }
+  }
+
+  const ukGradeSalaries = [
+    { level: 1, basicSalary: 2500 },
+    { level: 2, basicSalary: 3500 },
+    { level: 3, basicSalary: 5000 },
+    { level: 4, basicSalary: 7000 },
+    { level: 5, basicSalary: 9000 },
+    { level: 6, basicSalary: 12000 },
+  ]
+
+  // UK allowances: 5% London allowance on basic
+  const ukComponents = [
+    { name: 'London Allowance', type: 'ALLOWANCE', amount: 5, isPercentage: true },
+  ]
+
+  for (const { level, basicSalary } of ukGradeSalaries) {
+    const grade = await prisma.jobGrade.findFirst({ where: { officeId: ukOffice.id, level } })
+    if (!grade) continue
+    const existing = await prisma.salaryStructure.findFirst({ where: { jobGradeId: grade.id, employeeId: null } })
+    if (!existing) {
+      await prisma.salaryStructure.create({
+        data: {
+          jobGradeId: grade.id,
+          basicSalary,
+          currency: 'GBP',
+          components: ukComponents,
+          effectiveFrom: new Date('2024-01-01'),
+        },
+      })
+    }
+  }
+
+  console.log('✓ Job-grade salary structures seeded (BD + UK, all 6 levels)')
   console.log('\n⚠️  Change the admin password immediately after first login!')
   console.log('\nDone! Database is ready.')
 }

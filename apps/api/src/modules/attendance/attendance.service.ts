@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../config/prisma'
-import { computeAttendanceStatus } from '@hr-system/utils'
+import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
 import { AttendanceStatus, AttendanceSource, NotificationType } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
@@ -8,6 +8,10 @@ import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery } from './a
 
 export class AttendanceError extends Error {
   constructor(message: string, public status = 400) { super(message) }
+}
+
+function shiftForOfficeCode(code: string): ShiftConfig {
+  return code === 'BD' ? BD_SHIFT : UK_SHIFT
 }
 
 function toDateOnly(d: Date | string): Date {
@@ -49,12 +53,16 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
     throw new AttendanceError('Already checked in today')
   }
 
-  const holiday = await isHoliday(officeId, today)
-  const onLeave = await isOnApprovedLeave(employeeId, today)
+  const [office, holiday, onLeave] = await Promise.all([
+    prisma.office.findUnique({ where: { id: officeId }, select: { code: true } }),
+    isHoliday(officeId, today),
+    isOnApprovedLeave(employeeId, today),
+  ])
   const dow = today.getUTCDay()
   const weekend = dow === 0 || dow === 6
+  const shift = shiftForOfficeCode(office?.code ?? 'UK')
 
-  const computed = computeAttendanceStatus(now, null, holiday, weekend, onLeave)
+  const computed = computeAttendanceStatus(now, null, holiday, weekend, onLeave, shift)
 
   const record = await prisma.attendance.upsert({
     where: { employeeId_date: { employeeId, date: today } },
@@ -100,12 +108,16 @@ export async function selfCheckOut(employeeId: string, officeId: string, remarks
   if (!existing) throw new AttendanceError('No check-in found for today')
   if (existing.checkOut) throw new AttendanceError('Already checked out today')
 
-  const holiday = await isHoliday(officeId, today)
-  const onLeave = await isOnApprovedLeave(employeeId, today)
+  const [office, holiday, onLeave] = await Promise.all([
+    prisma.office.findUnique({ where: { id: officeId }, select: { code: true } }),
+    isHoliday(officeId, today),
+    isOnApprovedLeave(employeeId, today),
+  ])
   const dow = today.getUTCDay()
   const weekend = dow === 0 || dow === 6
+  const shift = shiftForOfficeCode(office?.code ?? 'UK')
 
-  const computed = computeAttendanceStatus(existing.checkIn, now, holiday, weekend, onLeave)
+  const computed = computeAttendanceStatus(existing.checkIn, now, holiday, weekend, onLeave, shift)
 
   return prisma.attendance.update({
     where: { id: existing.id },
@@ -292,6 +304,134 @@ export async function bulkImport(input: BulkImportInput) {
   }
 
   return results
+}
+
+/** Full calendar data for an employee: attendance records + leave applications for the month. */
+export async function myCalendar(employeeId: string, month: number, year: number) {
+  const start = new Date(Date.UTC(year, month - 1, 1))
+  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999))
+
+  const emp = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { office: { select: { code: true } } },
+  })
+  const shift = shiftForOfficeCode(emp?.office?.code ?? 'UK')
+
+  const [records, leaves] = await Promise.all([
+    prisma.attendance.findMany({
+      where: { employeeId, date: { gte: start, lte: end } },
+      select: {
+        id: true, date: true, status: true,
+        checkIn: true, checkOut: true,
+        lateMinutes: true, workingMinutes: true,
+        lateExcuse: true, excuseStatus: true,
+      },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.leaveApplication.findMany({
+      where: {
+        employeeId,
+        // Only active leaves — cancelled/cancel-requested must not appear on the calendar
+        status: { in: ['PENDING', 'APPROVED'] },
+        OR: [
+          { startDate: { gte: start, lte: end } },
+          { endDate: { gte: start, lte: end } },
+          { startDate: { lte: start }, endDate: { gte: end } },
+        ],
+      },
+      include: { leaveType: { select: { name: true, code: true } } },
+      orderBy: { startDate: 'asc' },
+    }),
+  ])
+
+  return {
+    records: records.map(r => ({
+      id: r.id,
+      date: r.date.toISOString().slice(0, 10),
+      status: r.status,
+      checkIn: r.checkIn?.toISOString() ?? null,
+      checkOut: r.checkOut?.toISOString() ?? null,
+      lateMinutes: r.lateMinutes,
+      workingMinutes: r.workingMinutes,
+      lateExcuse: r.lateExcuse,
+      excuseStatus: r.excuseStatus,
+    })),
+    leaves: leaves.map(l => ({
+      id: l.id,
+      startDate: (l.startDate as Date).toISOString().slice(0, 10),
+      endDate: (l.endDate as Date).toISOString().slice(0, 10),
+      type: l.leaveType.name,
+      code: l.leaveType.code,
+      status: l.status,
+      reason: l.reason ?? null,
+    })),
+    officeStartTime: shift.startTime,
+    officeEndTime: shift.endTime,
+  }
+}
+
+/** Employee submits an excuse for a LATE attendance record. */
+export async function submitLateExcuse(attendanceId: string, employeeId: string, excuse: string) {
+  const record = await prisma.attendance.findUnique({ where: { id: attendanceId } })
+  if (!record) throw new AttendanceError('Attendance record not found', 404)
+  if (record.employeeId !== employeeId) throw new AttendanceError('Forbidden', 403)
+  if (record.status !== 'LATE' && record.status !== 'HALF_DAY')
+    throw new AttendanceError('Can only submit excuse for LATE or HALF_DAY attendance', 400)
+  if (record.excuseStatus === 'APPROVED')
+    throw new AttendanceError('Excuse already approved', 400)
+
+  return prisma.attendance.update({
+    where: { id: attendanceId },
+    data: { lateExcuse: excuse, excuseStatus: 'PENDING' },
+  })
+}
+
+/** Manager reviews a late excuse and optionally changes the attendance status. */
+export async function reviewExcuse(attendanceId: string, managerId: string, approved: boolean, newStatus?: string) {
+  const record = await prisma.attendance.findUnique({ where: { id: attendanceId } })
+  if (!record) throw new AttendanceError('Attendance record not found', 404)
+  if (!record.lateExcuse) throw new AttendanceError('No excuse submitted for this record', 400)
+  if (record.excuseStatus !== 'PENDING') throw new AttendanceError('Excuse already reviewed', 400)
+
+  const updated = await prisma.attendance.update({
+    where: { id: attendanceId },
+    data: {
+      excuseStatus: approved ? 'APPROVED' : 'REJECTED',
+      excuseReviewedAt: new Date(),
+      excuseReviewedBy: managerId,
+      ...(approved && newStatus ? { status: newStatus } : {}),
+    },
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true } },
+    },
+  })
+
+  // Notify employee of the decision
+  await createNotification(
+    record.employeeId,
+    NotificationType.ATTENDANCE_FLAGGED,
+    approved ? 'Late excuse approved' : 'Late excuse rejected',
+    approved
+      ? 'Your late excuse has been approved by your manager.'
+      : 'Your late excuse was reviewed and not approved.'
+  )
+
+  return updated
+}
+
+/** List pending late excuses for manager review. */
+export async function listPendingExcuses(officeScope?: string) {
+  return prisma.attendance.findMany({
+    where: {
+      excuseStatus: 'PENDING',
+      ...(officeScope ? { employee: { officeId: officeScope } } : {}),
+    },
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true } },
+    },
+    orderBy: { date: 'desc' },
+    take: 50,
+  })
 }
 
 /** Summary stats for the attendance report page. */

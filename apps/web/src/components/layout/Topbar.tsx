@@ -2,18 +2,46 @@
 
 import { Bell } from 'lucide-react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useNotificationStore } from '@/store/notification.store'
 import { useAuthStore } from '@/store/auth.store'
 import { ThemeToggle } from './ThemeToggle'
 import { Avatar } from '@/components/ui/primitives'
 
+const ROUTE_LABELS: Record<string, string> = {
+  '/': 'Dashboard',
+  '/employees': 'Employees',
+  '/departments': 'Departments',
+  '/attendance': 'Attendance',
+  '/leave': 'My Leave',
+  '/leave/approvals': 'Leave Approvals',
+  '/timesheets': 'Timesheets',
+  '/payroll': 'Payroll',
+  '/payroll/my-payslips': 'My Payslips',
+  '/salary': 'Salary Management',
+  '/documents': 'Documents',
+  '/notifications': 'Notifications',
+  '/settings': 'Settings',
+}
+
+function getRouteLabel(pathname: string): string {
+  if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname]
+  // Match prefix (e.g. /employees/123 → Employees)
+  for (const [route, label] of Object.entries(ROUTE_LABELS)) {
+    if (route !== '/' && pathname.startsWith(route)) return label
+  }
+  return ''
+}
+
 export function Topbar() {
   const { unreadCount } = useNotificationStore()
   const { user } = useAuthStore()
+  const pathname = usePathname()
+  const routeLabel = getRouteLabel(pathname)
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card/60 px-6 backdrop-blur">
-      <div />
+      <span className="text-sm font-medium text-foreground">{routeLabel}</span>
       <div className="flex items-center gap-1">
         <ThemeToggle />
         <Link

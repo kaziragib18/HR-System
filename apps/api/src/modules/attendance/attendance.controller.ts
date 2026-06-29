@@ -4,7 +4,7 @@ import { AttendanceError } from './attendance.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery } from './attendance.schemas'
+import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, LateExcuseInput, ReviewExcuseInput } from './attendance.schemas'
 
 function user(req: Request) { return (req as AuthRequest).user }
 function scope(req: Request) { return (req as OfficeScopedRequest).officeScope }
@@ -73,5 +73,40 @@ export async function bulkImport(req: Request, res: Response) {
   try {
     const result = await service.bulkImport(req.body as BulkImportInput)
     sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function getMyCalendar(req: Request, res: Response) {
+  try {
+    const now = new Date()
+    const month = parseInt(req.query.month as string) || now.getMonth() + 1
+    const year = parseInt(req.query.year as string) || now.getFullYear()
+    const result = await service.myCalendar(user(req).employeeId, month, year)
+    sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
+export async function submitLateExcuse(req: Request, res: Response) {
+  try {
+    const u = user(req)
+    const { excuse } = req.body as LateExcuseInput
+    const record = await service.submitLateExcuse(req.params.id, u.employeeId, excuse)
+    sendSuccess(res, record)
+  } catch (err) { handle(res, err) }
+}
+
+export async function reviewExcuse(req: Request, res: Response) {
+  try {
+    const u = user(req)
+    const { approved, newStatus } = req.body as ReviewExcuseInput
+    const record = await service.reviewExcuse(req.params.id, u.employeeId, approved, newStatus)
+    sendSuccess(res, record)
+  } catch (err) { handle(res, err) }
+}
+
+export async function listPendingExcuses(req: Request, res: Response) {
+  try {
+    const items = await service.listPendingExcuses(scope(req))
+    sendSuccess(res, items)
   } catch (err) { handle(res, err) }
 }

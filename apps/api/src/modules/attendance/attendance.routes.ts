@@ -5,7 +5,7 @@ import { requireRole } from '../../middleware/rbac.middleware'
 import { validate } from '../../middleware/validate.middleware'
 import { UserRole } from '@hr-system/types'
 import * as ctrl from './attendance.controller'
-import { checkInSchema, checkOutSchema, manualEntrySchema, bulkImportSchema, listAttendanceQuery } from './attendance.schemas'
+import { checkInSchema, checkOutSchema, manualEntrySchema, bulkImportSchema, listAttendanceQuery, calendarQuery, lateExcuseSchema, reviewExcuseSchema } from './attendance.schemas'
 
 export const attendanceRouter: RouterType = Router()
 
@@ -15,9 +15,13 @@ attendanceRouter.use(authenticate)
 attendanceRouter.post('/check-in', validate(checkInSchema), ctrl.checkIn)
 attendanceRouter.post('/check-out', validate(checkOutSchema), ctrl.checkOut)
 attendanceRouter.get('/today', ctrl.getToday)
+attendanceRouter.get('/me/calendar', validate(calendarQuery, 'query'), ctrl.getMyCalendar)
 attendanceRouter.get('/me', ctrl.getMyMonth)
+attendanceRouter.patch('/me/:id/late-excuse', validate(lateExcuseSchema), ctrl.submitLateExcuse)
 
-// Manager/HR — list all + manual entry
+// Manager/HR — list all + manual entry + excuse review
+attendanceRouter.get('/late-excuses', officeScope, requireRole(UserRole.TEAM_LEAD), ctrl.listPendingExcuses)
+attendanceRouter.patch('/:id/review-excuse', officeScope, requireRole(UserRole.TEAM_LEAD), validate(reviewExcuseSchema), ctrl.reviewExcuse)
 attendanceRouter.get('/', officeScope, requireRole(UserRole.TEAM_LEAD), validate(listAttendanceQuery, 'query'), ctrl.list)
 attendanceRouter.post('/', officeScope, requireRole(UserRole.HR_MANAGER), validate(manualEntrySchema), ctrl.manualEntry)
 attendanceRouter.post('/bulk-import', requireRole(UserRole.HR_MANAGER), validate(bulkImportSchema), ctrl.bulkImport)

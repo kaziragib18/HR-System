@@ -8,6 +8,7 @@ export interface Holiday {
   date: string
   year: number
   isRecurring: boolean
+  office: { code: string; name: string }
 }
 
 export function useHolidays(year: number) {

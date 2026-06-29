@@ -40,8 +40,25 @@ export const listAttendanceQuery = z.object({
   limit: z.coerce.number().min(1).max(100).default(31),
 })
 
+export const calendarQuery = z.object({
+  month: z.coerce.number().min(1).max(12).optional(),
+  year: z.coerce.number().min(2020).max(2099).optional(),
+})
+
+export const lateExcuseSchema = z.object({
+  excuse: z.string().min(5).max(1000),
+})
+
+export const reviewExcuseSchema = z.object({
+  approved: z.boolean(),
+  newStatus: z.string().optional(),  // e.g. "PRESENT" when approving
+})
+
 export type CheckInInput = z.infer<typeof checkInSchema>
 export type CheckOutInput = z.infer<typeof checkOutSchema>
 export type ManualEntryInput = z.infer<typeof manualEntrySchema>
 export type BulkImportInput = z.infer<typeof bulkImportSchema>
 export type ListAttendanceQuery = z.infer<typeof listAttendanceQuery>
+export type CalendarQuery = z.infer<typeof calendarQuery>
+export type LateExcuseInput = z.infer<typeof lateExcuseSchema>
+export type ReviewExcuseInput = z.infer<typeof reviewExcuseSchema>

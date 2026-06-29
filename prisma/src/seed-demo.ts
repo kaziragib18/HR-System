@@ -78,6 +78,7 @@ async function cleanup() {
   await prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.timesheetEntry.deleteMany({ where: { timesheet: { employeeId: { in: ids } } } })
   await prisma.timesheet.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.payrollEntry.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.notification.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.onboardingTask.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.bankInfo.deleteMany({ where: { employeeId: { in: ids } } })
@@ -308,21 +309,29 @@ async function main() {
         status = 'ON_LEAVE'
       } else {
         const roll = seededRoll(empIdx, offset)
+        const isBD = e.officeCode === 'BD'
+        // BD: shift 13:30–22:00, UK: shift 09:00–17:00
+        const shiftStartH = isBD ? 13 : 9
+        const shiftStartM = isBD ? 30 : 0
+        const shiftEndH   = isBD ? 22 : 17
+        const shiftDurMins = isBD ? (22 - 13) * 60 - 30 : (17 - 9) * 60  // 510 for BD, 480 for UK
+
         if (roll < 0.05) {
           status = 'ABSENT'
         } else if (roll < 0.18) {
           status = 'LATE'
           const lateBy = 16 + (empIdx * 7 + offset * 3) % 35
-          checkIn = atTime(day, 9, lateBy)
-          checkOut = atTime(day, 18, (empIdx + offset) % 30)
+          checkIn = atTime(day, shiftStartH, shiftStartM + lateBy)
+          checkOut = atTime(day, shiftEndH, (empIdx + offset) % 30)
           lateMinutes = lateBy - 15
           workingMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60000)
         } else {
           status = 'PRESENT'
-          checkIn = atTime(day, 8, 50 + (empIdx + offset) % 15)
-          checkOut = atTime(day, 18, (empIdx * 3 + offset) % 45)
+          const earlyMins = (empIdx + offset) % 15  // arrive 0–14 min before shift start
+          checkIn = atTime(day, shiftStartH, shiftStartM - earlyMins)
+          checkOut = atTime(day, shiftEndH, (empIdx * 3 + offset) % 45)
           workingMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60000)
-          overtimeMinutes = Math.max(0, workingMinutes - 540)
+          overtimeMinutes = Math.max(0, workingMinutes - shiftDurMins)
         }
       }
 
@@ -332,6 +341,204 @@ async function main() {
 
   await prisma.attendance.createMany({ data: attendanceRows })
   console.log(`✓ Created ${attendanceRows.length} attendance records (last 30 days)`)
+
+  // ── Payroll: current month (PAID) ────────────────────────────────────────────
+  const now = new Date()
+  const PM = now.getMonth() + 1
+  const PY = now.getFullYear()
+
+  // Remove any existing payroll runs for this month/offices so the seed is re-runnable
+  await prisma.payrollRun.deleteMany({
+    where: { month: PM, year: PY, officeId: { in: [officeByCode['BD'].id, officeByCode['UK'].id] } },
+  })
+
+  // ── Tax helpers ───────────────────────────────────────────────────────────────
+  function bdTax(annualGross: number) {
+    const SLABS = [
+      { from: 0,       to: 350000  as number | undefined, rate: 0,    label: 'First BDT 3,50,000' },
+      { from: 350000,  to: 450000  as number | undefined, rate: 0.05, label: 'Next BDT 1,00,000' },
+      { from: 450000,  to: 750000  as number | undefined, rate: 0.10, label: 'Next BDT 3,00,000' },
+      { from: 750000,  to: 1150000 as number | undefined, rate: 0.15, label: 'Next BDT 4,00,000' },
+      { from: 1150000, to: 1550000 as number | undefined, rate: 0.20, label: 'Next BDT 4,00,000' },
+      { from: 1550000, to: undefined,                     rate: 0.25, label: 'Above BDT 15,50,000' },
+    ]
+    let remaining = annualGross, total = 0
+    const slabs = []
+    for (const s of SLABS) {
+      if (remaining <= 0) break
+      const size = s.to !== undefined ? s.to - s.from : remaining
+      const taxable = Math.min(remaining, size)
+      const taxAmount = Math.round(taxable * s.rate)
+      total += taxAmount
+      slabs.push({ from: s.from, to: s.to, rate: s.rate, taxAmount, label: s.label })
+      remaining -= taxable
+    }
+    return { regime: 'BD_INCOME_TAX', taxableIncome: annualGross, totalTax: total, slabs }
+  }
+
+  function calcSlabTax(gross: number, slabs: Array<{ from: number; to: number | undefined; rate: number; label: string }>) {
+    let total = 0
+    const result = []
+    for (const s of slabs) {
+      if (gross <= s.from) break
+      const taxable = s.to !== undefined ? Math.min(gross, s.to) - s.from : gross - s.from
+      const taxAmount = Math.round(Math.max(0, taxable) * s.rate)
+      total += taxAmount
+      result.push({ from: s.from, to: s.to, rate: s.rate, taxAmount, label: s.label })
+    }
+    return { total, slabs: result }
+  }
+
+  function ukTax(annualGross: number) {
+    const taxSlabs = [
+      { from: 0,      to: 12570   as number | undefined, rate: 0,    label: 'Tax: Personal allowance' },
+      { from: 12570,  to: 50270   as number | undefined, rate: 0.20, label: 'Tax: Basic rate (20%)' },
+      { from: 50270,  to: 125140  as number | undefined, rate: 0.40, label: 'Tax: Higher rate (40%)' },
+      { from: 125140, to: undefined,                     rate: 0.45, label: 'Tax: Additional rate (45%)' },
+    ]
+    const niSlabs = [
+      { from: 0,     to: 12570  as number | undefined, rate: 0,    label: 'NI: Below Primary Threshold' },
+      { from: 12570, to: 50270  as number | undefined, rate: 0.08, label: 'NI: Primary rate (8%)' },
+      { from: 50270, to: undefined,                    rate: 0.02, label: 'NI: Above Upper Earnings Limit (2%)' },
+    ]
+    const tax = calcSlabTax(annualGross, taxSlabs)
+    const ni  = calcSlabTax(annualGross, niSlabs)
+    return {
+      regime: 'UK_PAYE',
+      taxableIncome: Math.max(0, annualGross - 12570),
+      totalTax: tax.total + ni.total,
+      slabs: [...tax.slabs, ...ni.slabs],
+    }
+  }
+
+  // ── BD payroll ────────────────────────────────────────────────────────────────
+  // [key, basicSalary (BDT/mo), presentDays, leaveDays]
+  const BD_PAY: Array<[string, number, number, number]> = [
+    ['sarah',  120000, 21, 0],
+    ['imran',  120000, 22, 0],
+    ['mahmud', 120000, 21, 0],
+    ['tanvir',  85000, 22, 0],
+    ['karim',   60000, 18, 2], // 2 days approved leave this month
+    ['nusrat',  40000, 19, 1], // 1 day approved leave
+    ['rakib',   40000, 20, 0],
+    ['fatema',  60000, 22, 0],
+    ['sadia',   40000, 21, 0],
+    ['rina',    40000, 21, 0],
+    ['shuvo',   25000, 20, 0],
+  ]
+  const WORKING_DAYS = 22
+
+  const bdRun = await prisma.payrollRun.create({
+    data: {
+      officeId: officeByCode['BD'].id,
+      month: PM, year: PY,
+      status: 'PAID',
+      currency: 'BDT',
+      totalGross: 0, totalNet: 0, totalTax: 0,
+      employeeCount: BD_PAY.length,
+      processedAt: now,
+      approvedAt: now,
+      approvedById: idByKey['sarah'],
+    },
+  })
+
+  let bdGross = 0, bdTax_ = 0, bdNet = 0
+  for (const [key, basic, presentDays, leaveDays] of BD_PAY) {
+    if (!idByKey[key]) continue
+    const allowances = Math.round(basic * 0.5)          // 40% HRA + 10% medical
+    const gross = basic + allowances
+    const tbd = bdTax(gross * 12)
+    const monthlyTax = Math.round(tbd.totalTax / 12)
+    const pf = Math.round(basic * 0.1)
+    const absentDays = Math.max(0, WORKING_DAYS - presentDays - leaveDays)
+    const absentDeduction = Math.round((gross / WORKING_DAYS) * absentDays)
+    const finalGross = gross - absentDeduction
+    const netSalary = Math.max(0, finalGross - monthlyTax - pf)
+
+    await prisma.payrollEntry.create({
+      data: {
+        payrollRunId: bdRun.id,
+        employeeId: idByKey[key],
+        grossSalary: finalGross,
+        basicSalary: basic,
+        allowances,
+        overtimePay: 0,
+        deductions: absentDeduction,
+        taxAmount: monthlyTax,
+        pfContribution: pf,
+        netSalary,
+        currency: 'BDT',
+        workingDays: WORKING_DAYS,
+        presentDays,
+        leaveDays,
+        overtimeMinutes: 0,
+        taxBreakdown: tbd,
+      },
+    })
+    bdGross += finalGross; bdTax_ += monthlyTax; bdNet += netSalary
+  }
+  await prisma.payrollRun.update({ where: { id: bdRun.id }, data: { totalGross: bdGross, totalTax: bdTax_, totalNet: bdNet } })
+  console.log(`✓ BD payroll run ${PM}/${PY} (PAID) — ${BD_PAY.length} employees, BDT ${bdNet.toLocaleString()} net`)
+
+  // ── UK payroll ────────────────────────────────────────────────────────────────
+  // [key, basicSalary (GBP/mo), presentDays]
+  const UK_PAY: Array<[string, number, number]> = [
+    ['sophie', 9000, 22],
+    ['james',  9000, 21],
+    ['emily',  5000, 22],
+    ['oliver', 3500, 20],
+  ]
+
+  const ukRun = await prisma.payrollRun.create({
+    data: {
+      officeId: officeByCode['UK'].id,
+      month: PM, year: PY,
+      status: 'PAID',
+      currency: 'GBP',
+      totalGross: 0, totalNet: 0, totalTax: 0,
+      employeeCount: UK_PAY.length,
+      processedAt: now,
+      approvedAt: now,
+      approvedById: idByKey['sophie'],
+    },
+  })
+
+  let ukGross = 0, ukTax_ = 0, ukNet = 0
+  for (const [key, basic, presentDays] of UK_PAY) {
+    if (!idByKey[key]) continue
+    const londonAllowance = Math.round(basic * 0.05)    // 5% London allowance
+    const gross = basic + londonAllowance
+    const tbd = ukTax(gross * 12)
+    const monthlyTax = Math.round(tbd.totalTax / 12)
+    const absentDays = Math.max(0, WORKING_DAYS - presentDays)
+    const absentDeduction = Math.round((gross / WORKING_DAYS) * absentDays)
+    const finalGross = gross - absentDeduction
+    const netSalary = Math.max(0, finalGross - monthlyTax)
+
+    await prisma.payrollEntry.create({
+      data: {
+        payrollRunId: ukRun.id,
+        employeeId: idByKey[key],
+        grossSalary: finalGross,
+        basicSalary: basic,
+        allowances: londonAllowance,
+        overtimePay: 0,
+        deductions: absentDeduction,
+        taxAmount: monthlyTax,
+        pfContribution: 0,
+        netSalary,
+        currency: 'GBP',
+        workingDays: WORKING_DAYS,
+        presentDays,
+        leaveDays: 0,
+        overtimeMinutes: 0,
+        taxBreakdown: tbd,
+      },
+    })
+    ukGross += finalGross; ukTax_ += monthlyTax; ukNet += netSalary
+  }
+  await prisma.payrollRun.update({ where: { id: ukRun.id }, data: { totalGross: ukGross, totalTax: ukTax_, totalNet: ukNet } })
+  console.log(`✓ UK payroll run ${PM}/${PY} (PAID) — ${UK_PAY.length} employees, GBP ${ukNet.toLocaleString()} net`)
 
   console.log('\n──────────────────────────────────────────────')
   console.log('Demo logins (all in the BD/UK demo dataset):')

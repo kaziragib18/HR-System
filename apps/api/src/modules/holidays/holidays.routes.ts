@@ -21,13 +21,21 @@ const createSchema = z.object({
 const listQuerySchema = z.object({
   year: z.coerce.number().optional(),
   officeId: z.string().optional(),
+  officeCode: z.string().optional(),
 })
 
 router.get('/', validate(listQuerySchema, 'query'), async (req: Request, res: Response) => {
-  const scope = (req as OfficeScopedRequest).officeScope
   const year = req.query.year ? Number(req.query.year) : new Date().getFullYear()
+  const officeCode = req.query.officeCode as string | undefined
+
+  // Holidays are public info — no office scope filter on listing.
+  // Optionally filter by officeCode (e.g. "BD" or "UK").
   const holidays = await prisma.publicHoliday.findMany({
-    where: { year, ...(scope ? { officeId: scope } : {}) },
+    where: {
+      year,
+      ...(officeCode ? { office: { code: officeCode } } : {}),
+    },
+    include: { office: { select: { code: true, name: true } } },
     orderBy: { date: 'asc' },
   })
   sendSuccess(res, holidays)

@@ -35,7 +35,10 @@ function findUserWithEmployee(where: { id: string } | { email: string }) {
     where: where as { id: string },
     include: {
       employee: {
-        include: { office: true },
+        include: {
+          office: true,
+          department: { select: { name: true } },
+        },
       },
     },
   })
@@ -53,6 +56,7 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
     lastName: user.employee.lastName,
     avatarUrl: user.employee.avatarUrl,
     isTwoFactorEnabled: user.isTwoFactorEnabled,
+    departmentName: user.employee.department?.name ?? null,
   }
 }
 
