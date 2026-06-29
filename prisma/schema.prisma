@@ -20,6 +20,11 @@ model Office {
   currency   String   // "BDT" | "GBP"
   timezone   String   // "Asia/Dhaka" | "Europe/London"
   taxRegime  String   // "BD_INCOME_TAX" | "UK_PAYE"
+  address    String?
+  phone      String?
+  email      String?
+  website    String?
+  logoUrl    String?
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -158,10 +163,32 @@ model Employee {
   salaryStructures  SalaryStructure[]
   payrollEntries    PayrollEntry[]
   managedDepts      Department[]     @relation("DeptManager")
+  uploadedDocs      ComplianceDoc[]
 
   @@index([officeId])
   @@index([departmentId])
   @@index([employmentStatus])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLIANCE DOCUMENTS (company-wide, visible to all employees)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ComplianceDoc {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  storagePath  String   // Supabase Storage path in 'documents' bucket
+  mimeType     String?
+  fileSize     Int?
+  uploadedById String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  uploadedBy Employee @relation(fields: [uploadedById], references: [id])
+
+  @@index([uploadedById])
 }
 
 model BankInfo {

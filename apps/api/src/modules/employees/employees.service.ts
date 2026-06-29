@@ -120,7 +120,7 @@ export async function createEmployee(data: CreateEmployeeInput, createdById: str
         employeeId: emp.id,
         email: data.email,
         passwordHash,
-        role: UserRole.EMPLOYEE,
+        role: data.role ?? UserRole.EMPLOYEE,
       },
     })
 
@@ -134,22 +134,34 @@ export async function updateEmployee(id: string, officeScope: string | undefined
   await getEmployee(id, officeScope) // existence + scope check
 
   const { avatarStoragePath, ...rest } = data
-  const employee = await prisma.employee.update({
-    where: { id },
-    data: {
-      ...rest,
-      dateOfBirth: rest.dateOfBirth ? new Date(rest.dateOfBirth) : undefined,
-      joiningDate: rest.joiningDate ? new Date(rest.joiningDate) : undefined,
-      probationEndDate: rest.probationEndDate ? new Date(rest.probationEndDate) : undefined,
-      confirmationDate: rest.confirmationDate ? new Date(rest.confirmationDate) : undefined,
-      lastWorkingDay: rest.lastWorkingDay ? new Date(rest.lastWorkingDay) : undefined,
-      presentAddress: rest.presentAddress as Prisma.InputJsonValue | undefined,
-      permanentAddress: rest.permanentAddress as Prisma.InputJsonValue | undefined,
-      emergencyContact: rest.emergencyContact as Prisma.InputJsonValue | undefined,
-      avatarUrl: avatarStoragePath,
-    },
-    include: listInclude,
-  })
+  const isTerminating = rest.employmentStatus === 'TERMINATED'
+
+  const [employee] = await prisma.$transaction([
+    prisma.employee.update({
+      where: { id },
+      data: {
+        ...rest,
+        dateOfBirth: rest.dateOfBirth ? new Date(rest.dateOfBirth) : undefined,
+        joiningDate: rest.joiningDate ? new Date(rest.joiningDate) : undefined,
+        probationEndDate: rest.probationEndDate ? new Date(rest.probationEndDate) : undefined,
+        confirmationDate: rest.confirmationDate ? new Date(rest.confirmationDate) : undefined,
+        lastWorkingDay: rest.lastWorkingDay ? new Date(rest.lastWorkingDay) : undefined,
+        presentAddress: rest.presentAddress as Prisma.InputJsonValue | undefined,
+        permanentAddress: rest.permanentAddress as Prisma.InputJsonValue | undefined,
+        emergencyContact: rest.emergencyContact as Prisma.InputJsonValue | undefined,
+        avatarUrl: avatarStoragePath,
+      },
+      include: listInclude,
+    }),
+    // Suspend the user account and kill all sessions when terminated
+    ...(isTerminating
+      ? [
+          prisma.user.updateMany({ where: { employeeId: id }, data: { isActive: false } }),
+          prisma.session.updateMany({ where: { user: { employeeId: id } }, data: { isValid: false } }),
+        ]
+      : []),
+  ])
+
   return employee
 }
 

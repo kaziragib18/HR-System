@@ -31,13 +31,15 @@ export const bulkImportSchema = z.object({
 
 export const listAttendanceQuery = z.object({
   employeeId: z.string().optional(),
+  departmentId: z.string().optional(),
+  search: z.string().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   status: z.string().optional(),
   month: z.coerce.number().min(1).max(12).optional(),
   year: z.coerce.number().min(2020).max(2099).optional(),
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(31),
+  limit: z.coerce.number().min(1).max(2000).default(31),
 })
 
 export const calendarQuery = z.object({

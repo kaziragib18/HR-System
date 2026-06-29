@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { prisma } from '../../config/prisma'
 import * as service from './departments.service'
 import { DepartmentError } from './departments.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
@@ -88,6 +89,20 @@ export async function assignManager(req: Request, res: Response) {
     const dept = await service.assignManager(req.params.id, scope(req), managerId)
     await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Department', dept.id, undefined, { managerId })
     sendSuccess(res, dept)
+  } catch (err) {
+    handle(res, err)
+  }
+}
+
+export async function removeManager(req: Request, res: Response) {
+  try {
+    const dept = await service.getDepartment(req.params.id, scope(req))
+    const updated = await prisma.department.update({
+      where: { id: dept.id },
+      data: { managerId: null },
+    })
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Department', dept.id, undefined, { managerId: null })
+    sendSuccess(res, updated)
   } catch (err) {
     handle(res, err)
   }

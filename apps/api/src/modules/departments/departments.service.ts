@@ -12,13 +12,18 @@ export class DepartmentError extends Error {
 }
 
 export async function listDepartments(officeScope: string | undefined) {
-  const where: Prisma.DepartmentWhereInput = officeScope ? { officeId: officeScope } : {}
+  const where: Prisma.DepartmentWhereInput = {
+    isActive: true,
+    ...(officeScope ? { officeId: officeScope } : {}),
+  }
   return prisma.department.findMany({
     where,
     include: {
       office: { select: { id: true, code: true, name: true } },
       manager: { select: { id: true, firstName: true, lastName: true } },
-      _count: { select: { employees: true } },
+      jobTitles: { where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } },
+      // Only count non-terminated employees — terminated employees should not block deletion
+      _count: { select: { employees: { where: { employmentStatus: { not: 'TERMINATED' } } } } },
     },
     orderBy: { name: 'asc' },
   })
@@ -64,10 +69,19 @@ export async function updateDepartment(id: string, officeScope: string | undefin
 }
 
 export async function deactivateDepartment(id: string, officeScope: string | undefined) {
-  const dept = await getDepartment(id, officeScope)
-  if (dept._count.employees > 0) {
-    throw new DepartmentError('Cannot deactivate a department with active employees', 409)
+  await getDepartment(id, officeScope)
+
+  // Only active (non-terminated) employees block deletion
+  const activeCount = await prisma.employee.count({
+    where: { departmentId: id, employmentStatus: { not: 'TERMINATED' } },
+  })
+  if (activeCount > 0) {
+    throw new DepartmentError(
+      `Cannot delete: ${activeCount} active ${activeCount === 1 ? 'employee' : 'employees'} must be transferred to another department first`,
+      409
+    )
   }
+
   return prisma.department.update({ where: { id }, data: { isActive: false } })
 }
 

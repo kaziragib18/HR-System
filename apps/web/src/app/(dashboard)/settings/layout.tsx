@@ -7,16 +7,22 @@ import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 
 const TABS = [
-  { href: '/settings/profile', label: 'Profile' },
-  { href: '/settings/security', label: 'Security' },
-  { href: '/settings/holidays', label: 'Holidays', hrOnly: true },
+  { href: '/settings/profile',  label: 'Profile'      },
+  { href: '/settings/security', label: 'Security'     },
+  { href: '/settings/holidays', label: 'Holidays',  hrOnly: true },
+  { href: '/settings/company',  label: 'Company',   superAdminOnly: true },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user } = useAuthStore()
   const isHr = user && [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(user.role as UserRole)
-  const tabs = TABS.filter((t) => !t.hrOnly || isHr)
+  const isSa = user?.role === UserRole.SUPER_ADMIN
+  const tabs = TABS.filter((t) => {
+    if (t.superAdminOnly && !isSa) return false
+    if (t.hrOnly && !isHr) return false
+    return true
+  })
 
   return (
     <div>

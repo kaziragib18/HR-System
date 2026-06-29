@@ -11,8 +11,13 @@ export interface DashboardStats {
 }
 
 export interface HeadcountByDept {
+  id: string
   department: string
+  code: string
+  officeCode: string
   count: number
+  manager: string | null
+  managerTitle: string | null
 }
 
 export function useDashboardStats() {

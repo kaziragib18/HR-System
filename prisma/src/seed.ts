@@ -69,39 +69,74 @@ async function main() {
 
   console.log('✓ Job grades seeded')
 
-  // ─── Departments (BD) ────────────────────────────────────────────────────
+  // ─── Departments ─────────────────────────────────────────────────────────
+  // Rename legacy location-prefixed codes to clean codes, then upsert.
+  const codeRenames: Record<string, string> = {
+    'BD-ACC':   'ACC',
+    'BD-ADM':   'ADM',
+    'BD-FIN':   'FIN',
+    'BD-HR':    'HR',
+    'BD-IT':    'IT',
+    'BD-IT-SW': 'IT-SW',
+    'BD-IT-TS': 'IT-TS',
+    'BD-IT-WD': 'IT-WD',
+  }
+  for (const [oldCode, newCode] of Object.entries(codeRenames)) {
+    await prisma.department.updateMany({ where: { code: oldCode }, data: { code: newCode } })
+  }
+
+  // Remove any leftover location-specific departments
+  await prisma.department.deleteMany({
+    where: { code: { in: ['UK-HR', 'UK-FIN', 'UK-ENG', 'BD-ENG'] } },
+  })
+
   const depts = [
-    { name: 'Engineering', code: 'BD-ENG' },
-    { name: 'Human Resources', code: 'BD-HR' },
-    { name: 'Finance', code: 'BD-FIN' },
-    { name: 'Operations', code: 'BD-OPS' },
+    { name: 'Accounts',                   code: 'ACC'   },
+    { name: 'Admissions',                 code: 'ADM'   },
+    { name: 'Finance',                    code: 'FIN'   },
+    { name: 'Human Resources',            code: 'HR'    },
+    { name: 'Information Technology',     code: 'IT'    },
+    { name: 'IT (Software Development)',  code: 'IT-SW' },
+    { name: 'IT (Tech Support)',          code: 'IT-TS' },
+    { name: 'IT (Web Development)',       code: 'IT-WD' },
   ]
 
   const createdDepts: Record<string, string> = {}
   for (const dept of depts) {
     const d = await prisma.department.upsert({
-      where: { code: dept.code },
-      update: {},
+      where:  { code: dept.code },
+      update: { name: dept.name },
       create: { ...dept, officeId: bdOffice.id },
     })
     createdDepts[dept.code] = d.id
   }
 
-  const ukDepts = [
-    { name: 'Engineering', code: 'UK-ENG' },
-    { name: 'Human Resources', code: 'UK-HR' },
-  ]
+  console.log('✓ Departments seeded')
 
-  for (const dept of ukDepts) {
-    const d = await prisma.department.upsert({
-      where: { code: dept.code },
-      update: {},
-      create: { ...dept, officeId: ukOffice.id },
-    })
-    createdDepts[dept.code] = d.id
+  // ─── Job Titles ───────────────────────────────────────────────────────────
+  const jobTitlesByDept: Record<string, string[]> = {
+    'ACC':   ['Director of Finance and Accounts', 'Assistant Accounts Manager', 'Accounts Team Leader', 'Accounts Assistant'],
+    'ADM':   ['Director of Operations and Business Development', 'Senior Admissions Officer', 'Admissions Officer & Interviewer', 'Admissions Coordinator'],
+    'FIN':   ['Lead Payments Officer', 'Payments Officer'],
+    'HR':    ['Director of People Experience', 'HR Assistant Manager', 'HR Assistant'],
+    'IT':    ['Director of IT', 'IT Manager', 'System Administrator'],
+    'IT-SW': ['Software Engineering Manager', 'Senior PHP Developer', 'React Developer'],
+    'IT-TS': ['Project Manager', 'Infrastructure Technician', 'Cloud Engineer', 'IT Technician', 'Tech Support Specialist', 'Tech Support'],
+    'IT-WD': ['Line Manager', 'Web Developer', 'UI/UX Designer'],
   }
 
-  console.log('✓ Departments seeded')
+  for (const [deptCode, titles] of Object.entries(jobTitlesByDept)) {
+    const deptId = createdDepts[deptCode]
+    if (!deptId) continue
+    for (const name of titles) {
+      const existing = await prisma.jobTitle.findFirst({ where: { name, departmentId: deptId } })
+      if (!existing) {
+        await prisma.jobTitle.create({ data: { name, departmentId: deptId } })
+      }
+    }
+  }
+
+  console.log('✓ Job titles seeded')
 
   // ─── Leave Types (BD) ────────────────────────────────────────────────────
   const bdLeaveTypes = [
@@ -264,7 +299,7 @@ async function main() {
   console.log('✓ Public holidays 2026 seeded (BD: 19, UK: 11)')
 
   // ─── Super Admin Employee + User ─────────────────────────────────────────
-  const hrDeptId = createdDepts['BD-HR']
+  const hrDeptId = createdDepts['HR']
 
   const adminEmployee = await prisma.employee.upsert({
     where: { employeeId: 'BD-2024-001' },

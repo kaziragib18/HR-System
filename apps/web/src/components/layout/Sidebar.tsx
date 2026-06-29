@@ -26,20 +26,22 @@ import {
   DollarSign,
 } from 'lucide-react'
 
+const SA = [UserRole.SUPER_ADMIN]
+
 const NAV_ITEMS = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard, roles: null },
-  { href: '/employees', label: 'Employees', icon: Users, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD] },
-  { href: '/departments', label: 'Departments', icon: Building2, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN] },
-  { href: '/attendance', label: 'Attendance', icon: Clock, roles: null },
-  { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null },
-  { href: '/leave/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD] },
-  { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: null },
-  { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN] },
-  { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null },
-  { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN] },
-  { href: '/documents', label: 'Documents', icon: FileText, roles: null },
-  { href: '/notifications', label: 'Notifications', icon: Bell, roles: null },
-  { href: '/settings', label: 'Settings', icon: Settings, roles: null },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, roles: null, exclude: null },
+  { href: '/employees', label: 'Employees', icon: Users, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD], exclude: null },
+  { href: '/departments', label: 'Departments', icon: Building2, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN], exclude: null },
+  { href: '/attendance', label: 'Attendance', icon: Clock, roles: null, exclude: SA },
+  { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null, exclude: SA },
+  { href: '/leave/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD], exclude: null },
+  { href: '/timemanagement', label: 'Time Management', icon: ClipboardList, roles: null, exclude: null },
+  { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN], exclude: null },
+  { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null, exclude: SA },
+  { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN], exclude: null },
+  { href: '/documents', label: 'Documents', icon: FileText, roles: null, exclude: null },
+  { href: '/notifications', label: 'Notifications', icon: Bell, roles: null, exclude: null },
+  { href: '/settings', label: 'Settings', icon: Settings, roles: null, exclude: null },
 ]
 
 export function Sidebar() {
@@ -53,9 +55,11 @@ export function Sidebar() {
     router.replace('/login')
   }
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.roles || (user && item.roles.includes(user.role as UserRole))
-  )
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    const roleOk = !item.roles || (user && item.roles.includes(user.role as UserRole))
+    const notExcluded = !item.exclude || !(user && item.exclude.includes(user.role as UserRole))
+    return roleOk && notExcluded
+  })
 
   return (
     <aside
