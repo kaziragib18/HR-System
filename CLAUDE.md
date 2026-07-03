@@ -99,7 +99,9 @@ Located in `apps/api/src/modules/`. Each module follows:
 
 Register the router in `apps/api/src/app.ts` under `/api/v1/<name>`.
 
-Current modules: `auth`, `attendance`, `dashboard`, `departments`, `documents`, `employees`, `holidays`, `job-grades`, `leave`, `notifications`, `payroll`, `salary`, `timesheets`
+Current modules: `approvals`, `auth`, `attendance`, `company`, `dashboard`, `departments`, `documents`, `employees`, `holidays`, `job-grades`, `leave`, `notifications`, `payroll`, `salary`, `timesheets`
+
+`approvals` is read-only: it aggregates cross-module history (leave approvals, timesheet approve/reject, attendance late-excuse review) into one unified, sorted timeline for the `/approvals` page — it owns no Prisma models of its own. `company` manages office profile fields (name/address/logo) and compliance document uploads, both Super-Admin-gated.
 
 All responses must go through the helpers in `apps/api/src/utils/response.ts` (`sendSuccess`, `sendCreated`, `sendError`, `sendNotFound`, `sendForbidden`). Standard envelope: `{ success: bool, data?, error?, message?, meta? }`.
 
@@ -110,7 +112,7 @@ Middleware ordering in every protected route: `authenticate → officeScope → 
 - **API client**: `apps/web/src/lib/api/client.ts` — Axios instance with auth interceptors
 - **React Query hooks**: `apps/web/src/lib/api/hooks/` — one file per domain (e.g. `useEmployees.ts`, `useLeave.ts`)
 - **Zustand stores**: `apps/web/src/store/` — `auth.store.ts`, `notification.store.ts`, `ui.store.ts`
-- **Pages** (`apps/web/src/app/`): Auth pages under `(auth)/`, dashboard pages under `(dashboard)/` — attendance, departments, documents, employees, leave, notifications, payroll, salary, settings, timesheets
+- **Pages** (`apps/web/src/app/`): Auth pages under `(auth)/`, dashboard pages under `(dashboard)/` — approvals, attendance, departments, documents, employees, leave, notifications, payroll, salary, settings, timemanagement (the timesheets UI)
 
 UI components use Radix UI primitives + Tailwind CSS + `class-variance-authority`. Use `cn()` from `apps/web/src/lib/utils.ts` for conditional class merging.
 

@@ -26,6 +26,16 @@ export interface LeaveBalance {
   leaveType: { id: string; name: string; code: string; isPaid: boolean }
 }
 
+export interface LeaveApprovalHistory {
+  id: string
+  approverId: string
+  action: string
+  level: number
+  comment: string | null
+  createdAt: string
+  approver?: { id: string; firstName: string; lastName: string; jobTitle?: { name: string } | null } | null
+}
+
 export interface LeaveApplication {
   id: string
   employeeId: string
@@ -39,8 +49,13 @@ export interface LeaveApplication {
   cancelReason: string | null
   cancelRequestedAt: string | null
   createdAt: string
-  employee?: { id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null }
+  employee?: {
+    id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null
+    department?: { id: string; name: string } | null
+    user?: { role: string } | null
+  }
   leaveType?: { id: string; name: string; code: string }
+  approvalHistory?: LeaveApprovalHistory[]
 }
 
 export interface ApplyLeavePayload {

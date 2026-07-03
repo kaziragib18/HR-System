@@ -22,10 +22,19 @@ export interface Timesheet {
   overtimeMinutes: number
   status: string
   submittedAt: string | null
+  approvedById: string | null
   approvedAt: string | null
+  rejectedById: string | null
+  rejectedAt: string | null
   rejectionReason: string | null
   entries: TimesheetEntry[]
-  employee?: { id: string; firstName: string; lastName: string; employeeId: string }
+  employee?: {
+    id: string; firstName: string; lastName: string; employeeId: string
+    department?: { id: string; name: string } | null
+    user?: { role: string } | null
+  }
+  approvedByName?: string | null
+  rejectedByName?: string | null
 }
 
 export function useMyTimesheets(month?: number, year?: number) {

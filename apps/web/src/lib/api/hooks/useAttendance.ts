@@ -17,7 +17,11 @@ export interface AttendanceRecord {
   remarks: string | null
   lateExcuse: string | null
   excuseStatus: string | null
-  employee?: { id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null }
+  employee?: {
+    id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null
+    department?: { id: string; name: string } | null
+    user?: { role: string } | null
+  }
 }
 
 export interface CalendarRecord {

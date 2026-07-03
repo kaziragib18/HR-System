@@ -432,6 +432,7 @@ model Timesheet {
   submittedAt     DateTime?
   approvedById    String?
   approvedAt      DateTime?
+  rejectedById    String?
   rejectedAt      DateTime?
   rejectionReason String?
   createdAt       DateTime  @default(now())

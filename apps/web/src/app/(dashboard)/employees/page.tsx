@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useEmployees, useUpdateEmployeeById } from '@/lib/api/hooks/useEmployees'
 import { useDepartments } from '@/lib/api/hooks/useDepartments'
 import { useOffices } from '@/lib/api/hooks/useReference'
@@ -103,8 +104,9 @@ export default function EmployeesPage() {
   const canEdit  = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.HR_MANAGER
 
   // ── Filters ──
+  const searchParams = useSearchParams()
   const [search,     setSearch]     = useState('')
-  const [deptFilter, setDeptFilter] = useState('')
+  const [deptFilter, setDeptFilter] = useState(() => searchParams.get('department') ?? '')
   const [officeFilter, setOfficeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)

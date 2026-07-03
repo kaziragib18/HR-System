@@ -161,6 +161,7 @@ export async function rejectTimesheet(id: string, rejectorId: string, input: Rej
     where: { id },
     data: {
       status: TimesheetStatus.DRAFT,
+      rejectedById: rejectorId,
       rejectedAt: new Date(),
       rejectionReason: input.rejectionReason,
     },
@@ -196,7 +197,15 @@ export async function listTimesheets(officeScope: string | undefined, query: Lis
   const [items, total] = await Promise.all([
     prisma.timesheet.findMany({
       where,
-      include: { employee: { select: { id: true, firstName: true, lastName: true, employeeId: true } } },
+      include: {
+        employee: {
+          select: {
+            id: true, firstName: true, lastName: true, employeeId: true,
+            department: { select: { id: true, name: true } },
+            user: { select: { role: true } },
+          },
+        },
+      },
       skip,
       take,
       orderBy: { weekStartDate: 'desc' },
@@ -204,5 +213,25 @@ export async function listTimesheets(officeScope: string | undefined, query: Lis
     prisma.timesheet.count({ where }),
   ])
 
-  return { items, meta: buildPaginationMeta(total, page, limit) }
+  // Resolve approver / rejector names
+  const actorIds = [...new Set([
+    ...items.map(t => t.approvedById).filter(Boolean),
+    ...items.map(t => t.rejectedById).filter(Boolean),
+  ])] as string[]
+
+  const actors = actorIds.length
+    ? await prisma.employee.findMany({
+        where: { id: { in: actorIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : []
+  const actorMap = Object.fromEntries(actors.map(a => [a.id, `${a.firstName} ${a.lastName}`]))
+
+  const enriched = items.map(t => ({
+    ...t,
+    approvedByName: t.approvedById ? actorMap[t.approvedById] ?? null : null,
+    rejectedByName: t.rejectedById ? actorMap[t.rejectedById] ?? null : null,
+  }))
+
+  return { items: enriched, meta: buildPaginationMeta(total, page, limit) }
 }

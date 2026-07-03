@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express'
+import { Router, type Request, type Response, type Router as RouterType } from 'express'
 import { z } from 'zod'
 import multer from 'multer'
 import { prisma } from '../../config/prisma'
@@ -9,7 +9,7 @@ import { validate } from '../../middleware/validate.middleware'
 import { sendSuccess, sendCreated, sendNotFound } from '../../utils/response'
 import { UserRole } from '@hr-system/types'
 
-const router = Router()
+const router: RouterType = Router()
 router.use(authenticate)
 
 const SA = requireRole(UserRole.SUPER_ADMIN)

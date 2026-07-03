@@ -439,7 +439,13 @@ export async function listPendingExcuses(officeScope?: string) {
       ...(officeScope ? { employee: { officeId: officeScope } } : {}),
     },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true } },
+      employee: {
+        select: {
+          id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true,
+          department: { select: { id: true, name: true } },
+          user: { select: { role: true } },
+        },
+      },
     },
     orderBy: { date: 'desc' },
     take: 50,

@@ -34,7 +34,7 @@ const NAV_ITEMS = [
   { href: '/departments', label: 'Departments', icon: Building2, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN], exclude: null },
   { href: '/attendance', label: 'Attendance', icon: Clock, roles: null, exclude: SA },
   { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null, exclude: SA },
-  { href: '/leave/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD], exclude: null },
+  { href: '/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD], exclude: null },
   { href: '/timemanagement', label: 'Time Management', icon: ClipboardList, roles: null, exclude: null },
   { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN], exclude: null },
   { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null, exclude: SA },

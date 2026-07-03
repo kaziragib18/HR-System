@@ -67,7 +67,9 @@ export async function getApplication(req: Request, res: Response) {
 
 export async function getPending(req: Request, res: Response) {
   try {
-    const apps = await service.pendingForApprover(user(req).employeeId)
+    const u = user(req)
+    const isAdmin = u.role === UserRole.SUPER_ADMIN || u.role === UserRole.HR_MANAGER
+    const apps = await service.pendingForApprover(u.employeeId, isAdmin, scope(req))
     sendSuccess(res, apps)
   } catch (err) { handle(res, err) }
 }

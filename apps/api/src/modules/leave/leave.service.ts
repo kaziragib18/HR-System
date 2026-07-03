@@ -567,18 +567,53 @@ export async function getApplication(id: string, requestingEmployeeId: string, i
 }
 
 /** Pending (new + cancel-requested) applications waiting for a specific approver. */
-export async function pendingForApprover(approvingEmployeeId: string) {
-  return prisma.leaveApplication.findMany({
+export async function pendingForApprover(
+  approvingEmployeeId: string,
+  isAdmin: boolean,
+  officeScope?: string,
+) {
+  const apps = await prisma.leaveApplication.findMany({
     where: {
       status: { in: [LeaveStatus.PENDING, LeaveStatus.CANCEL_REQUESTED] },
-      currentApproverId: approvingEmployeeId,
+      // Admins see everything in their office scope; others see only their queue
+      ...(isAdmin
+        ? officeScope ? { employee: { officeId: officeScope } } : {}
+        : { currentApproverId: approvingEmployeeId }),
     },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true } },
+      employee: {
+        select: {
+          id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true,
+          department: { select: { id: true, name: true } },
+          user: { select: { role: true } },
+        },
+      },
       leaveType: { select: { id: true, name: true, code: true } },
+      approvalHistory: {
+        select: { id: true, approverId: true, action: true, level: true, comment: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      },
     },
     orderBy: { createdAt: 'asc' },
   })
+  // Resolve approver names for history entries
+  const allApproverIds: string[] = [...new Set(
+    apps.flatMap(a => a.approvalHistory.map(h => h.approverId)).filter(Boolean)
+  )]
+  const approvers = allApproverIds.length
+    ? await prisma.employee.findMany({
+        where: { id: { in: allApproverIds } },
+        select: { id: true, firstName: true, lastName: true, jobTitle: { select: { name: true } } },
+      })
+    : []
+  const approverMap = Object.fromEntries(approvers.map(e => [e.id, e]))
+  return apps.map(app => ({
+    ...app,
+    approvalHistory: app.approvalHistory.map(h => ({
+      ...h,
+      approver: approverMap[h.approverId] ?? null,
+    })),
+  }))
 }
 
 /** Team leave calendar for a month. */
