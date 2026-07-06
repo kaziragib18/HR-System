@@ -34,21 +34,6 @@ interface LeaveHistoryItem {
   totalDays: number
 }
 
-interface TimesheetHistoryItem {
-  id: string
-  type: 'TIMESHEET'
-  action: 'APPROVED' | 'REJECTED'
-  actionAt: string
-  level: null
-  comment: string | null
-  approverId: string
-  approver: HistoryApprover | null
-  employee: HistoryEmployee
-  weekStartDate: string
-  weekEndDate: string
-  totalMinutes: number
-}
-
 interface ExcuseHistoryItem {
   id: string
   type: 'EXCUSE'
@@ -64,7 +49,7 @@ interface ExcuseHistoryItem {
   lateExcuse: string | null
 }
 
-export type ApprovalHistoryItem = LeaveHistoryItem | TimesheetHistoryItem | ExcuseHistoryItem
+export type ApprovalHistoryItem = LeaveHistoryItem | ExcuseHistoryItem
 
 export function useApprovalHistory(month: number, year: number) {
   return useQuery({

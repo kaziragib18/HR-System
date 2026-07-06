@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { apiClient } from '@/lib/api/client'
 import { useAuthStore } from '@/store/auth.store'
 import type { LoginResponse } from '@hr-system/types'
@@ -72,9 +73,14 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm font-medium" htmlFor="password">
-          Password
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium" htmlFor="password">
+            Password
+          </label>
+          <Link href="/forgot-password" className="text-xs text-muted-foreground underline underline-offset-2">
+            Forgot password?
+          </Link>
+        </div>
         <input
           id="password"
           type="password"

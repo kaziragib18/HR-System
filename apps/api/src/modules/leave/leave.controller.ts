@@ -2,7 +2,8 @@ import type { Request, Response } from 'express'
 import * as service from './leave.service'
 import { LeaveError } from './leave.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
-import { UserRole } from '@hr-system/types'
+import { auditFromRequest } from '../../utils/audit'
+import { AuditAction, UserRole } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery, RejectCancelLeaveInput, UpdateCancelReasonInput } from './leave.schemas'
@@ -34,7 +35,7 @@ export async function getBalances(req: Request, res: Response) {
   try {
     const employeeId = (req.params.employeeId ?? user(req).employeeId) as string
     const year = parseInt(req.query.year as string) || new Date().getFullYear()
-    const balances = await service.getLeaveBalances(employeeId, year)
+    const balances = await service.getLeaveBalances(employeeId, year, req.params.employeeId ? scope(req) : undefined)
     sendSuccess(res, balances)
   } catch (err) { handle(res, err) }
 }
@@ -60,7 +61,7 @@ export async function getApplications(req: Request, res: Response) {
 
 export async function getApplication(req: Request, res: Response) {
   try {
-    const app = await service.getApplication(req.params.id, user(req).employeeId, isManager(req))
+    const app = await service.getApplication(req.params.id, user(req).employeeId, isManager(req), scope(req))
     sendSuccess(res, app)
   } catch (err) { handle(res, err) }
 }
@@ -78,6 +79,7 @@ export async function approve(req: Request, res: Response) {
   try {
     const u = user(req)
     const result = await service.approveLeave(req.params.id, u.sub, u.employeeId, req.body as ApproveLeaveInput)
+    await auditFromRequest(req as AuthRequest, AuditAction.APPROVE, 'LeaveApplication', req.params.id)
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }
@@ -85,6 +87,7 @@ export async function approve(req: Request, res: Response) {
 export async function reject(req: Request, res: Response) {
   try {
     const result = await service.rejectLeave(req.params.id, user(req).employeeId, req.body as RejectLeaveInput)
+    await auditFromRequest(req as AuthRequest, AuditAction.REJECT, 'LeaveApplication', req.params.id, undefined, req.body)
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }
@@ -92,6 +95,7 @@ export async function reject(req: Request, res: Response) {
 export async function cancel(req: Request, res: Response) {
   try {
     const result = await service.cancelLeave(req.params.id, user(req).employeeId, req.body?.cancelReason)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'LeaveApplication', req.params.id, undefined, { action: 'cancel' })
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }
@@ -99,6 +103,7 @@ export async function cancel(req: Request, res: Response) {
 export async function approveCancel(req: Request, res: Response) {
   try {
     const result = await service.approveCancelLeave(req.params.id, user(req).employeeId)
+    await auditFromRequest(req as AuthRequest, AuditAction.APPROVE, 'LeaveApplication', req.params.id, undefined, { action: 'cancel-approve' })
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }
@@ -106,6 +111,7 @@ export async function approveCancel(req: Request, res: Response) {
 export async function rejectCancel(req: Request, res: Response) {
   try {
     const result = await service.rejectCancelLeave(req.params.id, user(req).employeeId, (req.body as RejectCancelLeaveInput).reason)
+    await auditFromRequest(req as AuthRequest, AuditAction.REJECT, 'LeaveApplication', req.params.id, undefined, { action: 'cancel-reject', ...req.body })
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }

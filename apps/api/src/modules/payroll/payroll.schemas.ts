@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const createPayrollRunSchema = z.object({
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2020).max(2099),
+  officeId: z.string().min(1).optional(),
 })
 
 export const listPayrollRunsQuery = z.object({

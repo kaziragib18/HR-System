@@ -42,7 +42,8 @@ router.get('/', validate(listQuerySchema, 'query'), async (req: Request, res: Re
 })
 
 router.post('/', requireRole(UserRole.HR_MANAGER), validate(createSchema), async (req: Request, res: Response) => {
-  const { officeId, name, date, isRecurring } = req.body
+  const { name, date, isRecurring } = req.body
+  const officeId = (req as OfficeScopedRequest).officeScope ?? req.body.officeId
   const d = new Date(date)
   try {
     const holiday = await prisma.publicHoliday.create({

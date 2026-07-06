@@ -4,6 +4,7 @@ import { Bell } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useNotificationStore } from '@/store/notification.store'
+import { useUnreadCount } from '@/lib/api/hooks/useNotifications'
 import { useAuthStore } from '@/store/auth.store'
 import { ThemeToggle } from './ThemeToggle'
 import { Avatar } from '@/components/ui/primitives'
@@ -14,8 +15,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/departments': 'Departments',
   '/attendance': 'Attendance',
   '/leave': 'My Leave',
-  '/leave/approvals': 'Leave Approvals',
-  '/timesheets': 'Timesheets',
   '/payroll': 'Payroll',
   '/payroll/my-payslips': 'My Payslips',
   '/salary': 'Salary Management',
@@ -35,6 +34,7 @@ function getRouteLabel(pathname: string): string {
 
 export function Topbar() {
   const { unreadCount } = useNotificationStore()
+  useUnreadCount()
   const { user } = useAuthStore()
   const pathname = usePathname()
   const routeLabel = getRouteLabel(pathname)

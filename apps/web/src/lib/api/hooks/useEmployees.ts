@@ -109,6 +109,15 @@ export function useDeactivateEmployee() {
   })
 }
 
+export function useGeneratePasswordReset() {
+  return useMutation({
+    mutationFn: async (employeeId: string) => {
+      const { data } = await apiClient.post(`/employees/${employeeId}/reset-password`)
+      return data.data as { token: string; resetLink: string; expiresAt: string }
+    },
+  })
+}
+
 export function useBankInfo(employeeId: string) {
   return useQuery({
     queryKey: ['bank-info', employeeId],

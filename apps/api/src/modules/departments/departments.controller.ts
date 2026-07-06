@@ -55,7 +55,8 @@ export async function members(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   try {
-    const dept = await service.createDepartment(req.body as CreateDepartmentInput)
+    const body = { ...(req.body as CreateDepartmentInput), officeId: scope(req) ?? (req.body as CreateDepartmentInput).officeId }
+    const dept = await service.createDepartment(body)
     await auditFromRequest(req as AuthRequest, AuditAction.CREATE, 'Department', dept.id, undefined, dept)
     sendCreated(res, dept)
   } catch (err) {

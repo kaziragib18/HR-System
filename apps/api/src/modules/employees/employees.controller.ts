@@ -1,6 +1,9 @@
 import type { Request, Response } from 'express'
 import * as service from './employees.service'
 import { EmployeeError } from './employees.service'
+import * as authService from '../auth/auth.service'
+import { prisma } from '../../config/prisma'
+import { env } from '../../config/env'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction, UserRole } from '@hr-system/types'
@@ -59,7 +62,8 @@ export async function getById(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   try {
-    const result = await service.createEmployee(req.body as CreateEmployeeInput, (req as AuthRequest).user.sub)
+    const body = { ...(req.body as CreateEmployeeInput), officeId: scope(req) ?? (req.body as CreateEmployeeInput).officeId }
+    const result = await service.createEmployee(body, (req as AuthRequest).user.sub)
     await auditFromRequest(req as AuthRequest, AuditAction.CREATE, 'Employee', result.employee.id, undefined, {
       employeeId: result.employee.employeeId,
     })
@@ -88,6 +92,28 @@ export async function remove(req: Request, res: Response) {
     await service.deactivateEmployee(req.params.id, scope(req))
     await auditFromRequest(req as AuthRequest, AuditAction.DELETE, 'Employee', req.params.id)
     sendSuccess(res, { message: 'Employee deactivated' })
+  } catch (err) {
+    handle(res, err)
+  }
+}
+
+// No email channel exists in this codebase — HR generates a reset link/token
+// here and relays it to the employee manually, the same trust model as the
+// temp password shown once at creation time.
+export async function generatePasswordReset(req: Request, res: Response) {
+  try {
+    const employee = await service.getEmployee(req.params.id, scope(req))
+    const user = await prisma.user.findUnique({ where: { employeeId: employee.id } })
+    if (!user) {
+      sendError(res, 'This employee has no login account', 404)
+      return
+    }
+    const { token, expiresAt } = await authService.requestPasswordReset(user.id)
+    const resetLink = `${env.WEB_APP_URL}/reset-password?token=${token}`
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'User', user.id, undefined, {
+      action: 'password_reset_generated',
+    })
+    sendSuccess(res, { token, resetLink, expiresAt })
   } catch (err) {
     handle(res, err)
   }

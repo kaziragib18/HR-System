@@ -13,6 +13,7 @@ import { EducationSection } from '@/components/profile/EducationSection'
 import { SkillsSection } from '@/components/profile/SkillsSection'
 import { IdentificationSection } from '@/components/profile/IdentificationSection'
 import { TrainingSection } from '@/components/profile/TrainingSection'
+import { PasswordResetButton } from '@/components/employees/PasswordResetButton'
 import { UserRole } from '@hr-system/types'
 
 const TABS = [
@@ -60,6 +61,7 @@ export default function EmployeeProfilePage() {
             </div>
           </div>
         </div>
+        {isHrAdmin && <PasswordResetButton employeeId={emp.id} />}
       </Card>
 
       <Tabs items={TABS} active={tab} onChange={setTab} />

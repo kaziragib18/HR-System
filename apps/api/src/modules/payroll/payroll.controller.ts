@@ -2,6 +2,8 @@ import type { Request, Response } from 'express'
 import * as service from './payroll.service'
 import { PayrollError } from './payroll.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { auditFromRequest } from '../../utils/audit'
+import { AuditAction } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import type { CreatePayrollRunInput, ListPayrollRunsQuery, MyPayslipsQuery } from './payroll.schemas'
@@ -16,7 +18,8 @@ function handle(res: Response, err: unknown) {
 
 export async function create(req: Request, res: Response) {
   try {
-    const run = await service.createRun(user(req).officeId, req.body as CreatePayrollRunInput)
+    const officeId = (req.body as CreatePayrollRunInput).officeId ?? user(req).officeId
+    const run = await service.createRun(officeId, req.body as CreatePayrollRunInput)
     sendCreated(res, run)
   } catch (err) { handle(res, err) }
 }
@@ -38,6 +41,7 @@ export async function getOne(req: Request, res: Response) {
 export async function process(req: Request, res: Response) {
   try {
     const run = await service.processRun(req.params.id)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'PayrollRun', req.params.id, undefined, { action: 'process' })
     sendSuccess(res, run)
   } catch (err) { handle(res, err) }
 }
@@ -45,6 +49,7 @@ export async function process(req: Request, res: Response) {
 export async function approve(req: Request, res: Response) {
   try {
     const run = await service.approveRun(req.params.id, user(req).employeeId)
+    await auditFromRequest(req as AuthRequest, AuditAction.APPROVE, 'PayrollRun', req.params.id)
     sendSuccess(res, run)
   } catch (err) { handle(res, err) }
 }
@@ -52,6 +57,7 @@ export async function approve(req: Request, res: Response) {
 export async function paid(req: Request, res: Response) {
   try {
     const run = await service.markPaid(req.params.id)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'PayrollRun', req.params.id, undefined, { action: 'mark-paid' })
     sendSuccess(res, run)
   } catch (err) { handle(res, err) }
 }

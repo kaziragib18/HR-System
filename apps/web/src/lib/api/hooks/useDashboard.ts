@@ -7,7 +7,6 @@ export interface DashboardStats {
   onLeaveToday: number
   lateToday: number
   pendingLeaves: number
-  openTimesheets: number
 }
 
 export interface HeadcountByDept {

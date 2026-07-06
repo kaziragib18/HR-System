@@ -49,6 +49,9 @@ router.post('/', HR, validate(createEmployeeSchema), controller.create)
 router.patch('/:id', SELF_OR_HR, validate(updateEmployeeSchema), controller.update)
 router.delete('/:id', HR, controller.remove)
 
+// Password reset (HR+ only) — generates a link for HR to relay manually, no email channel
+router.post('/:id/reset-password', HR, controller.generatePasswordReset)
+
 // Bank info (HR+ only — sensitive)
 router.get('/:id/bank-info', HR, controller.getBankInfo)
 router.put('/:id/bank-info', HR, validate(bankInfoSchema), controller.putBankInfo)

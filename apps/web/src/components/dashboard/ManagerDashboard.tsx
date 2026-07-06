@@ -12,7 +12,6 @@ import {
   CalendarOff,
   Clock,
   Inbox,
-  FileClock,
   CheckCircle2,
   XCircle,
   type LucideIcon,
@@ -61,7 +60,6 @@ export function ManagerDashboard() {
             <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
             <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
             <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" />
-            <Stat icon={FileClock} label="Open timesheets" value={stats?.openTimesheets ?? 0} tone="slate" />
           </div>
 
           <LateExcuseReview />

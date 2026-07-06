@@ -62,14 +62,12 @@ function calculateSlabTax(
 
   for (const slab of slabs) {
     if (remaining <= 0) break
-    const slabStart = slab.from
-    const slabEnd = slab.to ?? Infinity
-    if (remaining <= slabStart) break
-    const taxable = Math.min(remaining, slabEnd) - slabStart
+    const slabSize = slab.to !== undefined ? slab.to - slab.from : remaining
+    const taxable = Math.min(remaining, slabSize)
     const taxAmount = taxable * slab.rate
     totalTax += taxAmount
     result.push({ from: slab.from, to: slab.to, rate: slab.rate, taxAmount, label: slab.label })
-    remaining = Math.max(remaining - slabEnd, 0)
+    remaining -= taxable
   }
 
   return { totalTax: Math.round(totalTax), slabs: result }

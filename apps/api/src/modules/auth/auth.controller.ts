@@ -10,6 +10,7 @@ import type {
   TwoFactorVerifyInput,
   TwoFactorEnableInput,
   ChangePasswordInput,
+  ResetPasswordInput,
 } from './auth.schemas'
 
 const REFRESH_COOKIE = 'refreshToken'
@@ -148,6 +149,16 @@ export async function changePassword(req: Request, res: Response) {
     )
     clearRefreshCookie(res)
     sendSuccess(res, { message: 'Password changed. Please log in again.' })
+  } catch (err) {
+    handleError(res, err)
+  }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  try {
+    const { token, newPassword } = req.body as ResetPasswordInput
+    await authService.resetPassword(token, newPassword)
+    sendSuccess(res, { message: 'Password reset. Please log in with your new password.' })
   } catch (err) {
     handleError(res, err)
   }

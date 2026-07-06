@@ -168,7 +168,6 @@ model Employee {
   attendance        Attendance[]
   leaveApplications LeaveApplication[]
   leaveBalances     LeaveBalance[]
-  timesheets        Timesheet[]
   notifications     Notification[]
   onboardingTasks   OnboardingTask[]
   salaryStructures  SalaryStructure[]
@@ -519,51 +518,6 @@ model LeaveBalance {
 
   @@unique([employeeId, leaveTypeId, year])
   @@index([employeeId, year])
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TIMESHEETS
-// ─────────────────────────────────────────────────────────────────────────────
-
-model Timesheet {
-  id              String    @id @default(cuid())
-  employeeId      String
-  weekStartDate   DateTime  @db.Date
-  weekEndDate     DateTime  @db.Date
-  totalMinutes    Int       @default(0)
-  overtimeMinutes Int       @default(0)
-  status          String    @default("DRAFT") // TimesheetStatus enum
-  submittedAt     DateTime?
-  approvedById    String?
-  approvedAt      DateTime?
-  rejectedById    String?
-  rejectedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  employee Employee         @relation(fields: [employeeId], references: [id])
-  entries  TimesheetEntry[]
-
-  @@unique([employeeId, weekStartDate])
-  @@index([employeeId])
-  @@index([status])
-}
-
-model TimesheetEntry {
-  id          String    @id @default(cuid())
-  timesheetId String
-  date        DateTime  @db.Date
-  checkIn     DateTime?
-  checkOut    DateTime?
-  breakMinutes Int      @default(0)
-  workMinutes  Int      @default(0)
-  projectCode  String?
-  notes        String?
-
-  timesheet Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-
-  @@index([timesheetId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

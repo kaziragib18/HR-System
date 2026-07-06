@@ -7,6 +7,7 @@ import { authenticate, type AuthRequest } from '../../middleware/auth.middleware
 import { requireRole } from '../../middleware/rbac.middleware'
 import { validate } from '../../middleware/validate.middleware'
 import { sendSuccess, sendCreated, sendNotFound } from '../../utils/response'
+import { isAllowedImage, isAllowedImageOrPdf, ALLOWED_IMAGE_MESSAGE, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import { UserRole } from '@hr-system/types'
 
 const router: RouterType = Router()
@@ -50,6 +51,9 @@ router.post(
       const office = await prisma.office.findUnique({ where: { id: req.params.id } })
       if (!office) return sendNotFound(res, 'Office not found')
       if (!req.file) return res.status(400).json({ success: false, error: 'logo file is required' })
+      if (!isAllowedImage(req.file.mimetype)) {
+        return res.status(400).json({ success: false, error: ALLOWED_IMAGE_MESSAGE })
+      }
 
       const ext = req.file.originalname.split('.').pop()?.toLowerCase() ?? 'png'
       const storagePath = `logos/${office.code.toLowerCase()}_${Date.now()}.${ext}`
@@ -101,6 +105,9 @@ router.post(
       }
       if (!req.file) {
         return res.status(400).json({ success: false, error: 'file is required' })
+      }
+      if (!isAllowedImageOrPdf(req.file.mimetype)) {
+        return res.status(400).json({ success: false, error: ALLOWED_UPLOAD_MESSAGE })
       }
 
       const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')

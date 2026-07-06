@@ -3,6 +3,7 @@ import multer from 'multer'
 import * as service from './profile.service'
 import { EmployeeError } from './employees.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import type {
@@ -33,14 +34,16 @@ function handle(res: Response, err: unknown) {
 }
 
 function fileInput(req: Request) {
-  return req.file
-    ? {
-        buffer: req.file.buffer,
-        mimeType: req.file.mimetype,
-        sizeBytes: req.file.size,
-        originalName: req.file.originalname,
-      }
-    : undefined
+  if (!req.file) return undefined
+  if (!isAllowedImageOrPdf(req.file.mimetype)) {
+    throw new EmployeeError(ALLOWED_UPLOAD_MESSAGE, 400)
+  }
+  return {
+    buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
+    sizeBytes: req.file.size,
+    originalName: req.file.originalname,
+  }
 }
 
 // ─── Work Experience ────────────────────────────────────────────────────────

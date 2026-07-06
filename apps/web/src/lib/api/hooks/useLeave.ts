@@ -114,17 +114,6 @@ export function usePendingApprovals() {
   })
 }
 
-export function useLeaveCalendar(month: number, year: number) {
-  return useQuery({
-    queryKey: ['leave', 'calendar', month, year],
-    queryFn: async () => {
-      const { data } = await apiClient.get(`/leave/calendar?month=${month}&year=${year}`)
-      return (data.data ?? []) as LeaveApplication[]
-    },
-    staleTime: 60_000,
-  })
-}
-
 export function useApplyLeave() {
   const qc = useQueryClient()
   return useMutation({

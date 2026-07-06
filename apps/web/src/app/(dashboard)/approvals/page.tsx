@@ -17,7 +17,7 @@ import { Avatar, StatusBadge, Spinner, PageHeader } from '@/components/ui/primit
 import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
-  AlertCircle, ClipboardList, Building2, History,
+  AlertCircle, Building2, History,
   ChevronLeft, ChevronRight, ShieldCheck, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
@@ -39,11 +39,6 @@ function fmtDate(iso: string) {
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-}
-
-function fmtMins(mins: number) {
-  const h = Math.floor(mins / 60), m = mins % 60
-  return m ? `${h}h ${m}m` : `${h}h`
 }
 
 function fmtRole(role: string) {
@@ -535,9 +530,8 @@ function MonthPicker({ month, year, onChange }: {
 }
 
 const TYPE_CONFIG = {
-  LEAVE:     { icon: CalendarDays, label: 'Leave',      cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
-  TIMESHEET: { icon: ClipboardList, label: 'Timesheet', cls: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
-  EXCUSE:    { icon: Clock,         label: 'Late Excuse', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  LEAVE:  { icon: CalendarDays, label: 'Leave',       cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  EXCUSE: { icon: Clock,        label: 'Late Excuse',  cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
 } as const
 
 const ACTION_CONFIG = {
@@ -556,10 +550,6 @@ function HistoryCard({ item }: { item: ApprovalHistoryItem }) {
     if (item.type === 'LEAVE') {
       const l = item as Extract<ApprovalHistoryItem, { type: 'LEAVE' }>
       return { primary: fmtDateRange(l.startDate, l.endDate), secondary: `${Number(l.totalDays)} day${Number(l.totalDays) !== 1 ? 's' : ''}` }
-    }
-    if (item.type === 'TIMESHEET') {
-      const t = item as Extract<ApprovalHistoryItem, { type: 'TIMESHEET' }>
-      return { primary: `Week of ${fmtDate(t.weekStartDate)}`, secondary: `${fmtMins(t.totalMinutes)} worked` }
     }
     const e = item as Extract<ApprovalHistoryItem, { type: 'EXCUSE' }>
     return { primary: fmtDate(e.date), secondary: `${e.lateMinutes}m late` }
@@ -631,9 +621,8 @@ function HistorySection({ month, year, onMonthChange }: {
   const { data: items = [], isLoading } = useApprovalHistory(month, year)
 
   const counts = {
-    LEAVE:     items.filter(i => i.type === 'LEAVE').length,
-    TIMESHEET: items.filter(i => i.type === 'TIMESHEET').length,
-    EXCUSE:    items.filter(i => i.type === 'EXCUSE').length,
+    LEAVE:  items.filter(i => i.type === 'LEAVE').length,
+    EXCUSE: items.filter(i => i.type === 'EXCUSE').length,
   }
 
   return (

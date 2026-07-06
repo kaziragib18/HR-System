@@ -107,8 +107,6 @@ async function cleanup() {
   await prisma.leaveApplication.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.leaveBalance.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } })
-  await prisma.timesheetEntry.deleteMany({ where: { timesheet: { employeeId: { in: ids } } } })
-  await prisma.timesheet.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.payrollEntry.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.notification.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.onboardingTask.deleteMany({ where: { employeeId: { in: ids } } })

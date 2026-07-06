@@ -21,7 +21,11 @@ export async function getLeaveTypes(officeId: string) {
 }
 
 /** Leave balances for an employee for a given year. */
-export async function getLeaveBalances(employeeId: string, year: number) {
+export async function getLeaveBalances(employeeId: string, year: number, officeScope?: string) {
+  if (officeScope) {
+    const emp = await prisma.employee.findUnique({ where: { id: employeeId }, select: { officeId: true } })
+    if (!emp || emp.officeId !== officeScope) throw new LeaveError('Employee not found', 404)
+  }
   return prisma.leaveBalance.findMany({
     where: { employeeId, year },
     include: {
@@ -190,27 +194,11 @@ export async function approveLeave(applicationId: string, approverId: string, ap
   const year = app.startDate.getFullYear()
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Record approval history
-    await tx.leaveApprovalHistory.create({
-      data: {
-        applicationId,
-        approverId: approvingEmployeeId,
-        action: isFinalLevel ? 'APPROVED' : 'FORWARDED',
-        level: currentLevel,
-        comment: input.comment,
-      },
-    })
-
     let nextApproverId: string | null = null
     let newStatus = app.status
 
     if (isFinalLevel) {
       newStatus = LeaveStatus.APPROVED
-      // Move from pending to taken
-      await tx.leaveBalance.updateMany({
-        where: { employeeId: app.employeeId, leaveTypeId: app.leaveTypeId, year },
-        data: { taken: { increment: Number(app.totalDays) }, pending: { decrement: Number(app.totalDays) } },
-      })
     } else {
       // Find next level approver
       const nextStep = approvalChain[currentLevel] // index = currentLevel (0-indexed)
@@ -223,8 +211,11 @@ export async function approveLeave(applicationId: string, approverId: string, ap
       }
     }
 
-    const result = await tx.leaveApplication.update({
-      where: { id: applicationId },
+    // Guard the transition atomically — if another request already moved this
+    // application off PENDING (double-click, retry, concurrent approve), this
+    // matches zero rows and we bail out before touching history/balance.
+    const { count } = await tx.leaveApplication.updateMany({
+      where: { id: applicationId, status: LeaveStatus.PENDING },
       data: {
         status: newStatus,
         approvalLevel: isFinalLevel ? currentLevel : currentLevel + 1,
@@ -233,6 +224,27 @@ export async function approveLeave(applicationId: string, approverId: string, ap
         approvedAt: isFinalLevel ? new Date() : undefined,
       },
     })
+    if (count === 0) throw new LeaveError('This application has already been processed')
+
+    await tx.leaveApprovalHistory.create({
+      data: {
+        applicationId,
+        approverId: approvingEmployeeId,
+        action: isFinalLevel ? 'APPROVED' : 'FORWARDED',
+        level: currentLevel,
+        comment: input.comment,
+      },
+    })
+
+    if (isFinalLevel) {
+      // Move from pending to taken
+      await tx.leaveBalance.updateMany({
+        where: { employeeId: app.employeeId, leaveTypeId: app.leaveTypeId, year },
+        data: { taken: { increment: Number(app.totalDays) }, pending: { decrement: Number(app.totalDays) } },
+      })
+    }
+
+    const result = await tx.leaveApplication.findUniqueOrThrow({ where: { id: applicationId } })
 
     return { result, isFinalLevel, nextApproverId }
   })
@@ -272,6 +284,18 @@ export async function rejectLeave(applicationId: string, rejectingEmployeeId: st
   const year = app.startDate.getFullYear()
 
   await prisma.$transaction(async (tx) => {
+    const { count } = await tx.leaveApplication.updateMany({
+      where: { id: applicationId, status: LeaveStatus.PENDING },
+      data: {
+        status: LeaveStatus.REJECTED,
+        rejectedById: rejectingEmployeeId,
+        rejectedAt: new Date(),
+        rejectionReason: input.rejectionReason,
+        currentApproverId: null,
+      },
+    })
+    if (count === 0) throw new LeaveError('This application has already been processed')
+
     await tx.leaveApprovalHistory.create({
       data: {
         applicationId,
@@ -279,17 +303,6 @@ export async function rejectLeave(applicationId: string, rejectingEmployeeId: st
         action: 'REJECTED',
         level: app.approvalLevel,
         comment: input.rejectionReason,
-      },
-    })
-
-    await tx.leaveApplication.update({
-      where: { id: applicationId },
-      data: {
-        status: LeaveStatus.REJECTED,
-        rejectedById: rejectingEmployeeId,
-        rejectedAt: new Date(),
-        rejectionReason: input.rejectionReason,
-        currentApproverId: null,
       },
     })
 
@@ -343,10 +356,12 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
   if (app.status === LeaveStatus.PENDING) {
     // Instant cancel — no reason needed, clear from manager's queue
     await prisma.$transaction(async (tx) => {
-      await tx.leaveApplication.update({
-        where: { id: applicationId },
+      const { count } = await tx.leaveApplication.updateMany({
+        where: { id: applicationId, status: LeaveStatus.PENDING },
         data: { status: LeaveStatus.CANCELLED, cancelledAt: new Date(), currentApproverId: null },
       })
+      if (count === 0) throw new LeaveError('This application has already been processed')
+
       await tx.leaveBalance.updateMany({
         where: { employeeId, leaveTypeId: app.leaveTypeId, year },
         data: { pending: { decrement: Number(app.totalDays) } },
@@ -371,8 +386,8 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
     managerId = mgr?.employeeId ?? null
   }
 
-  await prisma.leaveApplication.update({
-    where: { id: applicationId },
+  const { count } = await prisma.leaveApplication.updateMany({
+    where: { id: applicationId, status: LeaveStatus.APPROVED },
     data: {
       status: LeaveStatus.CANCEL_REQUESTED,
       cancelReason: cancelReason.trim(),
@@ -380,6 +395,7 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
       currentApproverId: managerId,
     },
   })
+  if (count === 0) throw new LeaveError('This application has already been processed')
 
   if (managerId) {
     const name = `${app.employee.firstName} ${app.employee.lastName}`
@@ -430,6 +446,21 @@ export async function approveCancelLeave(applicationId: string, approvingEmploye
   const year = app.startDate.getFullYear()
 
   await prisma.$transaction(async (tx) => {
+    // Guard the transition atomically — if another request already resolved
+    // this cancellation (double-click, retry, concurrent approve/reject),
+    // this matches zero rows and we bail out before touching the balance.
+    const { count } = await tx.leaveApplication.updateMany({
+      where: { id: applicationId, status: LeaveStatus.CANCEL_REQUESTED },
+      data: {
+        status: LeaveStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelApprovedById: approvingEmployeeId,
+        cancelApprovedAt: new Date(),
+        currentApproverId: null,
+      },
+    })
+    if (count === 0) throw new LeaveError('This cancellation request has already been processed')
+
     await tx.leaveApprovalHistory.create({
       data: {
         applicationId,
@@ -437,17 +468,6 @@ export async function approveCancelLeave(applicationId: string, approvingEmploye
         action: 'CANCEL_APPROVED',
         level: app.approvalLevel,
         comment: 'Cancellation approved',
-      },
-    })
-
-    await tx.leaveApplication.update({
-      where: { id: applicationId },
-      data: {
-        status: LeaveStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelApprovedById: approvingEmployeeId,
-        cancelApprovedAt: new Date(),
-        currentApproverId: null,
       },
     })
 
@@ -482,6 +502,17 @@ export async function rejectCancelLeave(applicationId: string, rejectingEmployee
   if (app.status !== LeaveStatus.CANCEL_REQUESTED) throw new LeaveError('This application has no pending cancellation request')
 
   await prisma.$transaction(async (tx) => {
+    const { count } = await tx.leaveApplication.updateMany({
+      where: { id: applicationId, status: LeaveStatus.CANCEL_REQUESTED },
+      data: {
+        status: LeaveStatus.APPROVED,
+        cancelReason: null,
+        cancelRequestedAt: null,
+        currentApproverId: null,
+      },
+    })
+    if (count === 0) throw new LeaveError('This cancellation request has already been processed')
+
     await tx.leaveApprovalHistory.create({
       data: {
         applicationId,
@@ -489,16 +520,6 @@ export async function rejectCancelLeave(applicationId: string, rejectingEmployee
         action: 'CANCEL_REJECTED',
         level: app.approvalLevel,
         comment: reason,
-      },
-    })
-
-    await tx.leaveApplication.update({
-      where: { id: applicationId },
-      data: {
-        status: LeaveStatus.APPROVED,
-        cancelReason: null,
-        cancelRequestedAt: null,
-        currentApproverId: null,
       },
     })
   })
@@ -549,11 +570,11 @@ export async function listApplications(
 }
 
 /** Single application with approval history. */
-export async function getApplication(id: string, requestingEmployeeId: string, isManager: boolean) {
+export async function getApplication(id: string, requestingEmployeeId: string, isManager: boolean, officeScope?: string) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, employeeId: true, officeId: true } },
       leaveType: true,
       approvalHistory: {
         include: { application: false },
@@ -562,6 +583,7 @@ export async function getApplication(id: string, requestingEmployeeId: string, i
     },
   })
   if (!app) throw new LeaveError('Application not found', 404)
+  if (officeScope && app.employee.officeId !== officeScope) throw new LeaveError('Application not found', 404)
   if (!isManager && app.employeeId !== requestingEmployeeId) throw new LeaveError('Forbidden', 403)
   return app
 }

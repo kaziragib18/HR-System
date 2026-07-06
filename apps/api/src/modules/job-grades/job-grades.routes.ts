@@ -34,7 +34,8 @@ router.get('/', async (req: Request, res: Response) => {
 })
 
 router.post('/', requireRole(UserRole.HR_MANAGER), validate(gradeSchema), async (req: Request, res: Response) => {
-  const grade = await prisma.jobGrade.create({ data: req.body })
+  const officeId = (req as OfficeScopedRequest).officeScope ?? req.body.officeId
+  const grade = await prisma.jobGrade.create({ data: { ...req.body, officeId } })
   sendCreated(res, grade)
 })
 

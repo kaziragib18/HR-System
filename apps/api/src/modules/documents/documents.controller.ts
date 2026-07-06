@@ -5,6 +5,7 @@ import * as service from './documents.service'
 import { DocumentError } from './documents.service'
 import { sendSuccess, sendCreated, sendError, sendForbidden } from '../../utils/response'
 import { isSelfOrRole } from '../../middleware/rbac.middleware'
+import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { CreateDocumentBody, ListDocumentsQuery } from './documents.schemas'
 
@@ -44,6 +45,10 @@ export async function create(req: Request, res: Response) {
     }
     if (!req.file) {
       sendError(res, 'file is required', 400)
+      return
+    }
+    if (!isAllowedImageOrPdf(req.file.mimetype)) {
+      sendError(res, ALLOWED_UPLOAD_MESSAGE, 400)
       return
     }
     const doc = await service.uploadDocument({

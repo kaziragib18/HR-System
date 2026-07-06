@@ -29,14 +29,14 @@ leaveRouter.post('/attachments', upload.single('file'), ctrl.uploadAttachment)
 // Leave types & balances — any authenticated user
 leaveRouter.get('/types', ctrl.getTypes)
 leaveRouter.get('/balances', ctrl.getBalances)
-leaveRouter.get('/balances/:employeeId', requireRole(UserRole.TEAM_LEAD), ctrl.getBalances)
+leaveRouter.get('/balances/:employeeId', officeScope, requireRole(UserRole.TEAM_LEAD), ctrl.getBalances)
 leaveRouter.get('/calendar', officeScope, validate(leaveCalendarQuery, 'query'), ctrl.calendar)
 
 // Applications
 leaveRouter.post('/applications', validate(applyLeaveSchema), ctrl.apply)
 leaveRouter.get('/applications', officeScope, validate(leaveApplicationsQuery, 'query'), ctrl.getApplications)
 leaveRouter.get('/applications/pending', requireRole(UserRole.TEAM_LEAD), ctrl.getPending)
-leaveRouter.get('/applications/:id', ctrl.getApplication)
+leaveRouter.get('/applications/:id', officeScope, ctrl.getApplication)
 leaveRouter.patch('/applications/:id/approve', requireRole(UserRole.TEAM_LEAD), validate(approveLeaveSchema), ctrl.approve)
 leaveRouter.patch('/applications/:id/reject', requireRole(UserRole.TEAM_LEAD), validate(rejectLeaveSchema), ctrl.reject)
 leaveRouter.patch('/applications/:id/cancel', validate(cancelLeaveSchema), ctrl.cancel)

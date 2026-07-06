@@ -166,7 +166,7 @@ router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: 
   const officeFilter = scope ? { officeId: scope } : {}
   const { start, end } = todayRange()
 
-  const [headcount, onProbation, onLeaveToday, lateToday, pendingLeaves, openTimesheets] =
+  const [headcount, onProbation, onLeaveToday, lateToday, pendingLeaves] =
     await Promise.all([
       prisma.employee.count({ where: { ...officeFilter, employmentStatus: { not: 'TERMINATED' } } }),
       prisma.employee.count({ where: { ...officeFilter, employmentStatus: 'PROBATION' } }),
@@ -188,9 +188,6 @@ router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: 
       prisma.leaveApplication.count({
         where: { status: 'PENDING', ...(scope ? { employee: { officeId: scope } } : {}) },
       }),
-      prisma.timesheet.count({
-        where: { status: 'SUBMITTED', ...(scope ? { employee: { officeId: scope } } : {}) },
-      }),
     ])
 
   sendSuccess(res, {
@@ -199,7 +196,6 @@ router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: 
     onLeaveToday,
     lateToday,
     pendingLeaves,
-    openTimesheets,
   })
 })
 

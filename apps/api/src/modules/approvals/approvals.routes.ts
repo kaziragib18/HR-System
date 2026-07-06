@@ -52,44 +52,7 @@ router.get('/history', validate(historyQuery, 'query'), async (req, res, next) =
       orderBy: { createdAt: 'desc' },
     })
 
-    // ── 2. Timesheet approvals ─────────────────────────────────────────────────
-    const tsApproved = await prisma.timesheet.findMany({
-      where: {
-        approvedAt: { gte: start, lte: end },
-        approvedById: { not: null },
-        ...(isAdmin
-          ? scope ? { employee: { officeId: scope } } : {}
-          : { approvedById: myEmployeeId }),
-      },
-      include: {
-        employee: {
-          select: {
-            id: true, firstName: true, lastName: true, employeeId: true,
-            department: { select: { id: true, name: true } },
-          },
-        },
-      },
-    })
-
-    const tsRejected = await prisma.timesheet.findMany({
-      where: {
-        rejectedAt: { gte: start, lte: end },
-        rejectedById: { not: null },
-        ...(isAdmin
-          ? scope ? { employee: { officeId: scope } } : {}
-          : { rejectedById: myEmployeeId }),
-      },
-      include: {
-        employee: {
-          select: {
-            id: true, firstName: true, lastName: true, employeeId: true,
-            department: { select: { id: true, name: true } },
-          },
-        },
-      },
-    })
-
-    // ── 3. Late excuse history ─────────────────────────────────────────────────
+    // ── 2. Late excuse history ─────────────────────────────────────────────────
     const excuseHistory = await prisma.attendance.findMany({
       where: {
         excuseReviewedAt: { gte: start, lte: end },
@@ -112,8 +75,6 @@ router.get('/history', validate(historyQuery, 'query'), async (req, res, next) =
     // ── Resolve approver names ─────────────────────────────────────────────────
     const actorIds: string[] = [...new Set([
       ...leaveHistory.map(h => h.approverId),
-      ...tsApproved.map(t => t.approvedById).filter(Boolean) as string[],
-      ...tsRejected.map(t => t.rejectedById).filter(Boolean) as string[],
       ...excuseHistory.map(a => a.excuseReviewedBy).filter(Boolean) as string[],
     ])]
 
@@ -141,34 +102,6 @@ router.get('/history', validate(historyQuery, 'query'), async (req, res, next) =
         startDate: h.application.startDate.toISOString(),
         endDate: h.application.endDate.toISOString(),
         totalDays: h.application.totalDays,
-      })),
-      ...tsApproved.map(t => ({
-        id: `ts-a-${t.id}`,
-        type: 'TIMESHEET' as const,
-        action: 'APPROVED' as const,
-        actionAt: t.approvedAt!.toISOString(),
-        level: null,
-        comment: null,
-        approverId: t.approvedById!,
-        approver: actorMap[t.approvedById!] ?? null,
-        employee: t.employee,
-        weekStartDate: t.weekStartDate.toISOString(),
-        weekEndDate: t.weekEndDate.toISOString(),
-        totalMinutes: t.totalMinutes,
-      })),
-      ...tsRejected.map(t => ({
-        id: `ts-r-${t.id}`,
-        type: 'TIMESHEET' as const,
-        action: 'REJECTED' as const,
-        actionAt: t.rejectedAt!.toISOString(),
-        level: null,
-        comment: t.rejectionReason ?? null,
-        approverId: t.rejectedById!,
-        approver: actorMap[t.rejectedById!] ?? null,
-        employee: t.employee,
-        weekStartDate: t.weekStartDate.toISOString(),
-        weekEndDate: t.weekEndDate.toISOString(),
-        totalMinutes: t.totalMinutes,
       })),
       ...excuseHistory.map(a => ({
         id: `ex-${a.id}`,

@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { prisma } from '../../config/prisma'
 import { comparePassword, hashPassword } from '../../utils/hash'
 import {
@@ -241,6 +242,40 @@ export async function changePassword(
   // Invalidate all other sessions after a password change
   await prisma.session.updateMany({
     where: { userId, isValid: true },
+    data: { isValid: false },
+  })
+}
+
+// ─── Password reset (HR-relay — no email channel exists in this codebase) ─────
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+/** Generates a reset token for HR to copy and relay to the employee. */
+export async function requestPasswordReset(userId: string): Promise<{ token: string; expiresAt: Date }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new AuthError('User not found', 404)
+
+  const token = randomBytes(32).toString('hex')
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS)
+  await prisma.passwordReset.create({ data: { userId, token, expiresAt } })
+  return { token, expiresAt }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const reset = await prisma.passwordReset.findUnique({ where: { token } })
+  if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+    throw new AuthError('Invalid or expired reset link', 400)
+  }
+
+  await prisma.user.update({
+    where: { id: reset.userId },
+    data: { passwordHash: await hashPassword(newPassword) },
+  })
+  await prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } })
+
+  // Invalidate all sessions — same precaution as a self-service password change.
+  await prisma.session.updateMany({
+    where: { userId: reset.userId, isValid: true },
     data: { isValid: false },
   })
 }

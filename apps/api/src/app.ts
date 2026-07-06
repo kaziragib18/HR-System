@@ -14,7 +14,6 @@ import { holidaysRouter } from './modules/holidays/holidays.routes'
 import { dashboardRouter } from './modules/dashboard/dashboard.routes'
 import { attendanceRouter } from './modules/attendance/attendance.routes'
 import { leaveRouter } from './modules/leave/leave.routes'
-import { timesheetsRouter } from './modules/timesheets/timesheets.routes'
 import { notificationsRouter } from './modules/notifications/notifications.routes'
 import { salaryRouter } from './modules/salary/salary.routes'
 import { payrollRouter } from './modules/payroll/payroll.routes'
@@ -69,7 +68,6 @@ export function createApp(): Express {
   app.use('/api/v1/dashboard', dashboardRouter)
   app.use('/api/v1/attendance', attendanceRouter)
   app.use('/api/v1/leave', leaveRouter)
-  app.use('/api/v1/timesheets', timesheetsRouter)
   app.use('/api/v1/notifications', notificationsRouter)
   app.use('/api/v1/salary', salaryRouter)
   app.use('/api/v1/payroll', payrollRouter)

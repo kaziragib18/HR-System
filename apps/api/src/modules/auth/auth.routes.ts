@@ -8,6 +8,7 @@ import {
   twoFactorVerifySchema,
   twoFactorEnableSchema,
   changePasswordSchema,
+  resetPasswordSchema,
 } from './auth.schemas'
 
 const router: RouterType = Router()
@@ -31,6 +32,7 @@ router.post(
 )
 router.post('/refresh', controller.refresh)
 router.post('/logout', controller.logout)
+router.post('/reset-password', authLimiter, validate(resetPasswordSchema), controller.resetPassword)
 
 // Authenticated
 router.get('/me', authenticate, controller.me)
