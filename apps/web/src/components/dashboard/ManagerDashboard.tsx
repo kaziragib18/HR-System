@@ -4,6 +4,7 @@ import { useDashboardStats, useHeadcountByDepartment } from '@/lib/api/hooks/use
 import { usePendingExcuses, useReviewExcuse, type AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { Card, Spinner, Avatar } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
+import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import { cn } from '@/lib/utils'
 import {
   Users,
@@ -102,6 +103,8 @@ export function ManagerDashboard() {
               </ResponsiveContainer>
             </Card>
           )}
+
+          <ComplianceDocsCard />
         </>
       )}
     </div>

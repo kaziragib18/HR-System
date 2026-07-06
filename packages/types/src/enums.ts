@@ -129,3 +129,28 @@ export enum TaxRegime {
   BD_INCOME_TAX = 'BD_INCOME_TAX',
   UK_PAYE = 'UK_PAYE',
 }
+
+export enum SkillLevel {
+  BEGINNER = 'BEGINNER',
+  INTERMEDIATE = 'INTERMEDIATE',
+  ADVANCED = 'ADVANCED',
+  EXPERT = 'EXPERT',
+}
+
+export enum IdentificationType {
+  NATIONAL_ID = 'NATIONAL_ID',
+  PASSPORT = 'PASSPORT',
+  DRIVING_LICENSE = 'DRIVING_LICENSE',
+  OTHER = 'OTHER',
+}
+
+export enum BloodGroup {
+  A_POSITIVE = 'A+',
+  A_NEGATIVE = 'A-',
+  B_POSITIVE = 'B+',
+  B_NEGATIVE = 'B-',
+  AB_POSITIVE = 'AB+',
+  AB_NEGATIVE = 'AB-',
+  O_POSITIVE = 'O+',
+  O_NEGATIVE = 'O-',
+}

@@ -3,6 +3,7 @@ import { apiClient } from '../client'
 import type {
   EmployeeListItem,
   EmployeeProfile,
+  ContactBookEntry,
   PaginationMeta,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
@@ -16,6 +17,7 @@ export interface EmployeeListParams {
   departmentId?: string
   officeId?: string
   employmentStatus?: string
+  bloodGroup?: string
 }
 
 export function useEmployees(params: EmployeeListParams = {}) {
@@ -24,6 +26,24 @@ export function useEmployees(params: EmployeeListParams = {}) {
     queryFn: async () => {
       const { data } = await apiClient.get('/employees', { params })
       return data as { data: EmployeeListItem[]; meta: PaginationMeta }
+    },
+  })
+}
+
+export interface ContactBookParams {
+  page?: number
+  limit?: number
+  search?: string
+  departmentId?: string
+  bloodGroup?: string
+}
+
+export function useContactBook(params: ContactBookParams = {}) {
+  return useQuery({
+    queryKey: ['contact-book', params],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/employees/directory', { params })
+      return data as { data: ContactBookEntry[]; meta: PaginationMeta }
     },
   })
 }

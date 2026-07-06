@@ -1,4 +1,4 @@
-import { EmploymentStatus, EmploymentType } from './enums'
+import { EmploymentStatus, EmploymentType, SkillLevel, IdentificationType, DocumentType, BloodGroup } from './enums'
 
 export interface EmployeeListItem {
   id: string
@@ -11,6 +11,7 @@ export interface EmployeeListItem {
   employmentType: EmploymentType
   employmentStatus: EmploymentStatus
   joiningDate: string
+  bloodGroup?: BloodGroup | null
   department: { id: string; name: string }
   jobTitle?: { id: string; name: string } | null
   jobGrade?: { id: string; name: string } | null
@@ -27,6 +28,9 @@ export interface EmployeeProfile extends EmployeeListItem {
   presentAddress?: Address | null
   permanentAddress?: Address | null
   emergencyContact?: EmergencyContact | null
+  isBloodDonor?: boolean
+  lastDonationDate?: string | null
+  nomineeInfo?: NomineeInfo | null
   bio?: string | null
   confirmationDate?: string | null
   probationEndDate?: string | null
@@ -46,6 +50,14 @@ export interface EmergencyContact {
   name: string
   phone: string
   relation: string
+}
+
+export interface NomineeInfo {
+  name: string
+  relationship: string
+  phone: string
+  nationalId?: string
+  address?: Address
 }
 
 export interface BankInfo {
@@ -82,6 +94,10 @@ export interface CreateEmployeeRequest {
   presentAddress?: Address
   permanentAddress?: Address
   emergencyContact?: EmergencyContact
+  bloodGroup?: BloodGroup
+  isBloodDonor?: boolean
+  lastDonationDate?: string
+  nomineeInfo?: NomineeInfo
 }
 
 export interface UpdateEmployeeRequest extends Partial<CreateEmployeeRequest> {
@@ -90,3 +106,94 @@ export interface UpdateEmployeeRequest extends Partial<CreateEmployeeRequest> {
   lastWorkingDay?: string
   bio?: string
 }
+
+// ─── Profile sections ──────────────────────────────────────────────────────
+
+export interface WorkExperience {
+  id: string
+  employeeId: string
+  companyName: string
+  jobTitle: string
+  location?: string | null
+  startDate: string
+  endDate?: string | null
+  isCurrent: boolean
+  description?: string | null
+}
+export type CreateWorkExperienceRequest = Omit<WorkExperience, 'id' | 'employeeId'>
+export type UpdateWorkExperienceRequest = Partial<CreateWorkExperienceRequest>
+
+export interface Education {
+  id: string
+  employeeId: string
+  institution: string
+  degree: string
+  fieldOfStudy?: string | null
+  startDate: string
+  endDate?: string | null
+  grade?: string | null
+  description?: string | null
+}
+export type CreateEducationRequest = Omit<Education, 'id' | 'employeeId'>
+export type UpdateEducationRequest = Partial<CreateEducationRequest>
+
+export interface EmployeeSkill {
+  id: string
+  employeeId: string
+  name: string
+  level: SkillLevel
+  yearsOfExperience?: number | null
+}
+export type CreateEmployeeSkillRequest = Omit<EmployeeSkill, 'id' | 'employeeId'>
+export type UpdateEmployeeSkillRequest = Partial<Omit<CreateEmployeeSkillRequest, 'name'>>
+
+export interface ContactBookEntry {
+  id: string
+  employeeId: string
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string | null
+  avatarUrl?: string | null
+  bloodGroup?: BloodGroup | null
+  department: { id: string; name: string }
+  jobTitle?: { name: string } | null
+}
+
+export interface DocumentSummary {
+  id: string
+  name: string
+  type: DocumentType
+  fileMime: string
+  fileSizeBytes: number
+  createdAt: string
+}
+
+export interface Certification {
+  id: string
+  employeeId: string
+  name: string
+  issuingOrganization: string
+  issueDate: string
+  expiryDate?: string | null
+  credentialId?: string | null
+  credentialUrl?: string | null
+  documentId?: string | null
+  document?: DocumentSummary | null
+}
+export type CreateCertificationRequest = Omit<Certification, 'id' | 'employeeId' | 'documentId' | 'document'>
+export type UpdateCertificationRequest = Partial<CreateCertificationRequest>
+
+export interface Identification {
+  id: string
+  employeeId: string
+  type: IdentificationType
+  documentNumber: string
+  issuingAuthority?: string | null
+  issueDate?: string | null
+  expiryDate?: string | null
+  documentId?: string | null
+  document?: DocumentSummary | null
+}
+export type CreateIdentificationRequest = Omit<Identification, 'id' | 'employeeId' | 'documentId' | 'document'>
+export type UpdateIdentificationRequest = Partial<CreateIdentificationRequest>

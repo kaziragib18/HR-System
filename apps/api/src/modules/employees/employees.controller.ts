@@ -3,13 +3,32 @@ import * as service from './employees.service'
 import { EmployeeError } from './employees.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
-import { AuditAction } from '@hr-system/types'
+import { AuditAction, UserRole } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { CreateEmployeeInput, UpdateEmployeeInput, BankInfoInput, ListEmployeesQuery } from './employees.schemas'
+import type { CreateEmployeeInput, UpdateEmployeeInput, BankInfoInput, ListEmployeesQuery, DirectoryQuery } from './employees.schemas'
 
 function scope(req: Request): string | undefined {
   return (req as OfficeScopedRequest).officeScope
+}
+
+// Fields a non-HR self-edit may touch — org/employment fields (department, job
+// title, status, reporting line, dates, etc.) stay HR-only even when editing
+// your own record, since PATCH /:id is reachable by self via SELF_OR_HR.
+// Identity fields (name, email) are also excluded — only HR_MANAGER/SUPER_ADMIN
+// may change what an employee is called or their login email, even for self.
+const SELF_EDITABLE_FIELDS = [
+  'phone', 'dateOfBirth', 'gender',
+  'nationality', 'nationalId', 'passportNumber',
+  'presentAddress', 'permanentAddress', 'emergencyContact', 'bio',
+  'bloodGroup', 'isBloodDonor', 'lastDonationDate', 'nomineeInfo',
+] as const
+
+function restrictToPersonalFields(body: UpdateEmployeeInput): UpdateEmployeeInput {
+  const allowed = new Set<string>(SELF_EDITABLE_FIELDS)
+  return Object.fromEntries(
+    Object.entries(body).filter(([key]) => allowed.has(key))
+  ) as UpdateEmployeeInput
 }
 
 function handle(res: Response, err: unknown) {
@@ -52,8 +71,12 @@ export async function create(req: Request, res: Response) {
 
 export async function update(req: Request, res: Response) {
   try {
-    const employee = await service.updateEmployee(req.params.id, scope(req), req.body as UpdateEmployeeInput)
-    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Employee', employee.id, undefined, req.body)
+    const authReq = req as AuthRequest
+    const isHR = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(authReq.user.role as UserRole)
+    // Reachable here either as HR+ (any field) or as self via SELF_OR_HR (personal fields only).
+    const body = isHR ? (req.body as UpdateEmployeeInput) : restrictToPersonalFields(req.body as UpdateEmployeeInput)
+    const employee = await service.updateEmployee(req.params.id, scope(req), body)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Employee', employee.id, undefined, body)
     sendSuccess(res, employee)
   } catch (err) {
     handle(res, err)
@@ -91,8 +114,8 @@ export async function putBankInfo(req: Request, res: Response) {
 
 export async function directory(req: Request, res: Response) {
   try {
-    const list = await service.getDirectory(scope(req), req.query.search as string | undefined)
-    sendSuccess(res, list)
+    const { items, meta } = await service.getDirectory(scope(req), req.query as DirectoryQuery)
+    sendSuccess(res, items, meta)
   } catch (err) {
     handle(res, err)
   }

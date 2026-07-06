@@ -14,7 +14,7 @@ import {
   Clock,
   CalendarDays,
   ClipboardList,
-  FileText,
+  BookUser,
   Bell,
   Settings,
   ChevronLeft,
@@ -39,7 +39,7 @@ const NAV_ITEMS = [
   { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN], exclude: null },
   { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null, exclude: SA },
   { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN], exclude: null },
-  { href: '/documents', label: 'Documents', icon: FileText, roles: null, exclude: null },
+  { href: '/contact-book', label: 'Contact Book', icon: BookUser, roles: null, exclude: null },
   { href: '/notifications', label: 'Notifications', icon: Bell, roles: null, exclude: null },
   { href: '/settings', label: 'Settings', icon: Settings, roles: null, exclude: null },
 ]

@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEmployees, useUpdateEmployeeById } from '@/lib/api/hooks/useEmployees'
 import { useDepartments } from '@/lib/api/hooks/useDepartments'
-import { useOffices } from '@/lib/api/hooks/useReference'
+import { useOffices, useJobTitles } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
 import { PageHeader, Card, Avatar, StatusBadge, Spinner, EmptyState } from '@/components/ui/primitives'
 import { UserRole, EmploymentStatus } from '@hr-system/types'
-import { Plus, Search, ChevronUp, ChevronDown, ChevronsUpDown, Pencil, X, Check } from 'lucide-react'
+import type { EmployeeListItem } from '@hr-system/types'
+import { Plus, Search, ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,54 +47,141 @@ function SortTh({
   )
 }
 
-// ─── Inline select cell ───────────────────────────────────────────────────────
+// ─── Editable select cell — dropdown saves immediately on change ─────────────
 
-function InlineSelect({
+function EditableSelect({
   value,
   options,
   saving,
-  onSave,
-  onCancel,
+  placeholder = '— Select —',
+  onChange,
 }: {
   value: string
   options: { value: string; label: string }[]
   saving: boolean
-  onSave: (v: string) => void
-  onCancel: () => void
+  placeholder?: string
+  onChange: (v: string) => void
 }) {
-  const [val, setVal] = useState(value)
+  // If the current value isn't among the loaded options (e.g. the designation
+  // belonged to a department the employee was just moved out of), fall back to
+  // the placeholder instead of letting the browser silently select the first
+  // real option — that would look like a value is set when it isn't.
+  const hasMatch = options.some(o => o.value === value)
+  const selectValue = hasMatch ? value : ''
+
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <select
-        autoFocus
-        value={val}
-        onChange={e => setVal(e.target.value)}
+        value={selectValue}
         disabled={saving}
+        onChange={e => {
+          if (e.target.value) onChange(e.target.value)
+        }}
         className="h-7 rounded border bg-background px-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
       >
+        <option value="" disabled={hasMatch}>{placeholder}</option>
         {options.map(o => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      <button
-        onClick={() => onSave(val)}
-        disabled={saving || val === value}
-        className="rounded p-0.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 dark:hover:bg-emerald-900/20"
-      >
-        {saving ? (
-          <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : (
-          <Check className="h-3.5 w-3.5" />
-        )}
-      </button>
-      <button
-        onClick={onCancel}
-        disabled={saving}
-        className="rounded p-0.5 hover:bg-muted disabled:opacity-40"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+      {saving && (
+        <span className="block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent text-muted-foreground" />
+      )}
     </div>
+  )
+}
+
+// ─── Employee row ─────────────────────────────────────────────────────────────
+
+function EmployeeRow({
+  emp,
+  canEdit,
+  savingCell,
+  deptOptions,
+  statusOptions,
+  onSaveDept,
+  onSaveStatus,
+  onSaveDesignation,
+}: {
+  emp: EmployeeListItem
+  canEdit: boolean
+  savingCell: string | null
+  deptOptions: { value: string; label: string }[]
+  statusOptions: { value: string; label: string }[]
+  onSaveDept: (empId: string, v: string) => void
+  onSaveStatus: (empId: string, v: string) => void
+  onSaveDesignation: (empId: string, v: string) => void
+}) {
+  const isSavingStatus      = savingCell === `${emp.id}-status`
+  const isSavingDept        = savingCell === `${emp.id}-dept`
+  const isSavingDesignation = savingCell === `${emp.id}-designation`
+
+  // Job titles are scoped to a department, so fetch options for this row's department.
+  const { data: jobTitles = [] } = useJobTitles(canEdit ? emp.department?.id : undefined)
+  const designationOptions = jobTitles.map(t => ({ value: t.id, label: t.name }))
+
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/40">
+      {/* Employee */}
+      <td className="px-4 py-2">
+        <Link href={`/employees/${emp.id}`} className="flex items-center gap-3">
+          <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} />
+          <div>
+            <p className="font-medium">{emp.firstName} {emp.lastName}</p>
+            <p className="text-xs text-muted-foreground">{emp.email}</p>
+          </div>
+        </Link>
+      </td>
+
+      {/* ID */}
+      <td className="px-4 py-2 text-muted-foreground">{emp.employeeId}</td>
+
+      {/* Department */}
+      <td className="px-4 py-2">
+        {canEdit ? (
+          <EditableSelect
+            value={emp.department?.id ?? ''}
+            options={deptOptions}
+            saving={isSavingDept}
+            onChange={v => onSaveDept(emp.id, v)}
+          />
+        ) : (
+          <span>{emp.department?.name ?? '—'}</span>
+        )}
+      </td>
+
+      {/* Designation */}
+      <td className="px-4 py-2">
+        {canEdit ? (
+          <EditableSelect
+            value={emp.jobTitle?.id ?? ''}
+            options={designationOptions}
+            saving={isSavingDesignation}
+            placeholder="No designation"
+            onChange={v => onSaveDesignation(emp.id, v)}
+          />
+        ) : (
+          <span className="text-muted-foreground">{emp.jobTitle?.name ?? '—'}</span>
+        )}
+      </td>
+
+      {/* Office */}
+      <td className="px-4 py-2">{emp.office?.code}</td>
+
+      {/* Status */}
+      <td className="px-4 py-2">
+        {canEdit ? (
+          <EditableSelect
+            value={emp.employmentStatus}
+            options={statusOptions}
+            saving={isSavingStatus}
+            onChange={v => onSaveStatus(emp.id, v)}
+          />
+        ) : (
+          <StatusBadge status={emp.employmentStatus} />
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -125,7 +213,6 @@ export default function EmployeesPage() {
   }
 
   // ── Inline edit state ──
-  const [editCell, setEditCell]   = useState<{ id: string; field: 'status' | 'dept' } | null>(null)
   const [savingCell, setSavingCell] = useState<string | null>(null)
 
   // ── Data ──
@@ -160,7 +247,6 @@ export default function EmployeesPage() {
     setSavingCell(key)
     try {
       await updateById.mutateAsync({ id: empId, employmentStatus: newStatus as EmploymentStatus })
-      setEditCell(null)
     } finally {
       setSavingCell(null)
     }
@@ -171,7 +257,16 @@ export default function EmployeesPage() {
     setSavingCell(key)
     try {
       await updateById.mutateAsync({ id: empId, departmentId: newDeptId })
-      setEditCell(null)
+    } finally {
+      setSavingCell(null)
+    }
+  }
+
+  async function saveDesignation(empId: string, newJobTitleId: string) {
+    const key = `${empId}-designation`
+    setSavingCell(key)
+    try {
+      await updateById.mutateAsync({ id: empId, jobTitleId: newJobTitleId })
     } finally {
       setSavingCell(null)
     }
@@ -273,88 +368,25 @@ export default function EmployeesPage() {
                   <th className="px-4 py-2 font-medium">Employee</th>
                   <th className="px-4 py-2 font-medium">ID</th>
                   <SortTh label="Department" field="department" active={sortField === 'department'} dir={sortDir} onSort={toggleSort} />
+                  <th className="px-4 py-2 font-medium">Designation</th>
                   <SortTh label="Office"     field="office"     active={sortField === 'office'}     dir={sortDir} onSort={toggleSort} />
                   <SortTh label="Status"     field="status"     active={sortField === 'status'}     dir={sortDir} onSort={toggleSort} />
                 </tr>
               </thead>
               <tbody>
-                {rows.map(emp => {
-                  const isEditingStatus = editCell?.id === emp.id && editCell.field === 'status'
-                  const isEditingDept   = editCell?.id === emp.id && editCell.field === 'dept'
-                  const isSavingStatus  = savingCell === `${emp.id}-status`
-                  const isSavingDept    = savingCell === `${emp.id}-dept`
-
-                  return (
-                    <tr key={emp.id} className="group border-b last:border-0 hover:bg-muted/40">
-                      {/* Employee */}
-                      <td className="px-4 py-2">
-                        <Link href={`/employees/${emp.id}`} className="flex items-center gap-3">
-                          <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} />
-                          <div>
-                            <p className="font-medium">{emp.firstName} {emp.lastName}</p>
-                            <p className="text-xs text-muted-foreground">{emp.email}</p>
-                          </div>
-                        </Link>
-                      </td>
-
-                      {/* ID */}
-                      <td className="px-4 py-2 text-muted-foreground">{emp.employeeId}</td>
-
-                      {/* Department */}
-                      <td className="px-4 py-2">
-                        {isEditingDept ? (
-                          <InlineSelect
-                            value={emp.department?.id ?? ''}
-                            options={deptOptions}
-                            saving={isSavingDept}
-                            onSave={v => saveDept(emp.id, v)}
-                            onCancel={() => setEditCell(null)}
-                          />
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <span>{emp.department?.name ?? '—'}</span>
-                            {canEdit && (
-                              <button
-                                onClick={() => setEditCell({ id: emp.id, field: 'dept' })}
-                                className="invisible rounded p-0.5 text-muted-foreground hover:bg-muted group-hover:visible"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Office */}
-                      <td className="px-4 py-2">{emp.office?.code}</td>
-
-                      {/* Status */}
-                      <td className="px-4 py-2">
-                        {isEditingStatus ? (
-                          <InlineSelect
-                            value={emp.employmentStatus}
-                            options={statusOptions}
-                            saving={isSavingStatus}
-                            onSave={v => saveStatus(emp.id, v)}
-                            onCancel={() => setEditCell(null)}
-                          />
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <StatusBadge status={emp.employmentStatus} />
-                            {canEdit && (
-                              <button
-                                onClick={() => setEditCell({ id: emp.id, field: 'status' })}
-                                className="invisible rounded p-0.5 text-muted-foreground hover:bg-muted group-hover:visible"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {rows.map(emp => (
+                  <EmployeeRow
+                    key={emp.id}
+                    emp={emp}
+                    canEdit={canEdit}
+                    savingCell={savingCell}
+                    deptOptions={deptOptions}
+                    statusOptions={statusOptions}
+                    onSaveDept={saveDept}
+                    onSaveStatus={saveStatus}
+                    onSaveDesignation={saveDesignation}
+                  />
+                ))}
               </tbody>
             </table>
           </div>

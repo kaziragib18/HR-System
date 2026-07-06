@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EmploymentType, EmploymentStatus, UserRole } from '@hr-system/types'
+import { EmploymentType, EmploymentStatus, UserRole, BloodGroup } from '@hr-system/types'
 
 const addressSchema = z.object({
   line1: z.string(),
@@ -14,6 +14,14 @@ const emergencyContactSchema = z.object({
   name: z.string(),
   phone: z.string(),
   relation: z.string(),
+})
+
+const nomineeInfoSchema = z.object({
+  name: z.string(),
+  relationship: z.string(),
+  phone: z.string(),
+  nationalId: z.string().optional(),
+  address: addressSchema.optional(),
 })
 
 export const createEmployeeSchema = z.object({
@@ -38,6 +46,10 @@ export const createEmployeeSchema = z.object({
   presentAddress: addressSchema.optional(),
   permanentAddress: addressSchema.optional(),
   emergencyContact: emergencyContactSchema.optional(),
+  bloodGroup: z.nativeEnum(BloodGroup).optional(),
+  isBloodDonor: z.boolean().optional(),
+  lastDonationDate: z.string().datetime().optional(),
+  nomineeInfo: nomineeInfoSchema.optional(),
 })
 
 export const updateEmployeeSchema = createEmployeeSchema.partial().extend({
@@ -67,9 +79,20 @@ export const listEmployeesQuerySchema = z.object({
   departmentId: z.string().optional(),
   officeId: z.string().optional(),
   employmentStatus: z.nativeEnum(EmploymentStatus).optional(),
+  bloodGroup: z.nativeEnum(BloodGroup).optional(),
+})
+
+export const listDirectoryQuerySchema = z.object({
+  page: z.coerce.number().optional(),
+  limit: z.coerce.number().optional(),
+  search: z.string().optional(),
+  departmentId: z.string().optional(),
+  officeId: z.string().optional(),
+  bloodGroup: z.nativeEnum(BloodGroup).optional(),
 })
 
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>
 export type BankInfoInput = z.infer<typeof bankInfoSchema>
 export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>
+export type DirectoryQuery = z.infer<typeof listDirectoryQuerySchema>

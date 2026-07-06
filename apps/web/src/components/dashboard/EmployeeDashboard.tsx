@@ -1,26 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useMyDashboard, type MyDashboard, type ManagerInfo } from '@/lib/api/hooks/useMyDashboard'
 import { useTodayAttendance } from '@/lib/api/hooks/useAttendance'
 import { Card, Avatar, StatusBadge, Spinner } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
-import { apiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
+import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import {
   LogIn,
   Clock,
   Plus,
-  FileText,
-  ShieldCheck,
   Coins,
-  Award,
   Building2,
   User,
-  Download,
 } from 'lucide-react'
 
 const OFFICE_SHIFT: Record<string, { start: string; end: string; label: string }> = {
@@ -465,94 +460,3 @@ function ManagerCard({ managers }: { managers: ManagerInfo[] }) {
   )
 }
 
-interface ComplianceDoc {
-  id: string
-  title: string
-  description?: string | null
-  mimeType?: string | null
-  fileSize?: number | null
-  createdAt: string
-}
-
-function ComplianceDocsCard() {
-  const { data: docs = [], isLoading } = useQuery({
-    queryKey: ['compliance-docs'],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/company/compliance-docs')
-      return data.data as ComplianceDoc[]
-    },
-  })
-
-  async function handleDownload(id: string) {
-    const { data } = await apiClient.get(`/company/compliance-docs/${id}/download-url`)
-    window.open(data.data.downloadUrl, '_blank')
-  }
-
-  function fmtSize(bytes?: number | null) {
-    if (!bytes) return ''
-    if (bytes < 1024 * 1024) return ` · ${(bytes / 1024).toFixed(0)} KB`
-    return ` · ${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  if (!isLoading && docs.length === 0) {
-    return (
-      <Card>
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Compliance &amp; Policy Documents
-        </p>
-        <div className="space-y-1">
-          {[
-            { icon: FileText,    title: 'Leave & attendance policy',      desc: 'Encashment, carry-forward, WFH' },
-            { icon: ShieldCheck, title: 'Code of conduct & IT security',  desc: 'Data handling, device use' },
-            { icon: Coins,       title: 'Payroll & tax policy',           desc: 'Payslip schedule, TDS rules' },
-            { icon: Award,       title: 'Performance & appraisal',        desc: 'KPI framework, review cycle' },
-          ].map((p) => (
-            <div key={p.title} className="flex items-start gap-2 border-b py-2 last:border-0">
-              <p.icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-medium leading-tight">{p.title}</p>
-                <p className="text-[11px] text-muted-foreground">{p.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Compliance &amp; Policy Documents
-      </p>
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <div className="space-y-1">
-          {docs.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2 border-b py-2 last:border-0">
-              <FileText className="h-4 w-4 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{doc.title}</p>
-                {doc.description && (
-                  <p className="truncate text-[11px] text-muted-foreground">{doc.description}</p>
-                )}
-                <p className="text-[10px] text-muted-foreground">
-                  {new Date(doc.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  {fmtSize(doc.fileSize)}
-                </p>
-              </div>
-              <button
-                onClick={() => handleDownload(doc.id)}
-                className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                title="Download"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}

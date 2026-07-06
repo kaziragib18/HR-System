@@ -4,7 +4,7 @@ import { prisma } from '../../config/prisma'
 import { hashPassword } from '../../utils/hash'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { UserRole } from '@hr-system/types'
-import type { CreateEmployeeInput, UpdateEmployeeInput, BankInfoInput, ListEmployeesQuery } from './employees.schemas'
+import type { CreateEmployeeInput, UpdateEmployeeInput, BankInfoInput, ListEmployeesQuery, DirectoryQuery } from './employees.schemas'
 
 export class EmployeeError extends Error {
   constructor(
@@ -42,6 +42,7 @@ export async function listEmployees(officeScope: string | undefined, query: List
     ...(officeScope ? { officeId: officeScope } : query.officeId ? { officeId: query.officeId } : {}),
     ...(query.departmentId ? { departmentId: query.departmentId } : {}),
     ...(query.employmentStatus ? { employmentStatus: query.employmentStatus } : {}),
+    ...(query.bloodGroup ? { bloodGroup: query.bloodGroup } : {}),
     ...(query.search
       ? {
           OR: [
@@ -110,6 +111,10 @@ export async function createEmployee(data: CreateEmployeeInput, createdById: str
         presentAddress: data.presentAddress as Prisma.InputJsonValue | undefined,
         permanentAddress: data.permanentAddress as Prisma.InputJsonValue | undefined,
         emergencyContact: data.emergencyContact as Prisma.InputJsonValue | undefined,
+        bloodGroup: data.bloodGroup,
+        isBloodDonor: data.isBloodDonor,
+        lastDonationDate: data.lastDonationDate ? new Date(data.lastDonationDate) : undefined,
+        nomineeInfo: data.nomineeInfo as Prisma.InputJsonValue | undefined,
         createdById,
       },
       include: listInclude,
@@ -149,6 +154,8 @@ export async function updateEmployee(id: string, officeScope: string | undefined
         presentAddress: rest.presentAddress as Prisma.InputJsonValue | undefined,
         permanentAddress: rest.permanentAddress as Prisma.InputJsonValue | undefined,
         emergencyContact: rest.emergencyContact as Prisma.InputJsonValue | undefined,
+        lastDonationDate: rest.lastDonationDate ? new Date(rest.lastDonationDate) : undefined,
+        nomineeInfo: rest.nomineeInfo as Prisma.InputJsonValue | undefined,
         avatarUrl: avatarStoragePath,
       },
       include: listInclude,
@@ -192,34 +199,45 @@ export async function upsertBankInfo(employeeId: string, officeScope: string | u
   })
 }
 
-export async function getDirectory(officeScope: string | undefined, search?: string) {
-  return prisma.employee.findMany({
-    where: {
-      employmentStatus: { not: 'TERMINATED' },
-      ...(officeScope ? { officeId: officeScope } : {}),
-      ...(search
-        ? {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    },
-    select: {
-      id: true,
-      employeeId: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      phone: true,
-      avatarUrl: true,
-      department: { select: { name: true } },
-      jobTitle: { select: { name: true } },
-    },
-    orderBy: { firstName: 'asc' },
-  })
+export async function getDirectory(officeScope: string | undefined, query: DirectoryQuery) {
+  const { skip, take, page, limit } = parsePagination(query)
+
+  const where: Prisma.EmployeeWhereInput = {
+    employmentStatus: { not: 'TERMINATED' },
+    ...(officeScope ? { officeId: officeScope } : query.officeId ? { officeId: query.officeId } : {}),
+    ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+    ...(query.bloodGroup ? { bloodGroup: query.bloodGroup } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { firstName: { contains: query.search, mode: 'insensitive' } },
+            { lastName: { contains: query.search, mode: 'insensitive' } },
+            { email: { contains: query.search, mode: 'insensitive' } },
+            { employeeId: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  }
+
+  const select = {
+    id: true,
+    employeeId: true,
+    firstName: true,
+    lastName: true,
+    email: true,
+    phone: true,
+    avatarUrl: true,
+    bloodGroup: true,
+    department: { select: { id: true, name: true } },
+    jobTitle: { select: { name: true } },
+  } satisfies Prisma.EmployeeSelect
+
+  const [items, total] = await Promise.all([
+    prisma.employee.findMany({ where, select, skip, take, orderBy: { firstName: 'asc' } }),
+    prisma.employee.count({ where }),
+  ])
+
+  return { items, meta: buildPaginationMeta(total, page, limit) }
 }
 
 export async function getOrgChart(id: string, officeScope: string | undefined) {

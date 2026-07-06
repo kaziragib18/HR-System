@@ -120,6 +120,12 @@ model Employee {
   nationalId    String?
   passportNumber String?
 
+  // Health / emergency
+  bloodGroup       String?   // BloodGroup enum
+  isBloodDonor     Boolean   @default(false)
+  lastDonationDate DateTime?
+  nomineeInfo      Json?
+
   // Employment
   employmentType   String   // EmploymentType enum
   employmentStatus String   @default("PROBATION") // EmploymentStatus enum
@@ -154,6 +160,11 @@ model Employee {
   user              User?
   bankInfo          BankInfo?
   documents         Document[]
+  workExperiences   WorkExperience[]
+  educations        Education[]
+  skills            EmployeeSkill[]
+  certifications    Certification[]
+  identifications   Identification[]
   attendance        Attendance[]
   leaveApplications LeaveApplication[]
   leaveBalances     LeaveBalance[]
@@ -207,6 +218,99 @@ model BankInfo {
   updatedAt     DateTime @updatedAt
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMPLOYEE PROFILE SECTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkExperience {
+  id          String    @id @default(cuid())
+  employeeId  String
+  companyName String
+  jobTitle    String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model Education {
+  id           String    @id @default(cuid())
+  employeeId   String
+  institution  String
+  degree       String
+  fieldOfStudy String?
+  startDate    DateTime
+  endDate      DateTime?
+  grade        String?
+  description  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model EmployeeSkill {
+  id                String   @id @default(cuid())
+  employeeId        String
+  name              String
+  level             String   // SkillLevel enum
+  yearsOfExperience Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, name])
+  @@index([employeeId])
+}
+
+model Certification {
+  id                  String    @id @default(cuid())
+  employeeId          String
+  name                String
+  issuingOrganization String
+  issueDate           DateTime
+  expiryDate          DateTime?
+  credentialId        String?
+  credentialUrl       String?
+  documentId          String?   @unique
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  employee Employee  @relation(fields: [employeeId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([employeeId])
+}
+
+model Identification {
+  id               String    @id @default(cuid())
+  employeeId       String
+  type             String    // IdentificationType enum
+  documentNumber   String
+  issuingAuthority String?
+  issueDate        DateTime?
+  expiryDate       DateTime?
+  documentId       String?   @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  employee Employee  @relation(fields: [employeeId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([employeeId])
+  @@index([employeeId, type])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -478,9 +582,13 @@ model Document {
   signedAt           DateTime?
   signedByIp         String?
   uploadedById       String
+  isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee       Employee        @relation(fields: [employeeId], references: [id])
+  certification  Certification?
+  identification Identification?
 
   @@index([employeeId])
   @@index([type])

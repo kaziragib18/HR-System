@@ -34,6 +34,18 @@ export function getPublicUrl(bucket: BucketName, path: string): string {
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 }
 
+/** Uploads a buffer directly (server already has the file in memory via multer). */
+export async function uploadFile(
+  bucket: BucketName,
+  path: string,
+  buffer: Buffer,
+  contentType: string,
+  upsert = false
+): Promise<void> {
+  const { error } = await supabase.storage.from(bucket).upload(path, buffer, { contentType, upsert })
+  if (error) throw new Error(`Failed to upload file: ${error.message}`)
+}
+
 export async function deleteFile(bucket: BucketName, path: string): Promise<void> {
   const { error } = await supabase.storage.from(bucket).remove([path])
   if (error) throw new Error(`Failed to delete file: ${error.message}`)
