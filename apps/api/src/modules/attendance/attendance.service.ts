@@ -217,12 +217,16 @@ export async function manualEntry(input: ManualEntryInput, actorId: string) {
   const checkIn = input.checkIn ? new Date(input.checkIn) : null
   const checkOut = input.checkOut ? new Date(input.checkOut) : null
 
-  const holiday = await isHoliday(employee.officeId, date)
-  const onLeave = await isOnApprovedLeave(input.employeeId, date)
+  const [office, holiday, onLeave] = await Promise.all([
+    prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true } }),
+    isHoliday(employee.officeId, date),
+    isOnApprovedLeave(input.employeeId, date),
+  ])
   const dow = date.getUTCDay()
   const weekend = dow === 0 || dow === 6
+  const shift = shiftForOfficeCode(office?.code ?? 'UK')
 
-  const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave)
+  const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
 
   return prisma.attendance.upsert({
     where: { employeeId_date: { employeeId: input.employeeId, date } },
@@ -270,11 +274,15 @@ export async function bulkImport(input: BulkImportInput) {
     const checkIn = rec.checkIn ? new Date(rec.checkIn) : null
     const checkOut = rec.checkOut ? new Date(rec.checkOut) : null
 
-    const holiday = await isHoliday(employee.officeId, date)
-    const onLeave = await isOnApprovedLeave(rec.employeeId, date)
+    const [office, holiday, onLeave] = await Promise.all([
+      prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true } }),
+      isHoliday(employee.officeId, date),
+      isOnApprovedLeave(rec.employeeId, date),
+    ])
     const dow = date.getUTCDay()
     const weekend = dow === 0 || dow === 6
-    const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave)
+    const shift = shiftForOfficeCode(office?.code ?? 'UK')
+    const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
 
     const existing = await prisma.attendance.findUnique({
       where: { employeeId_date: { employeeId: rec.employeeId, date } },
