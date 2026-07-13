@@ -517,6 +517,11 @@ function AdjustmentCard({ rec, onApprove, onReject, reviewing }: {
       <Divider />
 
       <div className="space-y-3 px-5 py-4">
+        {!rec.checkIn && !rec.checkOut && (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            Absent → Present
+          </span>
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <MetaChip icon={Clock}>
             Current: {rec.checkIn ? fmtTime(rec.checkIn) : '—'} – {rec.checkOut ? fmtTime(rec.checkOut) : '—'}

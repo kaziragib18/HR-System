@@ -218,6 +218,21 @@ describe('reviewAdjustment', () => {
     )
   })
 
+  it('tags the record as a manual entry on approval, so it reads as an adjusted record rather than a normal self check-in', async () => {
+    RECORDS['att-1'] = makeRecord({
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: 'emp-teamlead',
+      requestedCheckIn: new Date('2020-01-02T09:00:00.000Z'),
+      requestedCheckOut: new Date('2020-01-02T18:00:00.000Z'),
+      employee: { officeId: 'office-bd' },
+    })
+    attendanceFindUnique.mockResolvedValue(RECORDS['att-1'])
+    await reviewAdjustment('att-1', 'emp-teamlead', UserRole.TEAM_LEAD, true, undefined, 'office-bd')
+    expect(txAttendanceUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ source: 'MANUAL' }) })
+    )
+  })
+
   it('leaves checkIn/checkOut untouched on rejection', async () => {
     RECORDS['att-1'] = makeRecord({
       adjustmentStatus: 'PENDING',

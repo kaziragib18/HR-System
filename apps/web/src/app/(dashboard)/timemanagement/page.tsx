@@ -26,6 +26,7 @@ import {
   Edit2,
   X,
   ArrowLeft,
+  Info,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -349,9 +350,28 @@ function DailyTable({
                 </td>
                 <td className="py-2.5 text-xs text-muted-foreground">{DAYS[row.dow]}</td>
                 <td className="py-2.5">
-                  {status ? <StatusPill status={status} /> : <span className="text-xs text-muted-foreground">—</span>}
+                  <div className="flex items-center gap-1.5">
+                    {status ? <StatusPill status={status} /> : <span className="text-xs text-muted-foreground">—</span>}
+                    {row.record?.adjustmentReason && (
+                      <span title={`Adjustment reason: ${row.record.adjustmentReason}`}>
+                        <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                      </span>
+                    )}
+                  </div>
                 </td>
-                <td className="py-2.5 font-mono text-xs">{fmtTime(row.record?.checkIn)}</td>
+                <td className="py-2.5 font-mono text-xs">
+                  <span className="inline-flex items-center gap-1.5">
+                    {fmtTime(row.record?.checkIn)}
+                    {row.record?.source === 'MANUAL' && (
+                      <span
+                        title="Manually entered / corrected via an approved adjustment request"
+                        className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
+                      >
+                        Manual
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="py-2.5 font-mono text-xs">{fmtTime(row.record?.checkOut)}</td>
                 <td className="py-2.5 text-xs">{fmtMins(row.record?.workingMinutes)}</td>
                 <td className="py-2.5 text-xs text-amber-600 dark:text-amber-400">
@@ -513,6 +533,11 @@ function RequestAdjustmentModal({
   const [reason, setReason] = useState(target.record?.adjustmentReason ?? '')
   const [error, setError] = useState('')
 
+  const currentlyAbsent = !target.record?.checkIn && !target.record?.checkOut
+  const noteText = currentlyAbsent
+    ? 'This day is currently marked Absent. Provide both times if you forgot to check in and out — your manager can approve it to Present.'
+    : 'This will update the existing check-in/check-out time for this day.'
+
   function toISO(time: string): string {
     return `${target.dateStr}T${time}:00.000Z`
   }
@@ -541,6 +566,10 @@ function RequestAdjustmentModal({
           </button>
         </div>
         <div className="space-y-4 p-4">
+          <p className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {noteText}
+          </p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
           <div>
             <label className="text-xs font-medium text-muted-foreground">Proposed check-in time (UTC)</label>

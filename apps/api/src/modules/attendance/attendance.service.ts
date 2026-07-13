@@ -607,6 +607,7 @@ export async function reviewAdjustment(
     data.earlyDepartureMinutes = computed.earlyDepartureMinutes
     data.overtimeMinutes = computed.overtimeMinutes
     data.workingMinutes = computed.workingMinutes
+    data.source = AttendanceSource.MANUAL
   }
 
   await prisma.$transaction(async (tx) => {
