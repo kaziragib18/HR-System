@@ -72,10 +72,31 @@ router.get('/history', validate(historyQuery, 'query'), async (req, res, next) =
       },
     })
 
+    // ── 3. Attendance adjustment-request history ───────────────────────────────
+    const adjustmentHistory = await prisma.attendance.findMany({
+      where: {
+        adjustmentReviewedAt: { gte: start, lte: end },
+        adjustmentStatus: { in: ['APPROVED', 'REJECTED'] },
+        adjustmentReviewedBy: { not: null },
+        ...(isAdmin
+          ? scope ? { employee: { officeId: scope } } : {}
+          : { adjustmentReviewedBy: myEmployeeId }),
+      },
+      include: {
+        employee: {
+          select: {
+            id: true, firstName: true, lastName: true, employeeId: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+    })
+
     // ── Resolve approver names ─────────────────────────────────────────────────
     const actorIds: string[] = [...new Set([
       ...leaveHistory.map(h => h.approverId),
       ...excuseHistory.map(a => a.excuseReviewedBy).filter(Boolean) as string[],
+      ...adjustmentHistory.map(a => a.adjustmentReviewedBy).filter(Boolean) as string[],
     ])]
 
     const actors = actorIds.length
@@ -116,6 +137,20 @@ router.get('/history', validate(historyQuery, 'query'), async (req, res, next) =
         date: a.date.toISOString(),
         lateMinutes: a.lateMinutes,
         lateExcuse: a.lateExcuse ?? null,
+      })),
+      ...adjustmentHistory.map(a => ({
+        id: `adj-${a.id}`,
+        type: 'ADJUSTMENT' as const,
+        action: a.adjustmentStatus as 'APPROVED' | 'REJECTED',
+        actionAt: a.adjustmentReviewedAt!.toISOString(),
+        level: null,
+        comment: a.adjustmentReason ?? null,
+        approverId: a.adjustmentReviewedBy!,
+        approver: actorMap[a.adjustmentReviewedBy!] ?? null,
+        employee: a.employee,
+        date: a.date.toISOString(),
+        requestedCheckIn: a.requestedCheckIn?.toISOString() ?? null,
+        requestedCheckOut: a.requestedCheckOut?.toISOString() ?? null,
       })),
     ].sort((a, b) => new Date(b.actionAt).getTime() - new Date(a.actionAt).getTime())
 
