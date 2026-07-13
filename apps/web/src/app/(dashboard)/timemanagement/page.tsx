@@ -107,7 +107,7 @@ function effectiveStatus(row: DayRow): string {
 
 function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })
 }
 
 function fmtShiftTime12h(hhmm: string): string {

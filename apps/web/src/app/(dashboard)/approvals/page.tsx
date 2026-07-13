@@ -38,7 +38,7 @@ function fmtDate(iso: string) {
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
 }
 
 function fmtRole(role: string) {

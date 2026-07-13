@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { AttendanceStatus } from '@hr-system/types'
-import { computeAttendanceStatus, UK_SHIFT } from './attendance'
+import { computeAttendanceStatus, UK_SHIFT, BD_SHIFT } from './attendance'
 
+// Check-in/check-out are always stored and labelled as UTC throughout the app
+// (see attendance.service.ts, the "(UTC)" field labels on the frontend) — so
+// tests must construct times the same way production code does, with an
+// explicit UTC designator, not a bare local-time string.
 function timeOn(day: string, time: string): Date {
-  return new Date(`${day}T${time}:00`)
+  return new Date(`${day}T${time}:00.000Z`)
 }
 
 describe('computeAttendanceStatus', () => {
@@ -96,5 +100,23 @@ describe('computeAttendanceStatus', () => {
       UK_SHIFT
     )
     expect(result.overtimeMinutes).toBe(2 * 60)
+  })
+
+  it('reads check-in/check-out as UTC regardless of the machine running the test', () => {
+    // BD_SHIFT starts at 13:30. A check-in of exactly 13:30 UTC must be on time —
+    // if the implementation ever reads local hours instead of UTC hours, this
+    // flips to LATE on any machine whose system timezone isn't UTC+0.
+    const result = computeAttendanceStatus(
+      timeOn('2026-07-06', '13:30'),
+      timeOn('2026-07-06', '22:00'),
+      false,
+      false,
+      false,
+      BD_SHIFT
+    )
+    expect(result.status).toBe(AttendanceStatus.PRESENT)
+    expect(result.lateMinutes).toBe(0)
+    expect(result.earlyDepartureMinutes).toBe(0)
+    expect(result.workingMinutes).toBe(8.5 * 60)
   })
 })

@@ -28,8 +28,13 @@ function timeToMinutes(time: string): number {
   return h * 60 + m
 }
 
+// Check-in/check-out are always stored and displayed as UTC throughout the
+// app (see the "(UTC)" field labels and explicit "Z"-suffixed ISO strings in
+// attendance.service.ts) — read UTC components here, not local ones, or every
+// comparison against shift.startTime/endTime drifts by the server's timezone
+// offset from UTC.
 function dateToMinutes(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes()
+  return date.getUTCHours() * 60 + date.getUTCMinutes()
 }
 
 export function computeAttendanceStatus(

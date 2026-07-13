@@ -13,16 +13,23 @@ import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
+import { BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
 import { LogIn, LogOut, Clock, AlertCircle, CalendarDays, AlertTriangle } from 'lucide-react'
 
-const OFFICE_SHIFT: Record<string, { label: string }> = {
-  BD: { label: '1:30 PM – 10:00 PM' },
-  UK: { label: '9:00 AM – 5:00 PM' },
+function shiftForOfficeCode(code?: string): ShiftConfig {
+  return code === 'BD' ? BD_SHIFT : UK_SHIFT
 }
 
 function fmtTime(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+}
+
+function fmtShiftTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h, m, 0, 0)
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
 function fmtMinutes(mins: number): string {
@@ -78,7 +85,8 @@ function TodayCard() {
     day: 'numeric',
     month: 'long',
   })
-  const officeShift = OFFICE_SHIFT[user?.officeCode ?? 'UK'] ?? OFFICE_SHIFT['UK']
+  const shift = shiftForOfficeCode(user?.officeCode)
+  const officeShiftLabel = `${fmtShiftTime(shift.startTime)} – ${fmtShiftTime(shift.endTime)}`
   const checkInTime = fmtTime(today?.checkIn ?? null)
   const checkOutTime = today?.checkOut ? fmtTime(today.checkOut) : null
 
@@ -171,7 +179,7 @@ function TodayCard() {
               <span className="text-muted-foreground">
                 Office hours ({user?.officeCode ?? 'UK'})
               </span>
-              <span className="font-medium">{officeShift.label}</span>
+              <span className="font-medium">{officeShiftLabel}</span>
             </div>
           </div>
 

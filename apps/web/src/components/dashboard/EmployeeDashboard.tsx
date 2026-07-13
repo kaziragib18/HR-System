@@ -36,7 +36,7 @@ const LEAVE_COLORS: Record<string, string> = {
 function fmtTime(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
 }
 
 function fmtShiftTime(hhmm: string): string {

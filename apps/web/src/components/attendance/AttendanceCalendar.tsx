@@ -32,7 +32,7 @@ export const STATUS_CELL: Record<string, string> = {
 
 function fmtTimeLocal(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
 }
 
 function fmtMins(m: number): string {
