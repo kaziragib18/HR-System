@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
+import { BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
 import {
   LogIn,
   Clock,
@@ -18,9 +19,8 @@ import {
   User,
 } from 'lucide-react'
 
-const OFFICE_SHIFT: Record<string, { start: string; end: string; label: string }> = {
-  BD: { start: '13:30', end: '22:00', label: '1:30 PM – 10:00 PM' },
-  UK: { start: '09:00', end: '17:00', label: '9:00 AM – 5:00 PM' },
+function shiftForOfficeCode(code?: string): ShiftConfig {
+  return code === 'BD' ? BD_SHIFT : UK_SHIFT
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -36,6 +36,13 @@ const LEAVE_COLORS: Record<string, string> = {
 function fmtTime(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+function fmtShiftTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h, m, 0, 0)
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
@@ -142,7 +149,8 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
     day: 'numeric',
     month: 'short',
   })
-  const officeShift = OFFICE_SHIFT[officeCode ?? 'UK'] ?? OFFICE_SHIFT['UK']
+  const officeShift = shiftForOfficeCode(officeCode)
+  const officeShiftLabel = `${fmtShiftTime(officeShift.startTime)} – ${fmtShiftTime(officeShift.endTime)}`
 
   const checkInTime = fmtTime(today?.checkIn ?? null)
   const checkOutTime = today?.checkOut ? fmtTime(today.checkOut) : null
@@ -205,7 +213,7 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
       <div className="mt-3 border-t pt-3">
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Office hours ({officeCode ?? 'UK'})</span>
-          <span className="font-medium">{officeShift.label}</span>
+          <span className="font-medium">{officeShiftLabel}</span>
         </div>
       </div>
     </Card>

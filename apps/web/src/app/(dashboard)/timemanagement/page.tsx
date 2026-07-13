@@ -15,6 +15,7 @@ import { useDepartments } from '@/lib/api/hooks/useDepartments'
 import { useAuthStore } from '@/store/auth.store'
 import { Card, Avatar, Spinner } from '@/components/ui/primitives'
 import { UserRole } from '@hr-system/types'
+import { BD_SHIFT, UK_SHIFT } from '@hr-system/utils'
 import { apiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import {
@@ -510,16 +511,19 @@ function EditModal({
 function RequestAdjustmentModal({
   target,
   isEdit,
+  officeCode,
   onClose,
   onSubmit,
   submitting,
 }: {
   target: EditTarget
   isEdit: boolean
+  officeCode?: string
   onClose: () => void
   onSubmit: (input: { requestedCheckIn: string; requestedCheckOut: string; reason: string }) => Promise<void>
   submitting: boolean
 }) {
+  const officeShift = officeCode === 'BD' ? BD_SHIFT : UK_SHIFT
   const [checkIn, setCheckIn] = useState(
     target.record?.requestedCheckIn
       ? new Date(target.record.requestedCheckIn).toISOString().slice(11, 16)
@@ -569,6 +573,10 @@ function RequestAdjustmentModal({
           <p className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {noteText}
+          </p>
+          <p className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Office hours{officeCode ? ` (${officeCode})` : ''}</span>
+            <span className="font-medium text-foreground">{officeShift.startTime} – {officeShift.endTime}</span>
           </p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
           <div>
@@ -964,6 +972,7 @@ export default function TimeManagementPage() {
         <RequestAdjustmentModal
           target={requestTarget}
           isEdit={requestTarget.record?.adjustmentStatus === 'PENDING'}
+          officeCode={user?.officeCode}
           onClose={() => setRequestTarget(null)}
           onSubmit={handleRequestSubmit}
           submitting={requestAdjustment.isPending || updateAdjustmentRequest.isPending}
