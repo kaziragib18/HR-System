@@ -2,9 +2,12 @@ import type { Request, Response } from 'express'
 import * as service from './attendance.service'
 import { AttendanceError } from './attendance.service'
 import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { auditFromRequest } from '../../utils/audit'
+import { AuditAction } from '@hr-system/types'
+import { prisma } from '../../config/prisma'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, LateExcuseInput, ReviewExcuseInput } from './attendance.schemas'
+import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, LateExcuseInput, ReviewExcuseInput, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
 function user(req: Request) { return (req as AuthRequest).user }
 function scope(req: Request) { return (req as OfficeScopedRequest).officeScope }
@@ -108,5 +111,41 @@ export async function listPendingExcuses(req: Request, res: Response) {
   try {
     const items = await service.listPendingExcuses(scope(req))
     sendSuccess(res, items)
+  } catch (err) { handle(res, err) }
+}
+
+export async function requestAdjustment(req: Request, res: Response) {
+  try {
+    const u = user(req)
+    const employee = await prisma.employee.findUnique({ where: { id: u.employeeId }, select: { officeId: true } })
+    if (!employee) { sendError(res, 'Employee record not found', 404); return }
+    const record = await service.requestAdjustment(u.employeeId, employee.officeId, req.body as RequestAdjustmentInput)
+    await auditFromRequest(req as AuthRequest, AuditAction.CREATE, 'Attendance', record.id, undefined, req.body)
+    sendCreated(res, record)
+  } catch (err) { handle(res, err) }
+}
+
+export async function updateAdjustmentRequest(req: Request, res: Response) {
+  try {
+    const record = await service.updateAdjustmentRequest(req.params.id, user(req).employeeId, req.body as RequestAdjustmentInput)
+    sendSuccess(res, record)
+  } catch (err) { handle(res, err) }
+}
+
+export async function listPendingAdjustments(req: Request, res: Response) {
+  try {
+    const u = user(req)
+    const items = await service.listPendingAdjustments(scope(req), u.employeeId, u.role)
+    sendSuccess(res, items)
+  } catch (err) { handle(res, err) }
+}
+
+export async function reviewAdjustment(req: Request, res: Response) {
+  try {
+    const u = user(req)
+    const { approved, rejectionReason } = req.body as ReviewAdjustmentInput
+    const result = await service.reviewAdjustment(req.params.id, u.employeeId, u.role, approved, rejectionReason, scope(req))
+    await auditFromRequest(req as AuthRequest, approved ? AuditAction.APPROVE : AuditAction.REJECT, 'Attendance', req.params.id, undefined, req.body)
+    sendSuccess(res, result)
   } catch (err) { handle(res, err) }
 }

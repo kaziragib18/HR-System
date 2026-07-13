@@ -21,7 +21,7 @@ function makeRecord(overrides: Partial<any> = {}) {
   }
 }
 
-const txAttendanceUpdateMany = vi.fn(async () => ({ count: 1 }))
+const txAttendanceUpdateMany = vi.fn(async (_args: { where: unknown; data: Record<string, unknown> }) => ({ count: 1 }))
 
 vi.mock('../../config/prisma', () => ({
   prisma: {
