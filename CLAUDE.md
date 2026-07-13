@@ -144,12 +144,14 @@ All responses must go through the helpers in `apps/api/src/utils/response.ts` (`
 
 Middleware ordering in every protected route: `authenticate → officeScope → [requireRole] → [validate] → controller`
 
+Cross-module logic that doesn't belong to a single module lives in `apps/api/src/services/`, not inside a module: `storage.service.ts` (Supabase signed URLs, used by `documents`), `notification.service.ts` (used by `attendance`, `leave`, `payroll` to write `Notification` rows), `twofa.service.ts` (used by `auth`).
+
 ### Frontend data layer
 
 - **API client**: `apps/web/src/lib/api/client.ts` — Axios instance with auth interceptors
 - **React Query hooks**: `apps/web/src/lib/api/hooks/` — one file per domain (e.g. `useEmployees.ts`, `useLeave.ts`)
 - **Zustand stores**: `apps/web/src/store/` — `auth.store.ts`, `notification.store.ts`, `ui.store.ts`
-- **Pages** (`apps/web/src/app/`): Auth pages under `(auth)/`, dashboard pages under `(dashboard)/` — approvals, attendance, departments, documents, employees, leave, notifications, payroll, salary, settings, timemanagement (attendance record management/export, not timesheets — there is no timesheets feature, see Project status)
+- **Pages** (`apps/web/src/app/`): Auth pages under `(auth)/` (login, 2fa, forgot-password, reset-password), dashboard pages under `(dashboard)/` — approvals, attendance, contact-book, departments, employees, leave, notifications, payroll, salary, settings, timemanagement (attendance record management/export, not timesheets — there is no timesheets feature, see Project status). There is no standalone `documents` page — document upload/listing is a sub-resource of the employees and company pages.
 
 UI components use Radix UI primitives + Tailwind CSS + `class-variance-authority`. Use `cn()` from `apps/web/src/lib/utils.ts` for conditional class merging.
 
@@ -159,7 +161,7 @@ Notifications are written to the `Notification` table via Prisma. The intended d
 
 ### File storage
 
-Supabase Storage replaces S3/R2. Buckets: `avatars` (public), `documents` (private), `payslips` (private). Never stream files through the API — generate presigned upload/read URLs using the service role client (`apps/api/src/config/supabase.ts`).
+Supabase Storage replaces S3/R2. Buckets: `avatars` (public), `documents` (private), `payslips` (private). Never stream files through the API — generate presigned upload/read URLs via `createSignedUploadUrl`/`createSignedReadUrl` in `apps/api/src/services/storage.service.ts`, which wraps the service role client (`apps/api/src/config/supabase.ts`).
 
 ### Tax engine
 
