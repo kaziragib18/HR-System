@@ -513,6 +513,22 @@ export async function requestAdjustment(employeeId: string, officeId: string, in
       `An employee has requested a correction to their attendance for ${input.date}.`,
       { attendanceId: record.id }
     )
+  } else {
+    // No direct manager/department head/HR_MANAGER resolved for this employee —
+    // fall back to every HR_MANAGER in the office so the request never goes unnoticed.
+    const hrManagers = await prisma.user.findMany({
+      where: { employee: { officeId }, role: UserRole.HR_MANAGER },
+      select: { employeeId: true },
+    })
+    for (const hr of hrManagers) {
+      await createNotification(
+        hr.employeeId,
+        NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED,
+        'Attendance adjustment requested',
+        `An employee has requested a correction to their attendance for ${input.date}.`,
+        { attendanceId: record.id }
+      )
+    }
   }
 
   return record

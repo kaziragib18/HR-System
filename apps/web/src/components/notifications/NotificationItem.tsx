@@ -7,7 +7,7 @@ import type { Notification } from '@hr-system/types'
 function iconFor(type: string) {
   if (type.startsWith('LEAVE_')) return CalendarDays
   if (type === 'PAYSLIP_READY') return Wallet
-  if (type === 'ATTENDANCE_FLAGGED') return Clock
+  if (type.startsWith('ATTENDANCE_')) return Clock
   if (type === 'DOCUMENT_UPLOADED') return FileText
   if (type === 'ANNOUNCEMENT') return Megaphone
   return Bell

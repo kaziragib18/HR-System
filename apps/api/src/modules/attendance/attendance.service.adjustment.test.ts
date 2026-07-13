@@ -34,6 +34,7 @@ vi.mock('../../config/prisma', () => ({
     office: { findUnique: vi.fn(async () => ({ code: 'BD' })) },
     publicHoliday: { count: vi.fn(async () => 0) },
     leaveApplication: { count: vi.fn(async () => 0) },
+    user: { findMany: vi.fn(async () => []) },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({ attendance: { updateMany: txAttendanceUpdateMany } })
     ),
@@ -65,6 +66,7 @@ const attendanceFindMany = prisma.attendance.findMany as ReturnType<typeof vi.fn
 const officeFindUnique = prisma.office.findUnique as ReturnType<typeof vi.fn>
 const publicHolidayCount = prisma.publicHoliday.count as ReturnType<typeof vi.fn>
 const leaveApplicationCount = prisma.leaveApplication.count as ReturnType<typeof vi.fn>
+const userFindMany = prisma.user.findMany as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   Object.keys(RECORDS).forEach((k) => delete RECORDS[k])
@@ -77,6 +79,7 @@ beforeEach(() => {
   leaveApplicationCount.mockResolvedValue(0)
   ;(resolveApproverForRole as ReturnType<typeof vi.fn>).mockResolvedValue('emp-teamlead')
   txAttendanceUpdateMany.mockResolvedValue({ count: 1 })
+  userFindMany.mockResolvedValue([])
 })
 
 describe('requestAdjustment', () => {
@@ -114,6 +117,30 @@ describe('requestAdjustment', () => {
     await expect(
       requestAdjustment('emp-1', 'office-bd', { date: '2020-01-02', requestedCheckIn: '2020-01-02T09:00:00.000Z', reason: 'forgot' })
     ).rejects.toThrow('An adjustment request is already pending for this record')
+  })
+
+  it('notifies every HR_MANAGER in the office when no specific approver resolves at all', async () => {
+    attendanceFindUnique.mockResolvedValue(null)
+    ;(resolveApproverForRole as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    userFindMany.mockResolvedValue([{ employeeId: 'emp-hr-1' }, { employeeId: 'emp-hr-2' }])
+
+    await requestAdjustment('emp-1', 'office-bd', {
+      date: '2020-01-02',
+      requestedCheckIn: '2020-01-02T09:00:00.000Z',
+      reason: 'Forgot to check in',
+    })
+
+    expect(userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ employee: { officeId: 'office-bd' }, role: UserRole.HR_MANAGER }),
+      })
+    )
+    expect(createNotification).toHaveBeenCalledWith(
+      'emp-hr-1', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
+    )
+    expect(createNotification).toHaveBeenCalledWith(
+      'emp-hr-2', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
+    )
   })
 })
 
