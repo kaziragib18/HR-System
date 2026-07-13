@@ -6,6 +6,8 @@ import {
   useMyMonthAttendance,
   useAllAttendance,
   useManualEntry,
+  useRequestAdjustment,
+  useUpdateAdjustmentRequest,
   type AttendanceRecord,
 } from '@/lib/api/hooks/useAttendance'
 import { useEmployees } from '@/lib/api/hooks/useEmployees'
@@ -46,6 +48,9 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   ON_LEAVE:         { label: 'On Leave',       cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
   HOLIDAY:          { label: 'Holiday',        cls: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
   WEEKEND:          { label: 'Weekend',        cls: 'bg-muted text-muted-foreground' },
+  PENDING:          { label: 'Pending',        cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  APPROVED:         { label: 'Approved',       cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  REJECTED:         { label: 'Rejected',       cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -295,12 +300,19 @@ function StatsRow({ rows }: { rows: DayRow[] }) {
 function DailyTable({
   rows,
   canEdit,
+  canRequest,
+  todayStr,
   onEdit,
+  onRequest,
 }: {
   rows: DayRow[]
   canEdit: boolean
+  canRequest?: boolean
+  todayStr?: string
   onEdit?: (row: DayRow) => void
+  onRequest?: (row: DayRow) => void
 }) {
+  const showAction = canEdit || canRequest
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -314,7 +326,7 @@ function DailyTable({
             <th className="py-2 text-left">Hours</th>
             <th className="py-2 text-left">Late</th>
             <th className="py-2 text-left">OT</th>
-            {canEdit && <th className="py-2 text-left">Edit</th>}
+            {showAction && <th className="py-2 text-left">{canEdit ? 'Edit' : 'Request'}</th>}
           </tr>
         </thead>
         <tbody>
@@ -322,6 +334,8 @@ function DailyTable({
             const status = effectiveStatus(row)
             const isDim = row.isWeekend || status === 'HOLIDAY'
             const isFuture = row.isFuture
+            const isPastDay = !!todayStr && row.dateStr < todayStr
+            const adjustmentStatus = row.record?.adjustmentStatus ?? null
             return (
               <tr
                 key={row.dateStr}
@@ -346,15 +360,35 @@ function DailyTable({
                 <td className="py-2.5 text-xs text-violet-600 dark:text-violet-400">
                   {row.record?.overtimeMinutes ? `${row.record.overtimeMinutes}m` : '—'}
                 </td>
-                {canEdit && (
+                {showAction && (
                   <td className="py-2.5">
-                    {!row.isFuture && !row.isWeekend && status !== 'HOLIDAY' && (
+                    {canEdit ? (
+                      !row.isFuture && !row.isWeekend && status !== 'HOLIDAY' && (
+                        <button
+                          onClick={() => onEdit?.(row)}
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                      )
+                    ) : adjustmentStatus ? (
                       <button
-                        onClick={() => onEdit?.(row)}
-                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => onRequest?.(row)}
+                        disabled={adjustmentStatus === 'APPROVED'}
+                        className="disabled:cursor-default"
+                        title={adjustmentStatus === 'PENDING' ? 'Edit your pending request' : adjustmentStatus === 'REJECTED' ? 'Submit a new request' : undefined}
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
+                        <StatusPill status={adjustmentStatus} />
                       </button>
+                    ) : (
+                      isPastDay && !row.isWeekend && status !== 'HOLIDAY' && (
+                        <button
+                          onClick={() => onRequest?.(row)}
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                      )
                     )}
                   </td>
                 )}
@@ -453,6 +487,110 @@ function EditModal({
   )
 }
 
+function RequestAdjustmentModal({
+  target,
+  isEdit,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  target: EditTarget
+  isEdit: boolean
+  onClose: () => void
+  onSubmit: (input: { requestedCheckIn: string; requestedCheckOut: string; reason: string }) => Promise<void>
+  submitting: boolean
+}) {
+  const [checkIn, setCheckIn] = useState(
+    target.record?.requestedCheckIn
+      ? new Date(target.record.requestedCheckIn).toISOString().slice(11, 16)
+      : target.record?.checkIn ? new Date(target.record.checkIn).toISOString().slice(11, 16) : ''
+  )
+  const [checkOut, setCheckOut] = useState(
+    target.record?.requestedCheckOut
+      ? new Date(target.record.requestedCheckOut).toISOString().slice(11, 16)
+      : target.record?.checkOut ? new Date(target.record.checkOut).toISOString().slice(11, 16) : ''
+  )
+  const [reason, setReason] = useState(target.record?.adjustmentReason ?? '')
+  const [error, setError] = useState('')
+
+  function toISO(time: string): string {
+    return `${target.dateStr}T${time}:00.000Z`
+  }
+
+  async function handleSubmit() {
+    if (!checkIn && !checkOut) { setError('Provide a proposed check-in or check-out time'); return }
+    if (reason.trim().length < 5) { setError('Reason must be at least 5 characters'); return }
+    setError('')
+    await onSubmit({
+      requestedCheckIn: checkIn ? toISO(checkIn) : '',
+      requestedCheckOut: checkOut ? toISO(checkOut) : '',
+      reason: reason.trim(),
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">{isEdit ? 'Edit Adjustment Request' : 'Request Attendance Adjustment'}</p>
+            <p className="text-xs text-muted-foreground">{target.dateStr}</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4 p-4">
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Proposed check-in time (UTC)</label>
+            <input
+              type="time"
+              value={checkIn}
+              onChange={e => setCheckIn(e.target.value)}
+              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Proposed check-out time (UTC)</label>
+            <input
+              type="time"
+              value={checkOut}
+              onChange={e => setCheckOut(e.target.value)}
+              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Reason</label>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Why does this record need correcting?"
+              rows={3}
+              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 border-t px-4 py-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {submitting ? 'Submitting…' : isEdit ? 'Update Request' : 'Submit Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TimeManagementPage() {
@@ -465,6 +603,7 @@ export default function TimeManagementPage() {
   const [search, setSearch] = useState('')
   const [deptId, setDeptId] = useState('')
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
+  const [requestTarget, setRequestTarget] = useState<EditTarget | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showBulkMenu, setShowBulkMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -492,12 +631,16 @@ export default function TimeManagementPage() {
 
   const { data: departments = [] } = useDepartments()
   const manualEntry = useManualEntry()
+  const requestAdjustment = useRequestAdjustment()
+  const updateAdjustmentRequest = useUpdateAdjustmentRequest()
 
   // Which records/rows to display
   const activeRecords: AttendanceRecord[] = isManager && selectedEmp ? adminRecords : myRecords
   const isLoading = isManager && selectedEmp ? adminLoading : myLoading
   const rows = buildMonthRows(year, month, activeRecords)
   const showDetail = !isManager || !!selectedEmp
+  const isOwnRecords = !selectedEmp || selectedEmp.id === user?.employeeId
+  const todayStr = now.toISOString().slice(0, 10)
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1)
@@ -516,6 +659,23 @@ export default function TimeManagementPage() {
       remarks: remarks || undefined,
     })
     setEditTarget(null)
+  }
+
+  async function handleRequestSubmit(input: { requestedCheckIn: string; requestedCheckOut: string; reason: string }) {
+    if (!requestTarget) return
+    const isEdit = requestTarget.record?.adjustmentStatus === 'PENDING'
+    const payload = {
+      date: requestTarget.dateStr,
+      requestedCheckIn: input.requestedCheckIn || undefined,
+      requestedCheckOut: input.requestedCheckOut || undefined,
+      reason: input.reason,
+    }
+    if (isEdit && requestTarget.record) {
+      await updateAdjustmentRequest.mutateAsync({ id: requestTarget.record.id, ...payload })
+    } else {
+      await requestAdjustment.mutateAsync(payload)
+    }
+    setRequestTarget(null)
   }
 
   async function handleExport(type: 'month' | 'year') {
@@ -738,10 +898,19 @@ export default function TimeManagementPage() {
               <DailyTable
                 rows={rows}
                 canEdit={isAdmin && !!selectedEmp}
+                canRequest={isOwnRecords && !(isAdmin && !!selectedEmp)}
+                todayStr={todayStr}
                 onEdit={row =>
                   setEditTarget({
                     dateStr: row.dateStr,
                     employeeId: selectedEmp!.id,
+                    record: row.record,
+                  })
+                }
+                onRequest={row =>
+                  setRequestTarget({
+                    dateStr: row.dateStr,
+                    employeeId: user!.employeeId,
                     record: row.record,
                   })
                 }
@@ -758,6 +927,17 @@ export default function TimeManagementPage() {
           onClose={() => setEditTarget(null)}
           onSave={handleSave}
           saving={manualEntry.isPending}
+        />
+      )}
+
+      {/* Request adjustment modal */}
+      {requestTarget && (
+        <RequestAdjustmentModal
+          target={requestTarget}
+          isEdit={requestTarget.record?.adjustmentStatus === 'PENDING'}
+          onClose={() => setRequestTarget(null)}
+          onSubmit={handleRequestSubmit}
+          submitting={requestAdjustment.isPending || updateAdjustmentRequest.isPending}
         />
       )}
     </div>

@@ -17,6 +17,13 @@ export interface AttendanceRecord {
   remarks: string | null
   lateExcuse: string | null
   excuseStatus: string | null
+  requestedCheckIn: string | null
+  requestedCheckOut: string | null
+  adjustmentReason: string | null
+  adjustmentStatus: string | null
+  adjustmentApproverId: string | null
+  adjustmentReviewedBy: string | null
+  adjustmentReviewedAt: string | null
   employee?: {
     id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null
     department?: { id: string; name: string } | null
@@ -196,6 +203,64 @@ export function useReviewExcuse() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance', 'late-excuses'] })
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+    },
+  })
+}
+
+export interface RequestAdjustmentInput {
+  date: string
+  requestedCheckIn?: string
+  requestedCheckOut?: string
+  reason: string
+}
+
+export function useRequestAdjustment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: RequestAdjustmentInput) => {
+      const { data } = await apiClient.post('/attendance/me/adjustment-request', input)
+      return data.data as AttendanceRecord
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+    },
+  })
+}
+
+export function useUpdateAdjustmentRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...input }: RequestAdjustmentInput & { id: string }) => {
+      const { data } = await apiClient.patch(`/attendance/me/adjustment-request/${id}`, input)
+      return data.data as AttendanceRecord
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+    },
+  })
+}
+
+export function usePendingAdjustments() {
+  return useQuery({
+    queryKey: ['attendance', 'adjustment-requests'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/attendance/adjustment-requests')
+      return data.data as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]
+    },
+    staleTime: 30_000,
+  })
+}
+
+export function useReviewAdjustment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, approved, rejectionReason }: { id: string; approved: boolean; rejectionReason?: string }) => {
+      const { data } = await apiClient.patch(`/attendance/${id}/review-adjustment`, { approved, rejectionReason })
+      return data.data as { message: string }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance', 'adjustment-requests'] })
       qc.invalidateQueries({ queryKey: ['attendance'] })
     },
   })
