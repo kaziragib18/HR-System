@@ -56,6 +56,20 @@ export const reviewExcuseSchema = z.object({
   newStatus: z.string().optional(),  // e.g. "PRESENT" when approving
 })
 
+export const requestAdjustmentSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  requestedCheckIn: z.string().datetime().optional(),
+  requestedCheckOut: z.string().datetime().optional(),
+  reason: z.string().min(5).max(1000),
+}).refine(d => d.requestedCheckIn || d.requestedCheckOut, {
+  message: 'Provide a proposed check-in or check-out time',
+})
+
+export const reviewAdjustmentSchema = z.object({
+  approved: z.boolean(),
+  rejectionReason: z.string().max(500).optional(),
+})
+
 export type CheckInInput = z.infer<typeof checkInSchema>
 export type CheckOutInput = z.infer<typeof checkOutSchema>
 export type ManualEntryInput = z.infer<typeof manualEntrySchema>
@@ -64,3 +78,5 @@ export type ListAttendanceQuery = z.infer<typeof listAttendanceQuery>
 export type CalendarQuery = z.infer<typeof calendarQuery>
 export type LateExcuseInput = z.infer<typeof lateExcuseSchema>
 export type ReviewExcuseInput = z.infer<typeof reviewExcuseSchema>
+export type RequestAdjustmentInput = z.infer<typeof requestAdjustmentSchema>
+export type ReviewAdjustmentInput = z.infer<typeof reviewAdjustmentSchema>

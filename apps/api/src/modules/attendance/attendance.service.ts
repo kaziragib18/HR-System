@@ -1,10 +1,11 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../config/prisma'
 import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
-import { AttendanceStatus, AttendanceSource, NotificationType } from '@hr-system/types'
+import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
-import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery } from './attendance.schemas'
+import { resolveApproverForRole } from '../../services/approver-resolution.service'
+import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
 export class AttendanceError extends Error {
   constructor(message: string, public status = 400) { super(message) }
@@ -462,4 +463,169 @@ export async function attendanceSummary(employeeId: string, month: number, year:
     totalWorking += r.workingMinutes
   }
   return { counts, totalWorkingMinutes: totalWorking, records }
+}
+
+/** Employee requests a check-in/check-out correction for a past day, with or without an existing record. */
+export async function requestAdjustment(employeeId: string, officeId: string, input: RequestAdjustmentInput) {
+  const date = toDateOnly(input.date)
+  const today = toDateOnly(new Date())
+  if (date >= today) throw new AttendanceError('Adjustment requests can only be made for past days')
+
+  const existing = await prisma.attendance.findUnique({ where: { employeeId_date: { employeeId, date } } })
+  if (existing?.adjustmentStatus === 'PENDING') {
+    throw new AttendanceError('An adjustment request is already pending for this record')
+  }
+
+  const requestedCheckIn = input.requestedCheckIn ? new Date(input.requestedCheckIn) : null
+  const requestedCheckOut = input.requestedCheckOut ? new Date(input.requestedCheckOut) : null
+
+  const approverId = await resolveApproverForRole(prisma, UserRole.TEAM_LEAD, employeeId, officeId)
+    ?? await resolveApproverForRole(prisma, UserRole.DEPT_HEAD, employeeId, officeId)
+    ?? await resolveApproverForRole(prisma, UserRole.HR_MANAGER, employeeId, officeId)
+
+  const record = await prisma.attendance.upsert({
+    where: { employeeId_date: { employeeId, date } },
+    create: {
+      employeeId,
+      date,
+      status: AttendanceStatus.ABSENT,
+      source: AttendanceSource.SELF,
+      requestedCheckIn,
+      requestedCheckOut,
+      adjustmentReason: input.reason,
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: approverId,
+    },
+    update: {
+      requestedCheckIn,
+      requestedCheckOut,
+      adjustmentReason: input.reason,
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: approverId,
+    },
+  })
+
+  if (approverId) {
+    await createNotification(
+      approverId,
+      NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED,
+      'Attendance adjustment requested',
+      `An employee has requested a correction to their attendance for ${input.date}.`,
+      { attendanceId: record.id }
+    )
+  }
+
+  return record
+}
+
+/** Employee edits their own adjustment request while it is still pending review. */
+export async function updateAdjustmentRequest(attendanceId: string, employeeId: string, input: RequestAdjustmentInput) {
+  const record = await prisma.attendance.findUnique({ where: { id: attendanceId } })
+  if (!record) throw new AttendanceError('Attendance record not found', 404)
+  if (record.employeeId !== employeeId) throw new AttendanceError('You can only edit your own adjustment request', 403)
+  if (record.adjustmentStatus !== 'PENDING') throw new AttendanceError('This request is no longer pending')
+
+  return prisma.attendance.update({
+    where: { id: attendanceId },
+    data: {
+      requestedCheckIn: input.requestedCheckIn ? new Date(input.requestedCheckIn) : null,
+      requestedCheckOut: input.requestedCheckOut ? new Date(input.requestedCheckOut) : null,
+      adjustmentReason: input.reason,
+    },
+  })
+}
+
+/** List pending adjustment requests for manager review, scoped to the reviewer's resolved queue. */
+export async function listPendingAdjustments(officeScope: string | undefined, requesterEmployeeId: string, requesterRole: string) {
+  const isAdmin = requesterRole === UserRole.SUPER_ADMIN || requesterRole === UserRole.HR_MANAGER
+
+  return prisma.attendance.findMany({
+    where: {
+      adjustmentStatus: 'PENDING',
+      ...(isAdmin
+        ? officeScope ? { employee: { officeId: officeScope } } : {}
+        : { adjustmentApproverId: requesterEmployeeId }),
+    },
+    include: {
+      employee: {
+        select: {
+          id: true, firstName: true, lastName: true, employeeId: true, avatarUrl: true,
+          department: { select: { id: true, name: true } },
+        },
+      },
+    },
+    orderBy: { date: 'desc' },
+    take: 50,
+  })
+}
+
+/** Manager approves or rejects a pending adjustment request. */
+export async function reviewAdjustment(
+  attendanceId: string,
+  reviewerId: string,
+  reviewerRole: string,
+  approved: boolean,
+  rejectionReason: string | undefined,
+  officeScope: string | undefined
+) {
+  const record = await prisma.attendance.findUnique({
+    where: { id: attendanceId },
+    include: { employee: { select: { officeId: true } } },
+  })
+  if (!record) throw new AttendanceError('Attendance record not found', 404)
+  if (officeScope && record.employee.officeId !== officeScope) throw new AttendanceError('Attendance record not found', 404)
+  if (record.adjustmentStatus !== 'PENDING') throw new AttendanceError('This request is no longer pending')
+
+  const isAdmin = reviewerRole === UserRole.SUPER_ADMIN || reviewerRole === UserRole.HR_MANAGER
+  if (!isAdmin && record.adjustmentApproverId !== reviewerId) {
+    throw new AttendanceError('You are not authorized to review this request', 403)
+  }
+
+  const data: Prisma.AttendanceUpdateManyMutationInput = {
+    adjustmentStatus: approved ? 'APPROVED' : 'REJECTED',
+    adjustmentReviewedBy: reviewerId,
+    adjustmentReviewedAt: new Date(),
+  }
+
+  if (approved) {
+    const checkIn = record.requestedCheckIn ?? record.checkIn
+    const checkOut = record.requestedCheckOut ?? record.checkOut
+    const [office, holiday, onLeave] = await Promise.all([
+      prisma.office.findUnique({ where: { id: record.employee.officeId }, select: { code: true } }),
+      isHoliday(record.employee.officeId, record.date),
+      isOnApprovedLeave(record.employeeId, record.date),
+    ])
+    const dow = record.date.getUTCDay()
+    const weekend = dow === 0 || dow === 6
+    const shift = shiftForOfficeCode(office?.code ?? 'UK')
+    const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
+
+    data.checkIn = checkIn
+    data.checkOut = checkOut
+    data.status = computed.status
+    data.lateMinutes = computed.lateMinutes
+    data.earlyDepartureMinutes = computed.earlyDepartureMinutes
+    data.overtimeMinutes = computed.overtimeMinutes
+    data.workingMinutes = computed.workingMinutes
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.attendance.updateMany({
+      where: { id: attendanceId, adjustmentStatus: 'PENDING' },
+      data,
+    })
+    if (count === 0) throw new AttendanceError('This request has already been processed')
+  })
+
+  await createNotification(
+    record.employeeId,
+    approved ? NotificationType.ATTENDANCE_ADJUSTMENT_APPROVED : NotificationType.ATTENDANCE_ADJUSTMENT_REJECTED,
+    approved ? 'Attendance adjustment approved' : 'Attendance adjustment rejected',
+    approved
+      ? 'Your attendance adjustment request has been approved.'
+      : `Your attendance adjustment request was not approved.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`,
+    { attendanceId }
+  )
+
+  return { message: approved ? 'Adjustment approved' : 'Adjustment rejected' }
 }
