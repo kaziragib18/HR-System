@@ -110,6 +110,19 @@ function fmtTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+// Native <input type="time"> renders in whatever clock format the browser/OS locale
+// uses (often 12h with AM/PM), independent of this app's own 24h display convention —
+// show both so it's unambiguous which time to pick regardless of the picker's format.
+function fmtShiftRange(startHHmm: string, endHHmm: string): string {
+  const to12h = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number)
+    const d = new Date()
+    d.setHours(h, m, 0, 0)
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  }
+  return `${startHHmm} – ${endHHmm} (${to12h(startHHmm)} – ${to12h(endHHmm)})`
+}
+
 function fmtMins(mins: number | null | undefined): string {
   if (!mins) return '—'
   const h = Math.floor(mins / 60)
@@ -576,11 +589,13 @@ function RequestAdjustmentModal({
           </p>
           <p className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Office hours{officeCode ? ` (${officeCode})` : ''}</span>
-            <span className="font-medium text-foreground">{officeShift.startTime} – {officeShift.endTime}</span>
+            <span className="font-medium text-foreground">{fmtShiftRange(officeShift.startTime, officeShift.endTime)}</span>
           </p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Proposed check-in time (UTC)</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Proposed check-in time (UTC, 24h — your picker may show AM/PM)
+            </label>
             <input
               type="time"
               value={checkIn}
@@ -589,7 +604,9 @@ function RequestAdjustmentModal({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Proposed check-out time (UTC)</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Proposed check-out time (UTC, 24h — your picker may show AM/PM)
+            </label>
             <input
               type="time"
               value={checkOut}
