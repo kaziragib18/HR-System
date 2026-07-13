@@ -110,19 +110,6 @@ function fmtTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-// Native <input type="time"> renders in whatever clock format the browser/OS locale
-// uses (often 12h with AM/PM), independent of this app's own 24h display convention —
-// show both so it's unambiguous which time to pick regardless of the picker's format.
-function fmtShiftRange(startHHmm: string, endHHmm: string): string {
-  const to12h = (hhmm: string) => {
-    const [h, m] = hhmm.split(':').map(Number)
-    const d = new Date()
-    d.setHours(h, m, 0, 0)
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  }
-  return `${startHHmm} – ${endHHmm} (${to12h(startHHmm)} – ${to12h(endHHmm)})`
-}
-
 function fmtMins(mins: number | null | undefined): string {
   if (!mins) return '—'
   const h = Math.floor(mins / 60)
@@ -473,18 +460,20 @@ function EditModal({
         </div>
         <div className="space-y-4 p-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Check-in time (UTC)</label>
+            <label className="text-xs font-medium text-muted-foreground">Check-in time (UTC, 24h)</label>
             <input
               type="time"
+              lang="en-GB"
               value={checkIn}
               onChange={e => setCheckIn(e.target.value)}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Check-out time (UTC)</label>
+            <label className="text-xs font-medium text-muted-foreground">Check-out time (UTC, 24h)</label>
             <input
               type="time"
+              lang="en-GB"
               value={checkOut}
               onChange={e => setCheckOut(e.target.value)}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -589,26 +578,24 @@ function RequestAdjustmentModal({
           </p>
           <p className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Office hours{officeCode ? ` (${officeCode})` : ''}</span>
-            <span className="font-medium text-foreground">{fmtShiftRange(officeShift.startTime, officeShift.endTime)}</span>
+            <span className="font-medium text-foreground">{officeShift.startTime} – {officeShift.endTime}</span>
           </p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Proposed check-in time (UTC, 24h — your picker may show AM/PM)
-            </label>
+            <label className="text-xs font-medium text-muted-foreground">Proposed check-in time (UTC, 24h)</label>
             <input
               type="time"
+              lang="en-GB"
               value={checkIn}
               onChange={e => setCheckIn(e.target.value)}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Proposed check-out time (UTC, 24h — your picker may show AM/PM)
-            </label>
+            <label className="text-xs font-medium text-muted-foreground">Proposed check-out time (UTC, 24h)</label>
             <input
               type="time"
+              lang="en-GB"
               value={checkOut}
               onChange={e => setCheckOut(e.target.value)}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
