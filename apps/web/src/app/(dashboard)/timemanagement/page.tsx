@@ -346,6 +346,11 @@ function DailyTable({
             const isFuture = row.isFuture
             const isPastDay = !!todayStr && row.dateStr < todayStr
             const adjustmentStatus = row.record?.adjustmentStatus ?? null
+            const isPendingPreview = adjustmentStatus === 'PENDING'
+            const previewCheckIn = isPendingPreview && row.record?.requestedCheckIn ? row.record.requestedCheckIn : row.record?.checkIn
+            const previewCheckOut = isPendingPreview && row.record?.requestedCheckOut ? row.record.requestedCheckOut : row.record?.checkOut
+            const checkInIsPreview = isPendingPreview && !!row.record?.requestedCheckIn
+            const checkOutIsPreview = isPendingPreview && !!row.record?.requestedCheckOut
             return (
               <tr
                 key={row.dateStr}
@@ -363,7 +368,17 @@ function DailyTable({
                 </td>
                 <td className="py-2.5 font-mono text-xs">
                   <span className="inline-flex items-center gap-1.5">
-                    {fmtTime(row.record?.checkIn)}
+                    <span
+                      className={cn(checkInIsPreview && 'italic text-amber-600 dark:text-amber-400')}
+                      title={checkInIsPreview ? 'Proposed time — awaiting manager approval' : undefined}
+                    >
+                      {fmtTime(previewCheckIn)}
+                    </span>
+                    {checkInIsPreview && (
+                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        Pending
+                      </span>
+                    )}
                     {row.record?.source === 'MANUAL' && (
                       <span
                         title="Manually entered / corrected via an approved adjustment request"
@@ -374,7 +389,21 @@ function DailyTable({
                     )}
                   </span>
                 </td>
-                <td className="py-2.5 font-mono text-xs">{fmtTime(row.record?.checkOut)}</td>
+                <td className="py-2.5 font-mono text-xs">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className={cn(checkOutIsPreview && 'italic text-amber-600 dark:text-amber-400')}
+                      title={checkOutIsPreview ? 'Proposed time — awaiting manager approval' : undefined}
+                    >
+                      {fmtTime(previewCheckOut)}
+                    </span>
+                    {checkOutIsPreview && (
+                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        Pending
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="py-2.5 text-xs">{fmtMins(row.record?.workingMinutes)}</td>
                 <td className="py-2.5 text-xs text-amber-600 dark:text-amber-400">
                   {row.record?.lateMinutes ? `${row.record.lateMinutes}m` : '—'}
