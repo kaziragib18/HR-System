@@ -49,7 +49,22 @@ interface ExcuseHistoryItem {
   lateExcuse: string | null
 }
 
-export type ApprovalHistoryItem = LeaveHistoryItem | ExcuseHistoryItem
+interface AdjustmentHistoryItem {
+  id: string
+  type: 'ADJUSTMENT'
+  action: 'APPROVED' | 'REJECTED'
+  actionAt: string
+  level: null
+  comment: string | null
+  approverId: string
+  approver: HistoryApprover | null
+  employee: HistoryEmployee
+  date: string
+  requestedCheckIn: string | null
+  requestedCheckOut: string | null
+}
+
+export type ApprovalHistoryItem = LeaveHistoryItem | ExcuseHistoryItem | AdjustmentHistoryItem
 
 export function useApprovalHistory(month: number, year: number) {
   return useQuery({

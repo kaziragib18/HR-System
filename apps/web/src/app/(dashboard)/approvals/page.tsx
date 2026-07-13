@@ -9,7 +9,7 @@ import {
   useRejectCancelLeave,
 } from '@/lib/api/hooks/useLeave'
 import type { LeaveApplication, LeaveApprovalHistory } from '@/lib/api/hooks/useLeave'
-import { usePendingExcuses, useReviewExcuse } from '@/lib/api/hooks/useAttendance'
+import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdjustment } from '@/lib/api/hooks/useAttendance'
 import type { AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { useApprovalHistory } from '@/lib/api/hooks/useApprovalHistory'
 import type { ApprovalHistoryItem } from '@/lib/api/hooks/useApprovalHistory'
@@ -221,6 +221,8 @@ type ModalState =
   | { type: 'reject-cancel'; id: string }
   | { type: 'reject-excuse'; id: string }
   | { type: 'approve-excuse'; id: string }
+  | { type: 'reject-adjustment'; id: string }
+  | { type: 'approve-adjustment'; id: string }
   | null
 
 function ReasonModal({ title, description, placeholder, submitting, onSubmit, onClose }: {
@@ -495,6 +497,72 @@ function ExcusesSection({ onModal }: { onModal: (m: ModalState) => void }) {
   )
 }
 
+// ─── Adjustment requests section ──────────────────────────────────────────────
+
+function AdjustmentCard({ rec, onApprove, onReject, reviewing }: {
+  rec: AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> }
+  onApprove: () => void; onReject: () => void; reviewing: boolean
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-l-[3px] border-l-orange-500 bg-card shadow-sm">
+      <div className="flex items-start justify-between gap-3 px-5 py-4">
+        <EmployeeRow
+          firstName={rec.employee.firstName} lastName={rec.employee.lastName}
+          employeeId={rec.employee.employeeId} avatarUrl={rec.employee.avatarUrl}
+          department={rec.employee.department} role={rec.employee.user?.role}
+        />
+        <MetaChip icon={CalendarDays}>{fmtDate(rec.date)}</MetaChip>
+      </div>
+
+      <Divider />
+
+      <div className="space-y-3 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <MetaChip icon={Clock}>
+            Current: {rec.checkIn ? fmtTime(rec.checkIn) : '—'} – {rec.checkOut ? fmtTime(rec.checkOut) : '—'}
+          </MetaChip>
+          <MetaChip icon={Clock} className="text-orange-600 dark:text-orange-400">
+            Requested: {rec.requestedCheckIn ? fmtTime(rec.requestedCheckIn) : '—'} – {rec.requestedCheckOut ? fmtTime(rec.requestedCheckOut) : '—'}
+          </MetaChip>
+        </div>
+        {rec.adjustmentReason && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Reason: </span>{rec.adjustmentReason}
+          </p>
+        )}
+      </div>
+
+      <Divider />
+
+      <div className="flex items-center justify-end gap-2 px-5 py-3">
+        <RejectBtn onClick={onReject} />
+        <ApproveBtn onClick={onApprove} disabled={reviewing} label="Approve" variant="green" />
+      </div>
+    </div>
+  )
+}
+
+function AdjustmentsSection({ onModal }: { onModal: (m: ModalState) => void }) {
+  const { data: requests = [], isLoading } = usePendingAdjustments()
+  const review = useReviewAdjustment()
+
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (!requests.length) return <Empty icon={Clock} message="No attendance adjustment requests pending review." />
+
+  return (
+    <div className="space-y-3">
+      <SectionLabel label="Attendance adjustment requests" count={requests.length} />
+      {(requests as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
+        <AdjustmentCard key={rec.id} rec={rec}
+          onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
+          onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
+          reviewing={review.isPending}
+        />
+      ))}
+    </div>
+  )
+}
+
 // ─── History section ──────────────────────────────────────────────────────────
 
 function MonthPicker({ month, year, onChange }: {
@@ -530,8 +598,9 @@ function MonthPicker({ month, year, onChange }: {
 }
 
 const TYPE_CONFIG = {
-  LEAVE:  { icon: CalendarDays, label: 'Leave',       cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
-  EXCUSE: { icon: Clock,        label: 'Late Excuse',  cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  LEAVE:      { icon: CalendarDays, label: 'Leave',       cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  EXCUSE:     { icon: Clock,        label: 'Late Excuse', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  ADJUSTMENT: { icon: Clock,        label: 'Adjustment',  cls: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
 } as const
 
 const ACTION_CONFIG = {
@@ -550,6 +619,10 @@ function HistoryCard({ item }: { item: ApprovalHistoryItem }) {
     if (item.type === 'LEAVE') {
       const l = item as Extract<ApprovalHistoryItem, { type: 'LEAVE' }>
       return { primary: fmtDateRange(l.startDate, l.endDate), secondary: `${Number(l.totalDays)} day${Number(l.totalDays) !== 1 ? 's' : ''}` }
+    }
+    if (item.type === 'ADJUSTMENT') {
+      const a = item as Extract<ApprovalHistoryItem, { type: 'ADJUSTMENT' }>
+      return { primary: fmtDate(a.date), secondary: 'Attendance correction' }
     }
     const e = item as Extract<ApprovalHistoryItem, { type: 'EXCUSE' }>
     return { primary: fmtDate(e.date), secondary: `${e.lateMinutes}m late` }
@@ -621,8 +694,9 @@ function HistorySection({ month, year, onMonthChange }: {
   const { data: items = [], isLoading } = useApprovalHistory(month, year)
 
   const counts = {
-    LEAVE:  items.filter(i => i.type === 'LEAVE').length,
-    EXCUSE: items.filter(i => i.type === 'EXCUSE').length,
+    LEAVE:      items.filter(i => i.type === 'LEAVE').length,
+    EXCUSE:     items.filter(i => i.type === 'EXCUSE').length,
+    ADJUSTMENT: items.filter(i => i.type === 'ADJUSTMENT').length,
   }
 
   return (
@@ -671,7 +745,7 @@ function Empty({ icon: Icon, message }: { icon: React.ElementType; message: stri
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'leave' | 'excuses' | 'history'
+type Tab = 'leave' | 'excuses' | 'adjustments' | 'history'
 
 export default function ApprovalsPage() {
   const [tab, setTab]   = useState<Tab>('leave')
@@ -681,28 +755,33 @@ export default function ApprovalsPage() {
   const [historyMonth, setHistoryMonth] = useState(now.getMonth() + 1)
   const [historyYear, setHistoryYear]   = useState(now.getFullYear())
 
-  const { data: leaveApps = [] } = usePendingApprovals()
-  const { data: excuses = [] }   = usePendingExcuses()
+  const { data: leaveApps = [] }     = usePendingApprovals()
+  const { data: excuses = [] }       = usePendingExcuses()
+  const { data: adjustments = [] }   = usePendingAdjustments()
 
-  const leavePending   = (leaveApps as LeaveApplication[]).filter(
+  const leavePending       = (leaveApps as LeaveApplication[]).filter(
     a => a.status === 'PENDING' || a.status === 'CANCEL_REQUESTED'
   ).length
-  const excusesPending = excuses.length
+  const excusesPending     = excuses.length
+  const adjustmentsPending = adjustments.length
 
-  const rejectLeave  = useRejectLeave()
-  const rejectCancel = useRejectCancelLeave()
-  const reviewExcuse = useReviewExcuse()
+  const rejectLeave      = useRejectLeave()
+  const rejectCancel     = useRejectCancelLeave()
+  const reviewExcuse     = useReviewExcuse()
+  const reviewAdjustment = useReviewAdjustment()
 
   async function handleModalSubmit(reason: string) {
     if (!modal) return
-    if (modal.type === 'reject-leave')   await rejectLeave.mutateAsync({ id: modal.id, rejectionReason: reason })
-    if (modal.type === 'reject-cancel')  await rejectCancel.mutateAsync({ id: modal.id, reason })
-    if (modal.type === 'reject-excuse')  await reviewExcuse.mutateAsync({ id: modal.id, approved: false })
-    if (modal.type === 'approve-excuse') await reviewExcuse.mutateAsync({ id: modal.id, approved: true, newStatus: 'PRESENT' })
+    if (modal.type === 'reject-leave')       await rejectLeave.mutateAsync({ id: modal.id, rejectionReason: reason })
+    if (modal.type === 'reject-cancel')      await rejectCancel.mutateAsync({ id: modal.id, reason })
+    if (modal.type === 'reject-excuse')      await reviewExcuse.mutateAsync({ id: modal.id, approved: false })
+    if (modal.type === 'approve-excuse')     await reviewExcuse.mutateAsync({ id: modal.id, approved: true, newStatus: 'PRESENT' })
+    if (modal.type === 'reject-adjustment')  await reviewAdjustment.mutateAsync({ id: modal.id, approved: false, rejectionReason: reason })
+    if (modal.type === 'approve-adjustment') await reviewAdjustment.mutateAsync({ id: modal.id, approved: true })
     setModal(null)
   }
 
-  const isSubmitting = rejectLeave.isPending || rejectCancel.isPending || reviewExcuse.isPending
+  const isSubmitting = rejectLeave.isPending || rejectCancel.isPending || reviewExcuse.isPending || reviewAdjustment.isPending
 
   return (
     <div className="space-y-6">
@@ -714,16 +793,18 @@ export default function ApprovalsPage() {
       {/* Tab bar */}
       <div className="border-b">
         <div className="flex gap-1">
-          <TabBtn label="Leave"        count={leavePending}   active={tab === 'leave'}   onClick={() => setTab('leave')} />
-          <TabBtn label="Late Excuses" count={excusesPending} active={tab === 'excuses'} onClick={() => setTab('excuses')} />
-          <TabBtn label="History"      count={0}              active={tab === 'history'} onClick={() => setTab('history')} />
+          <TabBtn label="Leave"        count={leavePending}       active={tab === 'leave'}       onClick={() => setTab('leave')} />
+          <TabBtn label="Late Excuses" count={excusesPending}     active={tab === 'excuses'}      onClick={() => setTab('excuses')} />
+          <TabBtn label="Adjustments"  count={adjustmentsPending} active={tab === 'adjustments'} onClick={() => setTab('adjustments')} />
+          <TabBtn label="History"      count={0}                  active={tab === 'history'}     onClick={() => setTab('history')} />
         </div>
       </div>
 
       {/* Content */}
       <div>
-        {tab === 'leave'   && <LeaveSection   onModal={setModal} />}
-        {tab === 'excuses' && <ExcusesSection onModal={setModal} />}
+        {tab === 'leave'       && <LeaveSection       onModal={setModal} />}
+        {tab === 'excuses'     && <ExcusesSection     onModal={setModal} />}
+        {tab === 'adjustments' && <AdjustmentsSection onModal={setModal} />}
         {tab === 'history' && (
           <HistorySection
             month={historyMonth} year={historyYear}
@@ -733,10 +814,14 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Modals */}
-      {modal?.type === 'approve-excuse' && (
+      {(modal?.type === 'approve-excuse' || modal?.type === 'approve-adjustment') && (
         <ConfirmModal
-          title="Approve late excuse"
-          description="Mark this attendance record as Present and close the excuse."
+          title={modal.type === 'approve-excuse' ? 'Approve late excuse' : 'Approve attendance adjustment'}
+          description={
+            modal.type === 'approve-excuse'
+              ? 'Mark this attendance record as Present and close the excuse.'
+              : 'The requested check-in/check-out time will be applied to this attendance record.'
+          }
           confirmLabel="Yes, Approve"
           confirmCls="bg-emerald-600 hover:bg-emerald-700"
           submitting={isSubmitting}
@@ -744,16 +829,18 @@ export default function ApprovalsPage() {
           onClose={() => setModal(null)}
         />
       )}
-      {modal && modal.type !== 'approve-excuse' && (
+      {modal && modal.type !== 'approve-excuse' && modal.type !== 'approve-adjustment' && (
         <ReasonModal
           title={
-            modal.type === 'reject-leave'  ? 'Reject leave request' :
-            modal.type === 'reject-cancel' ? 'Keep leave active' :
+            modal.type === 'reject-leave'      ? 'Reject leave request' :
+            modal.type === 'reject-cancel'     ? 'Keep leave active' :
+            modal.type === 'reject-adjustment' ? 'Reject attendance adjustment' :
             'Reject excuse'
           }
           description={
-            modal.type === 'reject-leave'  ? 'This reason will be sent to the employee.' :
-            modal.type === 'reject-cancel' ? 'Explain why the cancellation request is being denied.' :
+            modal.type === 'reject-leave'      ? 'This reason will be sent to the employee.' :
+            modal.type === 'reject-cancel'     ? 'Explain why the cancellation request is being denied.' :
+            modal.type === 'reject-adjustment' ? 'This reason will be sent to the employee; the attendance record will remain unchanged.' :
             'The late attendance record will remain unchanged.'
           }
           placeholder="Enter reason…"
