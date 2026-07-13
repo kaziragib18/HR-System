@@ -3,13 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "migrate": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
+    "migrate": "dotenv -e ../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../.env -- prisma migrate deploy",
     "generate": "prisma generate",
-    "studio": "prisma studio",
+    "studio": "dotenv -e ../.env -- prisma studio",
     "seed": "dotenv -e ../.env tsx src/seed.ts",
     "seed:demo": "dotenv -e ../.env tsx src/seed-demo.ts",
-    "reset": "prisma migrate reset"
+    "reset": "dotenv -e ../.env -- prisma migrate reset"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",

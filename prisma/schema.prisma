@@ -411,6 +411,13 @@ model Attendance {
   excuseStatus          String?   // PENDING | APPROVED | REJECTED
   excuseReviewedAt      DateTime?
   excuseReviewedBy      String?   // employeeId of reviewing manager
+  requestedCheckIn      DateTime? // employee-proposed check-in time, pending manager review
+  requestedCheckOut     DateTime? // employee-proposed check-out time, pending manager review
+  adjustmentReason      String?
+  adjustmentStatus      String?   // PENDING | APPROVED | REJECTED
+  adjustmentApproverId  String?   // employeeId this request is routed to
+  adjustmentReviewedBy  String?   // employeeId of the manager who reviewed it
+  adjustmentReviewedAt  DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
