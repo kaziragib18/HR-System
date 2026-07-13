@@ -335,6 +335,7 @@ function DailyTable({
             <th className="py-2 text-left">Hours</th>
             <th className="py-2 text-left">Late</th>
             <th className="py-2 text-left">OT</th>
+            <th className="py-2 text-left">Reason</th>
             {showAction && <th className="py-2 text-left">{canEdit ? 'Edit' : 'Request'}</th>}
           </tr>
         </thead>
@@ -358,14 +359,7 @@ function DailyTable({
                 </td>
                 <td className="py-2.5 text-xs text-muted-foreground">{DAYS[row.dow]}</td>
                 <td className="py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    {status ? <StatusPill status={status} /> : <span className="text-xs text-muted-foreground">—</span>}
-                    {row.record?.adjustmentReason && (
-                      <span title={`Adjustment reason: ${row.record.adjustmentReason}`}>
-                        <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                      </span>
-                    )}
-                  </div>
+                  {status ? <StatusPill status={status} /> : <span className="text-xs text-muted-foreground">—</span>}
                 </td>
                 <td className="py-2.5 font-mono text-xs">
                   <span className="inline-flex items-center gap-1.5">
@@ -387,6 +381,13 @@ function DailyTable({
                 </td>
                 <td className="py-2.5 text-xs text-violet-600 dark:text-violet-400">
                   {row.record?.overtimeMinutes ? `${row.record.overtimeMinutes}m` : '—'}
+                </td>
+                <td className="max-w-[200px] py-2.5 text-xs text-muted-foreground">
+                  {row.record?.adjustmentReason ? (
+                    <span className="block truncate" title={row.record.adjustmentReason}>
+                      {row.record.adjustmentReason}
+                    </span>
+                  ) : '—'}
                 </td>
                 {showAction && (
                   <td className="py-2.5">
