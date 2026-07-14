@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   usePendingApprovals,
   useApproveLeave,
@@ -739,8 +740,12 @@ function Empty({ icon: Icon, message }: { icon: React.ElementType; message: stri
 
 type Tab = 'leave' | 'excuses' | 'adjustments' | 'history'
 
+const VALID_TABS: Tab[] = ['leave', 'excuses', 'adjustments', 'history']
+
 export default function ApprovalsPage() {
-  const [tab, setTab]   = useState<Tab>('leave')
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get('tab') as Tab | null
+  const [tab, setTab]   = useState<Tab>(requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : 'leave')
   const [modal, setModal] = useState<ModalState>(null)
 
   const now = new Date()

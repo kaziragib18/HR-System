@@ -5,6 +5,8 @@ import { usePendingExcuses, useReviewExcuse, type AttendanceRecord } from '@/lib
 import { Card, Spinner, Avatar } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
+import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
+import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
 import { cn } from '@/lib/utils'
 import {
   Users,
@@ -54,15 +56,23 @@ export function ManagerDashboard() {
         <Spinner />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" />
-            <Stat icon={UserCheck} label="On probation" value={stats?.onProbation ?? 0} tone="amber" />
-            <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
-            <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
-            <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" />
+              <Stat icon={UserCheck} label="On probation" value={stats?.onProbation ?? 0} tone="amber" />
+              <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
+              <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
+              <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" />
+            </div>
+            <RecentApprovalsCard />
           </div>
 
           <LateExcuseReview />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AnnouncementsCard />
+            <ComplianceDocsCard />
+          </div>
 
           {byDept && byDept.length > 0 && (
             <Card>
@@ -101,8 +111,6 @@ export function ManagerDashboard() {
               </ResponsiveContainer>
             </Card>
           )}
-
-          <ComplianceDocsCard />
         </>
       )}
     </div>

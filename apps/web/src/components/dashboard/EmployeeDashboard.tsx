@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
+import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
 import { BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
 import {
   LogIn,
@@ -98,13 +99,15 @@ export function EmployeeDashboard() {
         <DualClock />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Clock + manager side by side; leave balance + announcements side by side */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <TodayStatusCard officeCode={user?.officeCode} />
-        {/* Leave balance + manager side by side in the 2-col slot */}
-        <div className="lg:col-span-2 grid gap-4 sm:grid-cols-2">
-          <LeaveBalanceCard balances={data.leaveBalances} />
-          {data.managers.length > 0 && <ManagerCard managers={data.managers} />}
-        </div>
+        {data.managers.length > 0 && <ManagerCard managers={data.managers} />}
+        <LeaveBalanceCard balances={data.leaveBalances} />
+        <AnnouncementsCard />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
         <AttendanceCalendar className="lg:col-span-3" />
         <TeamTodayCard team={data.team} />
         <MyApplicationsCard applications={data.myApplications} />

@@ -24,6 +24,8 @@ export interface AttendanceRecord {
   adjustmentApproverId: string | null
   adjustmentReviewedBy: string | null
   adjustmentReviewedAt: string | null
+  createdAt: string
+  updatedAt: string
   employee?: {
     id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null
     department?: { id: string; name: string } | null
