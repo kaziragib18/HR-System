@@ -7,6 +7,7 @@ import { ManagerDashboard } from '@/components/dashboard/ManagerDashboard'
 import { EmployeeDashboard } from '@/components/dashboard/EmployeeDashboard'
 import { HolidaysPanel } from '@/components/dashboard/HolidaysPanel'
 import { CompanyPanel } from '@/components/dashboard/CompanyPanel'
+import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
 import { Tabs } from '@/components/ui/tabs'
 
 export default function DashboardPage() {
@@ -31,7 +32,12 @@ export default function DashboardPage() {
   return (
     <div>
       {showTabs && <Tabs items={tabs} active={tab} onChange={setTab} />}
-      {tab === 'overview' && (isManager ? <ManagerDashboard /> : <EmployeeDashboard />)}
+      {tab === 'overview' && (
+        <div className="space-y-4">
+          <AnnouncementsCard />
+          {isManager ? <ManagerDashboard /> : <EmployeeDashboard />}
+        </div>
+      )}
       {tab === 'holidays' && canSeeHolidays && <HolidaysPanel />}
       {tab === 'company' && canSeeCompany && <CompanyPanel />}
     </div>

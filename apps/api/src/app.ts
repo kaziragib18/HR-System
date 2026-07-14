@@ -20,6 +20,7 @@ import { payrollRouter } from './modules/payroll/payroll.routes'
 import { companyRouter } from './modules/company/company.routes'
 import { approvalsRouter } from './modules/approvals/approvals.routes'
 import { documentsRouter } from './modules/documents/documents.routes'
+import { announcementsRouter } from './modules/announcements/announcements.routes'
 import { env } from './config/env'
 
 export function createApp(): Express {
@@ -74,6 +75,7 @@ export function createApp(): Express {
   app.use('/api/v1/company', companyRouter)
   app.use('/api/v1/approvals', approvalsRouter)
   app.use('/api/v1/documents', documentsRouter)
+  app.use('/api/v1/announcements', announcementsRouter)
 
   // 404
   app.use((_req, res) => {

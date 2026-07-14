@@ -66,12 +66,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
 
     const transition = document.startViewTransition(commit)
-    transition.ready.then(() => {
-      document.documentElement.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
-        { duration: 650, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' }
-      )
-    })
+
+    // Safety net: some browsers support startViewTransition but not animating a
+    // pseudo-element directly (Element.animate's `pseudoElement` option landed
+    // later than startViewTransition itself). If that combination isn't
+    // supported, animate() throws and the transition's overlay would otherwise
+    // sit on top of the whole page — silently swallowing every click (including
+    // native <input type="date"> picker icons) until reload. Force it closed
+    // instead, and never leave it open longer than a second regardless of cause.
+    const fallback = setTimeout(() => transition.skipTransition(), 1000)
+
+    transition.ready
+      .then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
+          { duration: 650, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' }
+        )
+      })
+      .catch(() => transition.skipTransition())
+
+    transition.finished.catch(() => {}).finally(() => clearTimeout(fallback))
   }
 
   return <ThemeContext.Provider value={{ theme, setTheme, mounted }}>{children}</ThemeContext.Provider>

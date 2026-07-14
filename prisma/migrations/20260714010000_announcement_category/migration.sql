@@ -1,0 +1,2 @@
+ALTER TABLE "Announcement" ADD COLUMN "category" TEXT NOT NULL DEFAULT 'GENERAL';
+ALTER TABLE "Announcement" ADD CONSTRAINT "Announcement_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

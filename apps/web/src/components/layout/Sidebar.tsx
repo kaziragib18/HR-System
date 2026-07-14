@@ -16,6 +16,7 @@ import {
   ClipboardList,
   BookUser,
   Bell,
+  Megaphone,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null, exclude: SA },
   { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN], exclude: null },
   { href: '/contact-book', label: 'Contact Book', icon: BookUser, roles: null, exclude: null },
+  { href: '/announcements', label: 'Announcements', icon: Megaphone, roles: null, exclude: null },
   { href: '/notifications', label: 'Notifications', icon: Bell, roles: null, exclude: null },
   { href: '/settings', label: 'Settings', icon: Settings, roles: null, exclude: null },
 ]

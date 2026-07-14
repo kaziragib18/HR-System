@@ -153,3 +153,22 @@ export const LIGHT_THEMES = ['light', 'forest', 'ocean', 'ice-age', 'desert', 'a
 export const DARK_THEMES = ['dark', 'midnight', 'amoled', 'mocha', 'slate', 'dracula', 'monochrome'] as const
 export const THEME_VALUES = [...LIGHT_THEMES, ...DARK_THEMES] as const
 export type Theme = (typeof THEME_VALUES)[number]
+
+export enum AnnouncementCategory {
+  GENERAL = 'GENERAL',
+  OFFICE_CLOSURE = 'OFFICE_CLOSURE',
+  OTHER = 'OTHER',
+  // Automated — computed at read time, never created via the manual-post endpoint.
+  NEW_JOINEE = 'NEW_JOINEE',
+  BIRTHDAY = 'BIRTHDAY',
+  WORK_ANNIVERSARY = 'WORK_ANNIVERSARY',
+  POLICY_DOCUMENT = 'POLICY_DOCUMENT',
+  UPCOMING_HOLIDAY = 'UPCOMING_HOLIDAY',
+}
+
+/** Categories an admin can pick when authoring a manual announcement. */
+export const MANUAL_ANNOUNCEMENT_CATEGORIES = [
+  AnnouncementCategory.GENERAL,
+  AnnouncementCategory.OFFICE_CLOSURE,
+  AnnouncementCategory.OTHER,
+] as const
