@@ -147,3 +147,9 @@ export enum BloodGroup {
   O_POSITIVE = 'O+',
   O_NEGATIVE = 'O-',
 }
+
+/** Named theme variants offered on the Appearance settings tab — keep in sync with apps/web/src/lib/theme.ts's swatch labels/gradients. */
+export const LIGHT_THEMES = ['light', 'forest', 'ocean', 'ice-age', 'desert', 'autumn', 'blossom'] as const
+export const DARK_THEMES = ['dark', 'midnight', 'amoled', 'mocha', 'slate', 'dracula', 'monochrome'] as const
+export const THEME_VALUES = [...LIGHT_THEMES, ...DARK_THEMES] as const
+export type Theme = (typeof THEME_VALUES)[number]

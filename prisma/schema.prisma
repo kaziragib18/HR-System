@@ -329,6 +329,7 @@ model User {
   lastLoginIp         String?
   loginAttempts       Int       @default(0)
   lockedUntil         DateTime?
+  theme               String    @default("light") // one of packages/types' THEME_VALUES
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

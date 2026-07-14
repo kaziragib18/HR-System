@@ -6,9 +6,10 @@ import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 
 const TABS = [
-  { href: '/settings/profile',  label: 'Profile'  },
-  { href: '/settings/security', label: 'Security' },
-  { href: '/settings/roles',    label: 'Roles & Permissions', superAdminOnly: true },
+  { href: '/settings/profile',    label: 'Profile'    },
+  { href: '/settings/security',   label: 'Security'   },
+  { href: '/settings/appearance', label: 'Appearance' },
+  { href: '/settings/roles',      label: 'Roles & Permissions', superAdminOnly: true },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

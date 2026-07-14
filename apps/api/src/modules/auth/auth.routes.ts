@@ -9,6 +9,7 @@ import {
   twoFactorEnableSchema,
   changePasswordSchema,
   resetPasswordSchema,
+  updateThemeSchema,
 } from './auth.schemas'
 
 const router: RouterType = Router()
@@ -53,5 +54,6 @@ router.post(
 router.post('/2fa/disable', authenticate, controller.disableTwoFactor)
 router.get('/sessions', authenticate, controller.listSessions)
 router.delete('/sessions/:id', authenticate, controller.revokeSession)
+router.patch('/theme', authenticate, validate(updateThemeSchema), controller.updateTheme)
 
 export { router as authRouter }

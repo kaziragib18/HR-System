@@ -59,6 +59,7 @@ function tokenFor(overrides: { role: UserRole; officeId: string }) {
     officeCode: overrides.officeId === 'office-bd' ? 'BD' : 'UK',
     firstName: 'Test',
     lastName: 'User',
+    theme: 'light',
   })
 }
 

@@ -13,8 +13,8 @@ import {
   verifyTwoFactorToken,
 } from '../../services/twofa.service'
 import { env } from '../../config/env'
-import type { AuthUser, SessionInfo } from '@hr-system/types'
-import { UserRole } from '@hr-system/types'
+import type { AuthUser, SessionInfo, Theme } from '@hr-system/types'
+import { UserRole, THEME_VALUES } from '@hr-system/types'
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const MAX_LOGIN_ATTEMPTS = 5
@@ -58,6 +58,7 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
     avatarUrl: user.employee.avatarUrl,
     isTwoFactorEnabled: user.isTwoFactorEnabled,
     departmentName: user.employee.department?.name ?? null,
+    theme: (THEME_VALUES as readonly string[]).includes(user.theme) ? (user.theme as Theme) : 'light',
   }
 }
 
@@ -221,6 +222,11 @@ export async function getMe(userId: string): Promise<AuthUser> {
   const user = await findUserWithEmployee({ id: userId })
   if (!user) throw new AuthError('User not found', 404)
   return toAuthUser(user)
+}
+
+export async function updateTheme(userId: string, theme: Theme): Promise<{ theme: Theme }> {
+  await prisma.user.update({ where: { id: userId }, data: { theme } })
+  return { theme }
 }
 
 export async function changePassword(

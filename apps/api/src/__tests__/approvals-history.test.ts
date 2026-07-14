@@ -52,6 +52,7 @@ function tokenFor(role: UserRole) {
     officeCode: 'BD',
     firstName: 'Riya',
     lastName: 'Reviewer',
+    theme: 'light',
   })
 }
 

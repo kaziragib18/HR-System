@@ -11,6 +11,7 @@ import type {
   TwoFactorEnableInput,
   ChangePasswordInput,
   ResetPasswordInput,
+  UpdateThemeInput,
 } from './auth.schemas'
 
 const REFRESH_COOKIE = 'refreshToken'
@@ -134,6 +135,16 @@ export async function me(req: Request, res: Response) {
   try {
     const user = await authService.getMe((req as AuthRequest).user.sub)
     sendSuccess(res, user)
+  } catch (err) {
+    handleError(res, err)
+  }
+}
+
+export async function updateTheme(req: Request, res: Response) {
+  try {
+    const { theme } = req.body as UpdateThemeInput
+    const result = await authService.updateTheme((req as AuthRequest).user.sub, theme)
+    sendSuccess(res, result)
   } catch (err) {
     handleError(res, err)
   }

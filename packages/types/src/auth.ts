@@ -1,4 +1,4 @@
-import { UserRole } from './enums'
+import { UserRole, type Theme } from './enums'
 
 export interface AuthUser {
   id: string
@@ -12,6 +12,7 @@ export interface AuthUser {
   avatarUrl?: string | null
   isTwoFactorEnabled?: boolean
   departmentName?: string | null
+  theme: Theme
 }
 
 export interface AuthTokens {
