@@ -1,7 +1,8 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import {
   usePayrollRun,
   useProcessPayrollRun,
@@ -107,8 +108,9 @@ function EntryRow({ entry }: { entry: PayrollEntry }) {
   )
 }
 
-export default function PayrollRunPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function PayrollRunPage() {
+  const params = useParams()
+  const id = params.id as string
   const user = useAuthStore(s => s.user)
   const { data: run, isLoading } = usePayrollRun(id)
   const process = useProcessPayrollRun()
