@@ -17,6 +17,7 @@ export interface EmployeeListItem {
   jobGrade?: { id: string; name: string } | null
   reportingTo?: { id: string; firstName: string; lastName: string } | null
   office: { id: string; code: string; name: string }
+  user?: { role: string; isActive: boolean } | null
 }
 
 export interface EmployeeProfile extends EmployeeListItem {

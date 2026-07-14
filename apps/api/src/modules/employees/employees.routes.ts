@@ -10,6 +10,7 @@ import { UserRole } from '@hr-system/types'
 import {
   createEmployeeSchema,
   updateEmployeeSchema,
+  updateEmployeeRoleSchema,
   bankInfoSchema,
   listEmployeesQuerySchema,
   listDirectoryQuerySchema,
@@ -47,6 +48,7 @@ router.get('/:id/org-chart', controller.orgChart)
 // Mutations (HR+, or self restricted to personal fields — see controller.update)
 router.post('/', HR, validate(createEmployeeSchema), controller.create)
 router.patch('/:id', SELF_OR_HR, validate(updateEmployeeSchema), controller.update)
+router.patch('/:id/role', requireRole(UserRole.SUPER_ADMIN), validate(updateEmployeeRoleSchema), controller.updateRole)
 router.delete('/:id', HR, controller.remove)
 
 // Password reset (HR+ only) — generates a link for HR to relay manually, no email channel

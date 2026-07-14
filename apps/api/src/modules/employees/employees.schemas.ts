@@ -91,8 +91,13 @@ export const listDirectoryQuerySchema = z.object({
   bloodGroup: z.nativeEnum(BloodGroup).optional(),
 })
 
+export const updateEmployeeRoleSchema = z.object({
+  role: z.nativeEnum(UserRole),
+})
+
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>
 export type BankInfoInput = z.infer<typeof bankInfoSchema>
 export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>
 export type DirectoryQuery = z.infer<typeof listDirectoryQuerySchema>
+export type UpdateEmployeeRoleInput = z.infer<typeof updateEmployeeRoleSchema>

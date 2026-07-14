@@ -9,7 +9,7 @@ import { auditFromRequest } from '../../utils/audit'
 import { AuditAction, UserRole } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { CreateEmployeeInput, UpdateEmployeeInput, BankInfoInput, ListEmployeesQuery, DirectoryQuery } from './employees.schemas'
+import type { CreateEmployeeInput, UpdateEmployeeInput, UpdateEmployeeRoleInput, BankInfoInput, ListEmployeesQuery, DirectoryQuery } from './employees.schemas'
 
 function scope(req: Request): string | undefined {
   return (req as OfficeScopedRequest).officeScope
@@ -81,6 +81,18 @@ export async function update(req: Request, res: Response) {
     const body = isHR ? (req.body as UpdateEmployeeInput) : restrictToPersonalFields(req.body as UpdateEmployeeInput)
     const employee = await service.updateEmployee(req.params.id, scope(req), body)
     await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Employee', employee.id, undefined, body)
+    sendSuccess(res, employee)
+  } catch (err) {
+    handle(res, err)
+  }
+}
+
+export async function updateRole(req: Request, res: Response) {
+  try {
+    const authReq = req as AuthRequest
+    const { role } = req.body as UpdateEmployeeRoleInput
+    const employee = await service.updateEmployeeRole(req.params.id, role, authReq.user.employeeId)
+    await auditFromRequest(authReq, AuditAction.UPDATE, 'User', req.params.id, undefined, req.body)
     sendSuccess(res, employee)
   } catch (err) {
     handle(res, err)

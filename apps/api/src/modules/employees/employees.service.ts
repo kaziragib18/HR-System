@@ -21,6 +21,7 @@ const listInclude = {
   jobGrade: { select: { id: true, name: true } },
   reportingTo: { select: { id: true, firstName: true, lastName: true } },
   office: { select: { id: true, code: true, name: true } },
+  user: { select: { role: true, isActive: true } },
 } satisfies Prisma.EmployeeInclude
 
 /** Generates the next employee ID like "BD-2025-001". */
@@ -66,7 +67,7 @@ export async function listEmployees(officeScope: string | undefined, query: List
 export async function getEmployee(id: string, officeScope: string | undefined) {
   const employee = await prisma.employee.findUnique({
     where: { id },
-    include: { ...listInclude, user: { select: { role: true, isActive: true } } },
+    include: listInclude,
   })
   if (!employee) throw new EmployeeError('Employee not found', 404)
   if (officeScope && employee.officeId !== officeScope) throw new EmployeeError('Employee not found', 404)
@@ -170,6 +171,27 @@ export async function updateEmployee(id: string, officeScope: string | undefined
   ])
 
   return employee
+}
+
+/** SUPER_ADMIN-only: change an employee's system role. */
+export async function updateEmployeeRole(employeeId: string, newRole: UserRole, actorEmployeeId: string) {
+  if (employeeId === actorEmployeeId) {
+    throw new EmployeeError('You cannot change your own role', 400)
+  }
+
+  const user = await prisma.user.findUnique({ where: { employeeId }, select: { role: true, isActive: true } })
+  if (!user) throw new EmployeeError('Employee not found', 404)
+
+  if (user.role === UserRole.SUPER_ADMIN && newRole !== UserRole.SUPER_ADMIN) {
+    const otherSuperAdmins = await prisma.user.count({
+      where: { role: UserRole.SUPER_ADMIN, isActive: true, employeeId: { not: employeeId } },
+    })
+    if (otherSuperAdmins === 0) {
+      throw new EmployeeError('Cannot remove the last Super Admin', 400)
+    }
+  }
+
+  return prisma.user.update({ where: { employeeId }, data: { role: newRole } })
 }
 
 /** Soft delete — mark terminated and deactivate the login. */
