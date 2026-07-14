@@ -1,7 +1,7 @@
 import {
   CheckCircle2, XCircle, Clock, Calendar, LogOut, Star,
   Coffee, AlertCircle, AlertTriangle, Ban, Briefcase,
-  GraduationCap, FileText, Loader2, Check, Undo2, type LucideIcon,
+  GraduationCap, FileText, Loader2, Check, Undo2, ShieldCheck, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -100,6 +100,19 @@ export function StatusBadge({ status, label }: { status: string; label?: string 
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold', cfg.cls)}>
       <Icon className={cn('h-3 w-3 shrink-0', cfg.spin && 'animate-spin')} />
       {text}
+    </span>
+  )
+}
+
+export function fmtRole(role: string) {
+  return role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export function RolePill({ role }: { role: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary">
+      <ShieldCheck className="h-2.5 w-2.5" />
+      {fmtRole(role)}
     </span>
   )
 }

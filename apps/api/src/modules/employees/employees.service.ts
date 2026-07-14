@@ -191,7 +191,11 @@ export async function updateEmployeeRole(employeeId: string, newRole: UserRole, 
     }
   }
 
-  return prisma.user.update({ where: { employeeId }, data: { role: newRole } })
+  return prisma.user.update({
+    where: { employeeId },
+    data: { role: newRole },
+    select: { employeeId: true, email: true, role: true, isActive: true },
+  })
 }
 
 /** Soft delete — mark terminated and deactivate the login. */

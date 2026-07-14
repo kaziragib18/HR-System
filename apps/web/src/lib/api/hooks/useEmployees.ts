@@ -99,6 +99,20 @@ export function useUpdateEmployeeById() {
   })
 }
 
+export function useUpdateEmployeeRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, role }: { id: string; role: string }) => {
+      const { data } = await apiClient.patch(`/employees/${id}/role`, { role })
+      return data.data
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['employee', vars.id] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+    },
+  })
+}
+
 export function useDeactivateEmployee() {
   const qc = useQueryClient()
   return useMutation({

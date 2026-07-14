@@ -41,7 +41,17 @@ describe('updateEmployeeRole', () => {
   it('updates the role for a normal case', async () => {
     const result = await updateEmployeeRole('emp-hr', UserRole.DEPT_HEAD, 'emp-super')
     expect(result.role).toBe(UserRole.DEPT_HEAD)
-    expect(userUpdate).toHaveBeenCalledWith({ where: { employeeId: 'emp-hr' }, data: { role: UserRole.DEPT_HEAD } })
+    expect(userUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employeeId: 'emp-hr' }, data: { role: UserRole.DEPT_HEAD } })
+    )
+  })
+
+  it('never selects passwordHash or twoFactorSecret back in the response', async () => {
+    await updateEmployeeRole('emp-hr', UserRole.DEPT_HEAD, 'emp-super')
+    const call = userUpdate.mock.calls[0][0] as { select?: Record<string, unknown> }
+    expect(call.select).toBeDefined()
+    expect(call.select).not.toHaveProperty('passwordHash')
+    expect(call.select).not.toHaveProperty('twoFactorSecret')
   })
 
   it('rejects an admin changing their own role', async () => {

@@ -13,12 +13,12 @@ import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdj
 import type { AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { useApprovalHistory } from '@/lib/api/hooks/useApprovalHistory'
 import type { ApprovalHistoryItem } from '@/lib/api/hooks/useApprovalHistory'
-import { Avatar, StatusBadge, Spinner, PageHeader } from '@/components/ui/primitives'
+import { Avatar, StatusBadge, Spinner, PageHeader, RolePill } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
   AlertCircle, Building2, History,
-  ChevronLeft, ChevronRight, ShieldCheck, ChevronDown, ChevronUp,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,20 +41,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
 }
 
-function fmtRole(role: string) {
-  return role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-}
-
 // ─── Shared primitives ────────────────────────────────────────────────────────
-
-function RolePill({ role }: { role: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary">
-      <ShieldCheck className="h-2.5 w-2.5" />
-      {fmtRole(role)}
-    </span>
-  )
-}
 
 function EmployeeRow({ firstName, lastName, employeeId, avatarUrl, department, role }: {
   firstName: string; lastName: string; employeeId: string
