@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme-switch wave: suppress the browser's default cross-fade so our
+   clip-path circle (driven from theme-provider.tsx) is the only motion. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%;

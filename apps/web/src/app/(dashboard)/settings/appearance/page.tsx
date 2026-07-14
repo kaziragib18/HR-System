@@ -16,14 +16,14 @@ function ThemeSwatch({
   label: string
   gradient: string
   selected: boolean
-  onSelect: (id: Theme) => void
+  onSelect: (id: Theme, origin: { x: number; y: number }) => void
 }) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={selected}
-      onClick={() => onSelect(id)}
+      onClick={(e) => onSelect(id, { x: e.clientX, y: e.clientY })}
       className={cn(
         'flex flex-col items-center gap-2 rounded-lg p-2 transition-colors',
         selected ? 'ring-2 ring-primary' : 'hover:bg-muted'
