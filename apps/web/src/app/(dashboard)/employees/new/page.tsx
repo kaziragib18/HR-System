@@ -30,7 +30,7 @@ type FormValues = z.infer<typeof schema>
 
 const ROLE_OPTIONS = [
   { value: UserRole.EMPLOYEE,   label: 'Employee'      },
-  { value: UserRole.TEAM_LEAD,  label: 'Team Lead'     },
+  { value: UserRole.DEPT_MANAGER, label: 'Department Manager' },
   { value: UserRole.DEPT_HEAD,  label: 'Department Head' },
   { value: UserRole.HR_MANAGER, label: 'HR Manager'    },
   { value: UserRole.SUPER_ADMIN, label: 'Super Admin'  },
@@ -144,12 +144,12 @@ export default function NewEmployeePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>First name</label>
-              <input className={field} {...register('firstName')} />
+              <input className={field} placeholder="e.g. Nadia" {...register('firstName')} />
               {errors.firstName && <p className="mt-1 text-xs text-destructive">{errors.firstName.message}</p>}
             </div>
             <div>
               <label className={labelCls}>Last name</label>
-              <input className={field} {...register('lastName')} />
+              <input className={field} placeholder="e.g. Islam" {...register('lastName')} />
               {errors.lastName && <p className="mt-1 text-xs text-destructive">{errors.lastName.message}</p>}
             </div>
           </div>
@@ -158,12 +158,12 @@ export default function NewEmployeePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Email</label>
-              <input type="email" className={field} {...register('email')} />
+              <input type="email" className={field} placeholder="name@company.com" {...register('email')} />
               {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div>
               <label className={labelCls}>Phone</label>
-              <input className={field} {...register('phone')} />
+              <input className={field} placeholder="+880 1XXX-XXXXXX" {...register('phone')} />
             </div>
           </div>
 

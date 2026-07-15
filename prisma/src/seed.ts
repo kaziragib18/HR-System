@@ -115,14 +115,14 @@ async function main() {
 
   // ─── Job Titles ───────────────────────────────────────────────────────────
   const jobTitlesByDept: Record<string, string[]> = {
-    'ACC':   ['Director of Finance and Accounts', 'Assistant Accounts Manager', 'Accounts Team Leader', 'Accounts Assistant'],
-    'ADM':   ['Director of Operations and Business Development', 'Senior Admissions Officer', 'Admissions Officer & Interviewer', 'Admissions Coordinator'],
-    'FIN':   ['Lead Payments Officer', 'Payments Officer'],
-    'HR':    ['Director of People Experience', 'HR Assistant Manager', 'HR Assistant'],
-    'IT':    ['Director of IT', 'IT Manager', 'System Administrator'],
-    'IT-SW': ['Software Engineering Manager', 'Senior PHP Developer', 'React Developer'],
-    'IT-TS': ['Project Manager', 'Infrastructure Technician', 'Cloud Engineer', 'IT Technician', 'Tech Support Specialist', 'Tech Support'],
-    'IT-WD': ['Line Manager', 'Web Developer', 'UI/UX Designer'],
+    'ACC':   ['Director of Finance and Accounts', 'Assistant Accounts Manager', 'Accounts Team Leader', 'Accounts Assistant', 'Senior Accounts Officer', 'Accounts Officer', 'Junior Accountant', 'Billing Coordinator', 'Accounts Executive', 'Internal Auditor'],
+    'ADM':   ['Director of Operations and Business Development', 'Senior Admissions Officer', 'Admissions Officer & Interviewer', 'Admissions Coordinator', 'Admissions Officer', 'Admissions Assistant', 'Enrollment Coordinator', 'Admissions Executive', 'Student Counselor'],
+    'FIN':   ['Lead Payments Officer', 'Payments Officer', 'Finance Manager', 'Senior Payments Officer', 'Finance Executive', 'Billing Officer', 'Accounts Payable Officer', 'Treasury Officer', 'Finance Assistant'],
+    'HR':    ['Director of People Experience', 'HR Assistant Manager', 'HR Assistant', 'HR Director', 'HR Officer', 'Recruitment Officer', 'HR Executive', 'Payroll Coordinator', 'Training Officer'],
+    'IT':    ['Director of IT', 'IT Manager', 'System Administrator', 'IT Support Officer', 'Network Engineer', 'IT Coordinator', 'Systems Analyst', 'IT Officer', 'Helpdesk Executive'],
+    'IT-SW': ['Software Engineering Manager', 'Engineering Team Lead', 'Senior PHP Developer', 'React Developer', 'QA Engineer', 'Junior Developer', 'DevOps Engineer', 'Frontend Developer'],
+    'IT-TS': ['Project Manager', 'Support Team Lead', 'Infrastructure Technician', 'Cloud Engineer', 'IT Technician', 'Tech Support Specialist', 'Tech Support'],
+    'IT-WD': ['Line Manager', 'Web Team Lead', 'Web Developer', 'UI/UX Designer', 'Backend Developer', 'QA Tester', 'Web Content Specialist'],
   }
 
   for (const [deptCode, titles] of Object.entries(jobTitlesByDept)) {
@@ -148,7 +148,7 @@ async function main() {
       isCarryForward: true,
       maxCarryForward: 10,
       approvalChain: [
-        { level: 1, role: 'TEAM_LEAD' },
+        { level: 1, role: 'DEPT_MANAGER' },
         { level: 2, role: 'HR_MANAGER' },
       ],
     },
@@ -166,7 +166,7 @@ async function main() {
       daysPerYear: 10,
       isPaid: true,
       isCarryForward: false,
-      approvalChain: [{ level: 1, role: 'TEAM_LEAD' }],
+      approvalChain: [{ level: 1, role: 'DEPT_MANAGER' }],
     },
     {
       code: 'ML',
@@ -203,7 +203,7 @@ async function main() {
       isCarryForward: true,
       maxCarryForward: 10,
       approvalChain: [
-        { level: 1, role: 'TEAM_LEAD' },
+        { level: 1, role: 'DEPT_MANAGER' },
         { level: 2, role: 'HR_MANAGER' },
       ],
     },

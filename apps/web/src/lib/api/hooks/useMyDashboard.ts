@@ -58,7 +58,11 @@ export interface MyDashboard {
     avatarUrl?: string | null
     todayStatus: string
     isSelf: boolean
+    designation?: string | null
+    role?: string | null
   }>
+  directReportsCount: number
+  departmentHeadcount: number
 }
 
 export function useMyDashboard() {

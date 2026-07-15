@@ -13,7 +13,7 @@ import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
-import { BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
+import { BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
 import { LogIn, LogOut, Clock, AlertCircle, CalendarDays, AlertTriangle } from 'lucide-react'
 
 function shiftForOfficeCode(code?: string): ShiftConfig {
@@ -67,8 +67,13 @@ function TodayCard() {
       return
     }
     function tick() {
-      const diffMs = Date.now() - new Date(today!.checkIn!).getTime()
-      const totalSecs = Math.floor(diffMs / 1000)
+      // checkIn's UTC slots hold the office's LOCAL wall-clock digits (see
+      // toOfficeTime), not a true UTC instant — Date.now() is true UTC, so
+      // diffing them directly is off by the office's UTC offset (e.g. -6h
+      // for BD). Re-express "now" the same way before diffing.
+      const nowOfficeDigits = toOfficeTime(new Date(), user?.officeCode ?? 'UK')
+      const diffMs = nowOfficeDigits.getTime() - new Date(today!.checkIn!).getTime()
+      const totalSecs = Math.max(0, Math.floor(diffMs / 1000))
       const h = Math.floor(totalSecs / 3600)
       const m = Math.floor((totalSecs % 3600) / 60)
       const s = totalSecs % 60
@@ -77,7 +82,7 @@ function TodayCard() {
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [today?.checkIn, today?.checkOut, today?.workingMinutes])
+  }, [today?.checkIn, today?.checkOut, today?.workingMinutes, user?.officeCode])
 
   const status = today?.status ?? 'ABSENT'
   const dateLabel = new Date().toLocaleDateString('en-US', {
@@ -161,7 +166,7 @@ function TodayCard() {
                 <div className="flex items-center gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
                   <span className="text-amber-700 dark:text-amber-400">
-                    Late by {today.lateMinutes} min
+                    Late by {fmtMinutes(today.lateMinutes ?? 0)}
                   </span>
                 </div>
               )}

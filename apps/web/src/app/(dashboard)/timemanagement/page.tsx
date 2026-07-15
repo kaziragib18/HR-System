@@ -38,7 +38,7 @@ const MONTHS = [
 ]
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MANAGER_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD]
+const MANAGER_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
 const ADMIN_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER]
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -691,6 +691,10 @@ export default function TimeManagementPage() {
   const user = useAuthStore(s => s.user)
   const isManager = !!user && MANAGER_ROLES.includes(user.role as UserRole)
   const isAdmin = !!user && ADMIN_ROLES.includes(user.role as UserRole)
+  // DEPT_HEAD/DEPT_MANAGER only ever browse their own department here — no
+  // office-wide department picker for them (SUPER_ADMIN/HR_MANAGER keep it).
+  const isDeptScoped = isManager && !isAdmin
+  const effectiveDeptId = isDeptScoped ? (user?.departmentId ?? '') : deptId
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
 
   // Employee self data
@@ -699,7 +703,7 @@ export default function TimeManagementPage() {
   // Admin: employee list for selection
   const { data: empResult, isLoading: empLoading } = useEmployees(
     isManager
-      ? { search: search || undefined, departmentId: deptId || undefined, limit: 100 }
+      ? { search: search || undefined, departmentId: effectiveDeptId || undefined, limit: 100 }
       : {}
   )
   const employeeList = empResult?.data ?? []
@@ -913,16 +917,22 @@ export default function TimeManagementPage() {
                 className="w-full rounded-lg border bg-card py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <select
-              value={deptId}
-              onChange={e => setDeptId(e.target.value)}
-              className="rounded-lg border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">All Departments</option>
-              {departments.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+            {isDeptScoped ? (
+              <span className="flex items-center rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                {user?.departmentName ?? 'My department'}
+              </span>
+            ) : (
+              <select
+                value={deptId}
+                onChange={e => setDeptId(e.target.value)}
+                className="rounded-lg border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">All Departments</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <Card>
@@ -977,8 +987,8 @@ export default function TimeManagementPage() {
             ) : (
               <DailyTable
                 rows={rows}
-                canEdit={isAdmin && !!selectedEmp}
-                canRequest={isOwnRecords && !(isAdmin && !!selectedEmp)}
+                canEdit={isManager && !!selectedEmp}
+                canRequest={isOwnRecords && !(isManager && !!selectedEmp)}
                 todayStr={todayStr}
                 onEdit={row =>
                   setEditTarget({

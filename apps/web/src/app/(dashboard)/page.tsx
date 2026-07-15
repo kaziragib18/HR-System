@@ -13,11 +13,11 @@ export default function DashboardPage() {
   const { user } = useAuthStore()
   const [tab, setTab] = useState('overview')
 
+  // DEPT_HEAD/DEPT_MANAGER get the employee-style dashboard (their own attendance,
+  // leave, team) — not the office-wide stats view, which stays SUPER_ADMIN/HR_MANAGER
+  // only. Their team/department context surfaces inside EmployeeDashboard instead.
   const isManager =
-    !!user &&
-    [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD].includes(
-      user.role as UserRole
-    )
+    !!user && [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(user.role as UserRole)
   const canSeeHolidays = !!user && [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(user.role as UserRole)
   const canSeeCompany = user?.role === UserRole.SUPER_ADMIN
 

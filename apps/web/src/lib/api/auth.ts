@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { apiClient } from './client'
 import { useAuthStore } from '@/store/auth.store'
+import { queryClient } from '@/lib/queryClient'
 import type { AuthUser } from '@hr-system/types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
@@ -40,4 +41,10 @@ export async function logout(): Promise<void> {
     // ignore — clear local state regardless
   }
   useAuthStore.getState().clearAuth()
+  // Self-scoped query keys (e.g. ['my-dashboard'], ['leave','applications','me'])
+  // don't include the user's id, so without this the next person to log in on
+  // this tab would see the previous account's cached "my X" data until each
+  // query's own staleTime happened to expire — this navigation is a client-side
+  // router.replace(), not a hard reload, so the QueryClient instance survives it.
+  queryClient.clear()
 }

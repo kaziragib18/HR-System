@@ -411,6 +411,7 @@ model Attendance {
   approvedById          String?
   lateExcuse            String?   // employee-submitted reason for late > 30 min
   excuseStatus          String?   // PENDING | APPROVED | REJECTED
+  excuseApproverId      String?   // employeeId this excuse is routed to
   excuseReviewedAt      DateTime?
   excuseReviewedBy      String?   // employeeId of reviewing manager
   requestedCheckIn      DateTime? // employee-proposed check-in time, pending manager review

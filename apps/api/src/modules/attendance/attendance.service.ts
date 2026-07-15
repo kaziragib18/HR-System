@@ -4,7 +4,7 @@ import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftCo
 import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
-import { resolveApproverForRole } from '../../services/approver-resolution.service'
+import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
 export class AttendanceError extends Error {
@@ -147,7 +147,11 @@ export async function todayAttendance(employeeId: string) {
 }
 
 /** List attendance (manager/HR view). */
-export async function listAttendance(officeScope: string | undefined, query: ListAttendanceQuery) {
+export async function listAttendance(
+  officeScope: string | undefined,
+  departmentScope: string | undefined,
+  query: ListAttendanceQuery
+) {
   const { skip, take, page, limit } = parsePagination(query)
 
   // Build date range from either explicit startDate/endDate or month/year
@@ -167,7 +171,12 @@ export async function listAttendance(officeScope: string | undefined, query: Lis
 
   const employeeFilter: Prisma.EmployeeWhereInput = {
     ...(officeScope ? { officeId: officeScope } : {}),
-    ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+    // departmentScope (DEPT_HEAD/DEPT_MANAGER) always wins over a client-
+    // supplied departmentId — this is the actual security boundary, not the
+    // frontend dropdown. Also composes with query.employeeId below (via an
+    // AND on the employee relation), so a caller can't bypass it by passing
+    // an employeeId from outside their department.
+    ...(departmentScope ? { departmentId: departmentScope } : query.departmentId ? { departmentId: query.departmentId } : {}),
     ...(query.search ? {
       OR: [
         { firstName: { contains: query.search, mode: 'insensitive' } },
@@ -210,13 +219,22 @@ export async function myMonthAttendance(employeeId: string, month: number, year:
   })
 }
 
-/** Manual entry / correction by HR or manager. */
-export async function manualEntry(input: ManualEntryInput, actorId: string) {
+/** Manual entry / correction by HR or a DEPT_HEAD/DEPT_MANAGER for their own department. */
+export async function manualEntry(
+  input: ManualEntryInput,
+  actorId: string,
+  officeScope?: string,
+  departmentScope?: string
+) {
   const employee = await prisma.employee.findUnique({
     where: { id: input.employeeId },
-    select: { id: true, officeId: true },
+    select: { id: true, officeId: true, departmentId: true },
   })
   if (!employee) throw new AttendanceError('Employee not found', 404)
+  if (officeScope && employee.officeId !== officeScope) throw new AttendanceError('Employee not found', 404)
+  if (departmentScope && employee.departmentId !== departmentScope) {
+    throw new AttendanceError('You can only edit attendance for your own department', 403)
+  }
 
   const date = toDateOnly(input.date)
   const checkIn = input.checkIn ? new Date(input.checkIn) : null
@@ -398,7 +416,10 @@ export async function myCalendar(employeeId: string, month: number, year: number
 
 /** Employee submits an excuse for a LATE attendance record. */
 export async function submitLateExcuse(attendanceId: string, employeeId: string, excuse: string) {
-  const record = await prisma.attendance.findUnique({ where: { id: attendanceId } })
+  const record = await prisma.attendance.findUnique({
+    where: { id: attendanceId },
+    include: { employee: { select: { officeId: true, user: { select: { role: true } } } } },
+  })
   if (!record) throw new AttendanceError('Attendance record not found', 404)
   if (record.employeeId !== employeeId) throw new AttendanceError('Forbidden', 403)
   if (record.status !== 'LATE' && record.status !== 'HALF_DAY')
@@ -406,18 +427,39 @@ export async function submitLateExcuse(attendanceId: string, employeeId: string,
   if (record.excuseStatus === 'APPROVED')
     throw new AttendanceError('Excuse already approved', 400)
 
+  const approverId = await resolveTeamApprover(
+    prisma,
+    employeeId,
+    record.employee.user?.role ?? UserRole.EMPLOYEE,
+    record.employee.officeId
+  )
+
   return prisma.attendance.update({
     where: { id: attendanceId },
-    data: { lateExcuse: excuse, excuseStatus: 'PENDING' },
+    data: { lateExcuse: excuse, excuseStatus: 'PENDING', excuseApproverId: approverId },
   })
 }
 
 /** Manager reviews a late excuse and optionally changes the attendance status. */
-export async function reviewExcuse(attendanceId: string, managerId: string, approved: boolean, newStatus?: string) {
-  const record = await prisma.attendance.findUnique({ where: { id: attendanceId } })
+export async function reviewExcuse(
+  attendanceId: string,
+  managerId: string,
+  managerRole: string,
+  approved: boolean,
+  officeScope: string | undefined,
+  newStatus?: string
+) {
+  const record = await prisma.attendance.findUnique({
+    where: { id: attendanceId },
+    include: { employee: { select: { officeId: true, departmentId: true } } },
+  })
   if (!record) throw new AttendanceError('Attendance record not found', 404)
+  if (officeScope && record.employee.officeId !== officeScope) throw new AttendanceError('Attendance record not found', 404)
   if (!record.lateExcuse) throw new AttendanceError('No excuse submitted for this record', 400)
   if (record.excuseStatus !== 'PENDING') throw new AttendanceError('Excuse already reviewed', 400)
+
+  const authorized = await canActOnTeamRequest(prisma, managerId, managerRole, record.excuseApproverId, record.employee.departmentId)
+  if (!authorized) throw new AttendanceError('You are not authorized to review this request', 403)
 
   const updated = await prisma.attendance.update({
     where: { id: attendanceId },
@@ -445,12 +487,16 @@ export async function reviewExcuse(attendanceId: string, managerId: string, appr
   return updated
 }
 
-/** List pending late excuses for manager review. */
-export async function listPendingExcuses(officeScope?: string) {
+/** List pending late excuses for manager review, scoped to the reviewer's resolved queue. */
+export async function listPendingExcuses(officeScope: string | undefined, requesterEmployeeId: string, requesterRole: string) {
+  const isAdmin = requesterRole === UserRole.SUPER_ADMIN || requesterRole === UserRole.HR_MANAGER
+
   return prisma.attendance.findMany({
     where: {
       excuseStatus: 'PENDING',
-      ...(officeScope ? { employee: { officeId: officeScope } } : {}),
+      ...(isAdmin
+        ? officeScope ? { employee: { officeId: officeScope } } : {}
+        : { excuseApproverId: requesterEmployeeId }),
     },
     include: {
       employee: {
@@ -479,7 +525,12 @@ export async function attendanceSummary(employeeId: string, month: number, year:
 }
 
 /** Employee requests a check-in/check-out correction for a past day, with or without an existing record. */
-export async function requestAdjustment(employeeId: string, officeId: string, input: RequestAdjustmentInput) {
+export async function requestAdjustment(
+  employeeId: string,
+  officeId: string,
+  requesterRole: string,
+  input: RequestAdjustmentInput
+) {
   const date = toDateOnly(input.date)
   const today = toDateOnly(new Date())
   if (date >= today) throw new AttendanceError('Adjustment requests can only be made for past days')
@@ -492,9 +543,7 @@ export async function requestAdjustment(employeeId: string, officeId: string, in
   const requestedCheckIn = input.requestedCheckIn ? new Date(input.requestedCheckIn) : null
   const requestedCheckOut = input.requestedCheckOut ? new Date(input.requestedCheckOut) : null
 
-  const approverId = await resolveApproverForRole(prisma, UserRole.TEAM_LEAD, employeeId, officeId)
-    ?? await resolveApproverForRole(prisma, UserRole.DEPT_HEAD, employeeId, officeId)
-    ?? await resolveApproverForRole(prisma, UserRole.HR_MANAGER, employeeId, officeId)
+  const approverId = await resolveTeamApprover(prisma, employeeId, requesterRole, officeId)
 
   const record = await prisma.attendance.upsert({
     where: { employeeId_date: { employeeId, date } },
@@ -527,15 +576,17 @@ export async function requestAdjustment(employeeId: string, officeId: string, in
       { attendanceId: record.id }
     )
   } else {
-    // No direct manager/department head/HR_MANAGER resolved for this employee —
-    // fall back to every HR_MANAGER in the office so the request never goes unnoticed.
-    const hrManagers = await prisma.user.findMany({
-      where: { employee: { officeId }, role: UserRole.HR_MANAGER },
+    // No manager/department head resolved for this employee (shouldn't happen once
+    // every department has exactly one DEPT_HEAD, but fall back to every SUPER_ADMIN
+    // in the office so the request never goes unnoticed — HR_MANAGER can't act on
+    // approvals anymore, so notifying them here would be misleading).
+    const superAdmins = await prisma.user.findMany({
+      where: { employee: { officeId }, role: UserRole.SUPER_ADMIN },
       select: { employeeId: true },
     })
-    for (const hr of hrManagers) {
+    for (const admin of superAdmins) {
       await createNotification(
-        hr.employeeId,
+        admin.employeeId,
         NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED,
         'Attendance adjustment requested',
         `An employee has requested a correction to their attendance for ${input.date}.`,
@@ -599,14 +650,14 @@ export async function reviewAdjustment(
 ) {
   const record = await prisma.attendance.findUnique({
     where: { id: attendanceId },
-    include: { employee: { select: { officeId: true } } },
+    include: { employee: { select: { officeId: true, departmentId: true } } },
   })
   if (!record) throw new AttendanceError('Attendance record not found', 404)
   if (officeScope && record.employee.officeId !== officeScope) throw new AttendanceError('Attendance record not found', 404)
   if (record.adjustmentStatus !== 'PENDING') throw new AttendanceError('This request is no longer pending')
 
-  const isAdmin = reviewerRole === UserRole.SUPER_ADMIN || reviewerRole === UserRole.HR_MANAGER
-  if (!isAdmin && record.adjustmentApproverId !== reviewerId) {
+  const authorized = await canActOnTeamRequest(prisma, reviewerId, reviewerRole, record.adjustmentApproverId, record.employee.departmentId)
+  if (!authorized) {
     throw new AttendanceError('You are not authorized to review this request', 403)
   }
 

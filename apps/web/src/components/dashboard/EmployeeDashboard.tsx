@@ -10,14 +10,16 @@ import Link from 'next/link'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
-import { BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
+import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
+import { BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
+import { UserRole } from '@hr-system/types'
 import {
   LogIn,
   Clock,
   Plus,
-  Coins,
   Building2,
   User,
+  Users,
 } from 'lucide-react'
 
 function shiftForOfficeCode(code?: string): ShiftConfig {
@@ -62,6 +64,11 @@ export function EmployeeDashboard() {
   if (isLoading) return <Spinner />
   if (!data) return null
 
+  // DEPT_MANAGER/DEPT_HEAD get this same employee-style dashboard (see
+  // (dashboard)/page.tsx), but with their team's approval queue and
+  // department/team headcount surfaced alongside their own attendance/leave.
+  const isTeamLead = user?.role === UserRole.DEPT_MANAGER || user?.role === UserRole.DEPT_HEAD
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -85,6 +92,7 @@ export function EmployeeDashboard() {
                 <span className="flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
                   {data.me.department}
+                  {isTeamLead && data.departmentHeadcount > 0 && ` · ${data.departmentHeadcount} people`}
                 </span>
               )}
               {data.me?.managerName && (
@@ -93,17 +101,24 @@ export function EmployeeDashboard() {
                   Manager: {data.me.managerName}
                 </span>
               )}
+              {isTeamLead && data.directReportsCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  {data.directReportsCount} direct report{data.directReportsCount > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
         <DualClock />
       </div>
 
-      {/* Clock + manager side by side; leave balance + announcements side by side */}
+      {/* Clock + manager side by side (non-team-leads only); leave balance + approvals + announcements — all in one row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <TodayStatusCard officeCode={user?.officeCode} />
-        {data.managers.length > 0 && <ManagerCard managers={data.managers} />}
+        {!isTeamLead && data.managers.length > 0 && <ManagerCard managers={data.managers} />}
         <LeaveBalanceCard balances={data.leaveBalances} />
+        {isTeamLead && <RecentApprovalsCard />}
         <AnnouncementsCard />
       </div>
 
@@ -134,8 +149,13 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
       return
     }
     function tick() {
-      const diffMs = Date.now() - new Date(today!.checkIn!).getTime()
-      const totalSecs = Math.floor(diffMs / 1000)
+      // checkIn's UTC slots hold the office's LOCAL wall-clock digits (see
+      // toOfficeTime), not a true UTC instant — Date.now() is true UTC, so
+      // diffing them directly is off by the office's UTC offset (e.g. -6h
+      // for BD). Re-express "now" the same way before diffing.
+      const nowOfficeDigits = toOfficeTime(new Date(), officeCode ?? 'UK')
+      const diffMs = nowOfficeDigits.getTime() - new Date(today!.checkIn!).getTime()
+      const totalSecs = Math.max(0, Math.floor(diffMs / 1000))
       const h = Math.floor(totalSecs / 3600)
       const m = Math.floor((totalSecs % 3600) / 60)
       const s = totalSecs % 60
@@ -144,7 +164,7 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [today?.checkIn, today?.checkOut, today?.workingMinutes])
+  }, [today?.checkIn, today?.checkOut, today?.workingMinutes, officeCode])
 
   const status = today?.status ?? 'ABSENT'
   const dateLabel = new Date().toLocaleDateString('en-US', {
@@ -183,10 +203,10 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
             </div>
           </div>
 
-          {/* Work period bar */}
+          {/* Working Period bar */}
           <div className="mt-3 rounded-lg bg-muted/60 px-3 py-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-              Work period
+              Working Period
             </p>
             <div className="flex items-center gap-2 text-sm font-medium">
               <span className="text-emerald-600 dark:text-emerald-400">{checkInTime}</span>
@@ -255,14 +275,6 @@ function LeaveBalanceCard({ balances }: { balances: MyDashboard['leaveBalances']
           })}
         </div>
       )}
-      <div className="mt-4 flex items-center justify-between rounded-md bg-muted/60 px-3 py-2 text-xs">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Coins className="h-3.5 w-3.5" /> Annual leave encashment available
-        </span>
-        <Link href="/leave" className="font-medium text-primary">
-          Apply →
-        </Link>
-      </div>
     </Card>
   )
 }
@@ -277,20 +289,37 @@ const TEAM_STATUS_LABEL: Record<string, string> = {
   HOLIDAY: 'Holiday',
 }
 
+const TEAM_ROLE_TAG: Record<string, string> = {
+  DEPT_HEAD: 'Head',
+  DEPT_MANAGER: 'Manager',
+}
+
 function TeamTodayCard({ team }: { team: MyDashboard['team'] }) {
   return (
     <Card>
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        My team · today
+        My team · today{team.length > 0 ? ` · ${team.length}` : ''}
       </p>
-      <div className="space-y-2">
+      <div className="scrollbar-thin max-h-60 space-y-2 overflow-y-auto pr-2">
         {team.map((m) => (
           <div key={m.id} className="flex items-center gap-2">
             <Avatar firstName={m.firstName} lastName={m.lastName} url={m.avatarUrl} size={26} />
-            <span className="flex-1 text-sm">
-              {m.firstName} {m.lastName}
-              {m.isSelf && <span className="ml-1 text-xs text-muted-foreground">(you)</span>}
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm">
+                  {m.firstName} {m.lastName}
+                  {m.isSelf && <span className="ml-1 text-xs text-muted-foreground">(you)</span>}
+                </span>
+                {m.role && TEAM_ROLE_TAG[m.role] && (
+                  <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    {TEAM_ROLE_TAG[m.role]}
+                  </span>
+                )}
+              </div>
+              {m.designation && (
+                <p className="truncate text-xs text-muted-foreground">{m.designation}</p>
+              )}
+            </div>
             <StatusBadge status={m.todayStatus} label={TEAM_STATUS_LABEL[m.todayStatus]} />
           </div>
         ))}

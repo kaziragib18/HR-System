@@ -10,7 +10,6 @@ import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
 import { cn } from '@/lib/utils'
 import {
   Users,
-  UserCheck,
   CalendarOff,
   Clock,
   Inbox,
@@ -59,7 +58,6 @@ export function ManagerDashboard() {
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="grid grid-cols-2 gap-4">
               <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" />
-              <Stat icon={UserCheck} label="On probation" value={stats?.onProbation ?? 0} tone="amber" />
               <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
               <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
               <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" />

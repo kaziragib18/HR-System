@@ -24,9 +24,19 @@ function monthRange() {
   return { start, end }
 }
 
+const TEAM_ROLE_RANK: Record<string, number> = { DEPT_HEAD: 0, DEPT_MANAGER: 1, HR_MANAGER: 1, EMPLOYEE: 2 }
+const teamMemberSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+  jobTitle: { select: { name: true } },
+  user: { select: { role: true } },
+} as const
+
 // ─── Employee self-service dashboard ──────────────────────────────────────────
 router.get('/me', async (req: Request, res: Response) => {
-  const employeeId = (req as AuthRequest).user.employeeId
+  const { employeeId, role } = (req as AuthRequest).user
   const { start: todayStart, end: todayEnd } = todayRange()
   const { start: monthStart, end: monthEnd } = monthRange()
   const year = new Date().getFullYear()
@@ -61,36 +71,67 @@ router.get('/me', async (req: Request, res: Response) => {
     },
   })
 
-  const [today, leaveBalances, myApplications, attendanceMonth, teamRaw] = await Promise.all([
-    prisma.attendance.findFirst({
-      where: { employeeId, date: { gte: todayStart, lte: todayEnd } },
-    }),
-    prisma.leaveBalance.findMany({
-      where: { employeeId, year },
-      include: { leaveType: { select: { name: true, code: true } } },
-    }),
-    prisma.leaveApplication.findMany({
-      where: { employeeId },
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-      include: { leaveType: { select: { name: true, code: true } } },
-    }),
-    prisma.attendance.findMany({
-      where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
-      select: { date: true, status: true, checkIn: true, checkOut: true },
-      orderBy: { date: 'asc' },
-    }),
-    me?.departmentId
-      ? prisma.employee.findMany({
-          where: {
-            departmentId: me.departmentId,
-            employmentStatus: { not: 'TERMINATED' },
-          },
-          select: { id: true, firstName: true, lastName: true, avatarUrl: true },
-          take: 8,
-        })
-      : Promise.resolve([]),
-  ])
+  const [today, leaveBalances, myApplications, attendanceMonth, directReports, departmentHeadcount, departmentRoster] =
+    await Promise.all([
+      prisma.attendance.findFirst({
+        where: { employeeId, date: { gte: todayStart, lte: todayEnd } },
+      }),
+      prisma.leaveBalance.findMany({
+        where: { employeeId, year },
+        include: { leaveType: { select: { name: true, code: true } } },
+      }),
+      prisma.leaveApplication.findMany({
+        where: { employeeId },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        include: { leaveType: { select: { name: true, code: true } } },
+      }),
+      prisma.attendance.findMany({
+        where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
+        select: { date: true, status: true, checkIn: true, checkOut: true },
+        orderBy: { date: 'asc' },
+      }),
+      // Real direct reports (DEPT_MANAGER's actual team) — falls back to
+      // department siblings below only if empty (plain individual contributor).
+      prisma.employee.findMany({
+        where: { reportingToId: employeeId, employmentStatus: { not: 'TERMINATED' } },
+        select: teamMemberSelect,
+        orderBy: { firstName: 'asc' },
+      }),
+      me?.departmentId
+        ? prisma.employee.count({
+            where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
+          })
+        : Promise.resolve(0),
+      // DEPT_HEAD sees their whole department (they're the top of it), not
+      // just their 1-2 direct reports.
+      role === UserRole.DEPT_HEAD && me?.departmentId
+        ? prisma.employee.findMany({
+            where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
+            select: teamMemberSelect,
+          })
+        : Promise.resolve([]),
+    ])
+
+  let teamRaw: typeof directReports
+  if (role === UserRole.DEPT_HEAD && departmentRoster.length > 0) {
+    teamRaw = [...departmentRoster].sort((a, b) => {
+      const ra = TEAM_ROLE_RANK[a.user?.role ?? ''] ?? 3
+      const rb = TEAM_ROLE_RANK[b.user?.role ?? ''] ?? 3
+      return ra !== rb ? ra - rb : a.firstName.localeCompare(b.firstName)
+    })
+  } else if (directReports.length > 0) {
+    teamRaw = directReports
+  } else if (me?.departmentId) {
+    teamRaw = await prisma.employee.findMany({
+      where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
+      select: teamMemberSelect,
+      orderBy: { firstName: 'asc' },
+      take: 8,
+    })
+  } else {
+    teamRaw = []
+  }
 
   // Resolve today's status for each teammate
   const teamIds = teamRaw.map((t) => t.id)
@@ -106,9 +147,15 @@ router.get('/me', async (req: Request, res: Response) => {
     avatarUrl: t.avatarUrl,
     todayStatus: statusByEmp[t.id] ?? 'ABSENT',
     isSelf: t.id === employeeId,
+    designation: t.jobTitle?.name ?? null,
+    role: t.user?.role ?? null,
   }))
 
-  const managerChain = me?.reportingTo ? [
+  // A DEPT_HEAD is the top of their own department — the reportingTo chain
+  // some of them carry (org-chart continuity, e.g. IT-SW/TS/WD heads under
+  // IT's head) isn't a functional "my manager" worth a dedicated card; that
+  // hierarchy is shown via the team card's role ordering instead.
+  const managerChain = me?.reportingTo && role !== UserRole.DEPT_HEAD ? [
     {
       id: me.reportingTo.id,
       firstName: me.reportingTo.firstName,
@@ -134,7 +181,9 @@ router.get('/me', async (req: Request, res: Response) => {
       lastName: me.lastName,
       avatarUrl: me.avatarUrl,
       department: me.department?.name ?? null,
-      managerName: me.reportingTo ? `${me.reportingTo.firstName} ${me.reportingTo.lastName}` : null,
+      managerName: me.reportingTo && role !== UserRole.DEPT_HEAD
+        ? `${me.reportingTo.firstName} ${me.reportingTo.lastName}`
+        : null,
     } : null,
     managers: managerChain,
     today,
@@ -158,10 +207,12 @@ router.get('/me', async (req: Request, res: Response) => {
     })),
     attendanceMonth,
     team,
+    directReportsCount: directReports.length,
+    departmentHeadcount,
   })
 })
 
-router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: Response) => {
+router.get('/stats', requireRole(UserRole.DEPT_MANAGER), async (req: Request, res: Response) => {
   const scope = (req as OfficeScopedRequest).officeScope
   const officeFilter = scope ? { officeId: scope } : {}
   const { start, end } = todayRange()
@@ -199,7 +250,7 @@ router.get('/stats', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: 
   })
 })
 
-router.get('/headcount-by-department', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: Response) => {
+router.get('/headcount-by-department', requireRole(UserRole.DEPT_MANAGER), async (req: Request, res: Response) => {
   const scope = (req as OfficeScopedRequest).officeScope
   const departments = await prisma.department.findMany({
     where: { isActive: true, ...(scope ? { officeId: scope } : {}) },
@@ -224,7 +275,7 @@ router.get('/headcount-by-department', requireRole(UserRole.TEAM_LEAD), async (r
   })))
 })
 
-router.get('/on-leave-today', requireRole(UserRole.TEAM_LEAD), async (req: Request, res: Response) => {
+router.get('/on-leave-today', requireRole(UserRole.DEPT_MANAGER), async (req: Request, res: Response) => {
   const scope = (req as OfficeScopedRequest).officeScope
   const { start, end } = todayRange()
   const leaves = await prisma.leaveApplication.findMany({

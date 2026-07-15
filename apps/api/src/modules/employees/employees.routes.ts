@@ -33,9 +33,9 @@ const router: RouterType = Router()
 router.use(authenticate, officeScope)
 
 const HR = requireRole(UserRole.HR_MANAGER) // HR_MANAGER and above
-const MANAGER = requireRole(UserRole.TEAM_LEAD) // managers and above
+const MANAGER = requireRole(UserRole.DEPT_MANAGER) // managers and above
 const SELF_OR_HR = selfOrRole('id', UserRole.HR_MANAGER) // self, or HR_MANAGER and above
-const SELF_OR_MANAGER = selfOrRole('id', UserRole.TEAM_LEAD) // self, or managers and above — for reads
+const SELF_OR_MANAGER = selfOrRole('id', UserRole.DEPT_MANAGER) // self, or managers and above — for reads
 
 // Directory is readable by everyone
 router.get('/directory', validate(listDirectoryQuerySchema, 'query'), controller.directory)

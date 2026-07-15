@@ -10,7 +10,7 @@ import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplica
 import { prisma } from '../../config/prisma'
 import { supabase } from '../../config/supabase'
 
-const MANAGER_ROLES: string[] = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD]
+const MANAGER_ROLES: string[] = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
 
 function user(req: Request) { return (req as AuthRequest).user }
 function scope(req: Request) { return (req as OfficeScopedRequest).officeScope }
@@ -45,7 +45,7 @@ export async function apply(req: Request, res: Response) {
     const u = user(req)
     const emp = await prisma.employee.findUnique({ where: { id: u.employeeId }, select: { officeId: true } })
     if (!emp) { sendError(res, 'Employee not found', 404); return }
-    const app = await service.applyLeave(u.employeeId, emp.officeId, req.body as ApplyLeaveInput)
+    const app = await service.applyLeave(u.employeeId, emp.officeId, u.role, req.body as ApplyLeaveInput)
     sendCreated(res, app)
   } catch (err) { handle(res, err) }
 }
@@ -78,7 +78,7 @@ export async function getPending(req: Request, res: Response) {
 export async function approve(req: Request, res: Response) {
   try {
     const u = user(req)
-    const result = await service.approveLeave(req.params.id, u.sub, u.employeeId, req.body as ApproveLeaveInput)
+    const result = await service.approveLeave(req.params.id, u.employeeId, u.role, req.body as ApproveLeaveInput)
     await auditFromRequest(req as AuthRequest, AuditAction.APPROVE, 'LeaveApplication', req.params.id)
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
@@ -86,7 +86,8 @@ export async function approve(req: Request, res: Response) {
 
 export async function reject(req: Request, res: Response) {
   try {
-    const result = await service.rejectLeave(req.params.id, user(req).employeeId, req.body as RejectLeaveInput)
+    const u = user(req)
+    const result = await service.rejectLeave(req.params.id, u.employeeId, u.role, req.body as RejectLeaveInput)
     await auditFromRequest(req as AuthRequest, AuditAction.REJECT, 'LeaveApplication', req.params.id, undefined, req.body)
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
@@ -102,7 +103,8 @@ export async function cancel(req: Request, res: Response) {
 
 export async function approveCancel(req: Request, res: Response) {
   try {
-    const result = await service.approveCancelLeave(req.params.id, user(req).employeeId)
+    const u = user(req)
+    const result = await service.approveCancelLeave(req.params.id, u.employeeId, u.role)
     await auditFromRequest(req as AuthRequest, AuditAction.APPROVE, 'LeaveApplication', req.params.id, undefined, { action: 'cancel-approve' })
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }
@@ -110,7 +112,8 @@ export async function approveCancel(req: Request, res: Response) {
 
 export async function rejectCancel(req: Request, res: Response) {
   try {
-    const result = await service.rejectCancelLeave(req.params.id, user(req).employeeId, (req.body as RejectCancelLeaveInput).reason)
+    const u = user(req)
+    const result = await service.rejectCancelLeave(req.params.id, u.employeeId, u.role, (req.body as RejectCancelLeaveInput).reason)
     await auditFromRequest(req as AuthRequest, AuditAction.REJECT, 'LeaveApplication', req.params.id, undefined, { action: 'cancel-reject', ...req.body })
     sendSuccess(res, result)
   } catch (err) { handle(res, err) }

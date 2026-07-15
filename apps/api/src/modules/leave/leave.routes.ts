@@ -2,7 +2,7 @@ import { Router, type Router as RouterType } from 'express'
 import multer from 'multer'
 import { authenticate } from '../../middleware/auth.middleware'
 import { officeScope } from '../../middleware/office.middleware'
-import { requireRole } from '../../middleware/rbac.middleware'
+import { requireRole, requireExactRole } from '../../middleware/rbac.middleware'
 import { validate } from '../../middleware/validate.middleware'
 import { UserRole } from '@hr-system/types'
 import * as ctrl from './leave.controller'
@@ -29,17 +29,21 @@ leaveRouter.post('/attachments', upload.single('file'), ctrl.uploadAttachment)
 // Leave types & balances — any authenticated user
 leaveRouter.get('/types', ctrl.getTypes)
 leaveRouter.get('/balances', ctrl.getBalances)
-leaveRouter.get('/balances/:employeeId', officeScope, requireRole(UserRole.TEAM_LEAD), ctrl.getBalances)
+leaveRouter.get('/balances/:employeeId', officeScope, requireRole(UserRole.DEPT_MANAGER), ctrl.getBalances)
 leaveRouter.get('/calendar', officeScope, validate(leaveCalendarQuery, 'query'), ctrl.calendar)
 
 // Applications
 leaveRouter.post('/applications', validate(applyLeaveSchema), ctrl.apply)
 leaveRouter.get('/applications', officeScope, validate(leaveApplicationsQuery, 'query'), ctrl.getApplications)
-leaveRouter.get('/applications/pending', requireRole(UserRole.TEAM_LEAD), ctrl.getPending)
+// Pending-list stays hierarchy-based (HR_MANAGER/SUPER_ADMIN can view office-wide,
+// view-only); the write/action endpoints below use an explicit allow-list instead,
+// since HR_MANAGER no longer has approval power despite outranking DEPT_MANAGER/DEPT_HEAD.
+leaveRouter.get('/applications/pending', requireRole(UserRole.DEPT_MANAGER), ctrl.getPending)
 leaveRouter.get('/applications/:id', officeScope, ctrl.getApplication)
-leaveRouter.patch('/applications/:id/approve', requireRole(UserRole.TEAM_LEAD), validate(approveLeaveSchema), ctrl.approve)
-leaveRouter.patch('/applications/:id/reject', requireRole(UserRole.TEAM_LEAD), validate(rejectLeaveSchema), ctrl.reject)
+const CAN_APPROVE = requireExactRole(UserRole.DEPT_MANAGER, UserRole.DEPT_HEAD, UserRole.SUPER_ADMIN)
+leaveRouter.patch('/applications/:id/approve', CAN_APPROVE, validate(approveLeaveSchema), ctrl.approve)
+leaveRouter.patch('/applications/:id/reject', CAN_APPROVE, validate(rejectLeaveSchema), ctrl.reject)
 leaveRouter.patch('/applications/:id/cancel', validate(cancelLeaveSchema), ctrl.cancel)
 leaveRouter.patch('/applications/:id/cancel-reason', validate(updateCancelReasonSchema), ctrl.updateCancelReason)
-leaveRouter.patch('/applications/:id/cancel-approve', requireRole(UserRole.TEAM_LEAD), ctrl.approveCancel)
-leaveRouter.patch('/applications/:id/cancel-reject', requireRole(UserRole.TEAM_LEAD), validate(rejectCancelLeaveSchema), ctrl.rejectCancel)
+leaveRouter.patch('/applications/:id/cancel-approve', CAN_APPROVE, ctrl.approveCancel)
+leaveRouter.patch('/applications/:id/cancel-reject', CAN_APPROVE, validate(rejectCancelLeaveSchema), ctrl.rejectCancel)

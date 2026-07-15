@@ -123,7 +123,7 @@ export function useApplyLeave() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
-      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['my-dashboard'] })
       qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
     },
   })
@@ -152,7 +152,7 @@ export function useApproveLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
       qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
-      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['my-dashboard'] })
     },
   })
 }
@@ -180,7 +180,7 @@ export function useCancelLeave() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
-      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['my-dashboard'] })
       qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
     },
   })
@@ -196,7 +196,7 @@ export function useApproveCancelLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave'] })
       qc.invalidateQueries({ queryKey: ['attendance', 'calendar'] })
-      qc.invalidateQueries({ queryKey: ['dashboard', 'me'] })
+      qc.invalidateQueries({ queryKey: ['my-dashboard'] })
     },
   })
 }

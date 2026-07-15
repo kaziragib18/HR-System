@@ -1,16 +1,15 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../config/prisma'
 import { calculateTotalLeaveDays } from '@hr-system/utils'
-import { LeaveStatus, NotificationType } from '@hr-system/types'
+import { LeaveStatus, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
+import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery } from './leave.schemas'
 
 export class LeaveError extends Error {
   constructor(message: string, public status = 400) { super(message) }
 }
-
-interface ApprovalStep { level: number; role: string }
 
 /** Active leave types for an office. */
 export async function getLeaveTypes(officeId: string) {
@@ -35,8 +34,8 @@ export async function getLeaveBalances(employeeId: string, year: number, officeS
   })
 }
 
-/** Apply for leave. Validates balance and sets approval chain. */
-export async function applyLeave(employeeId: string, officeId: string, input: ApplyLeaveInput) {
+/** Apply for leave. Validates balance and resolves the approver via the real reporting chain. */
+export async function applyLeave(employeeId: string, officeId: string, requesterRole: string, input: ApplyLeaveInput) {
   const leaveType = await prisma.leaveType.findFirst({
     where: { id: input.leaveTypeId, officeId, isActive: true },
   })
@@ -107,22 +106,13 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
   })
   if (overlapping > 0) throw new LeaveError('You already have a leave application covering these dates')
 
-  // Parse approval chain
-  const approvalChain = (leaveType.approvalChain as unknown as ApprovalStep[]) ?? []
-
-  // Find the first approver by role in the same office
-  let currentApproverId: string | null = null
-  if (approvalChain.length > 0) {
-    const firstRole = approvalChain[0].role
-    const approver = await prisma.user.findFirst({
-      where: {
-        employee: { officeId, employmentStatus: { in: ['ACTIVE', 'PROBATION'] } },
-        role: firstRole,
-      },
-      select: { employeeId: true },
-    })
-    currentApproverId = approver?.employeeId ?? null
-  }
+  // Resolve the approver via the real reporting chain (DEPT_MANAGER, falling back to
+  // DEPT_HEAD; DEPT_HEAD/HR_MANAGER requesters escalate to the HR department head).
+  // LeaveType.approvalChain is no longer read for routing — see packages/types'
+  // Theme-style comment pattern: kept in schema for historical LeaveApprovalHistory
+  // display, but this app doesn't do multi-level sequential sign-off anymore.
+  const currentApproverId = await resolveTeamApprover(prisma, employeeId, requesterRole, officeId)
+  const autoApproved = !currentApproverId
 
   const application = await prisma.$transaction(async (tx) => {
     const app = await tx.leaveApplication.create({
@@ -136,7 +126,7 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
         reason: input.reason,
         location: input.location,
         attachmentPath: input.attachmentPath,
-        status: approvalChain.length === 0 ? LeaveStatus.APPROVED : LeaveStatus.PENDING,
+        status: autoApproved ? LeaveStatus.APPROVED : LeaveStatus.PENDING,
         approvalLevel: 1,
         currentApproverId,
       },
@@ -149,8 +139,11 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
       data: { pending: { increment: totalDays } },
     })
 
-    // If auto-approved (no chain), deduct balance immediately
-    if (approvalChain.length === 0) {
+    // If auto-approved (no approver could be resolved at all — shouldn't happen once
+    // every department has exactly one DEPT_HEAD, but fail open rather than leaving
+    // the application stuck pending forever with nobody able to act on it), deduct
+    // balance immediately.
+    if (autoApproved) {
       await tx.leaveBalance.update({
         where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: input.leaveTypeId, year } },
         data: { taken: { increment: totalDays }, pending: { decrement: totalDays } },
@@ -175,53 +168,39 @@ export async function applyLeave(employeeId: string, officeId: string, input: Ap
   return application
 }
 
-/** Approve a leave application (advance level or final approval). */
-export async function approveLeave(applicationId: string, approverId: string, approvingEmployeeId: string, input: ApproveLeaveInput) {
+/** Approve a leave application. Single-step: DEPT_MANAGER/DEPT_HEAD approval is final. */
+export async function approveLeave(
+  applicationId: string,
+  approvingEmployeeId: string,
+  approverRole: string,
+  input: ApproveLeaveInput
+) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id: applicationId },
     include: {
       leaveType: true,
-      employee: { select: { id: true, firstName: true, lastName: true, officeId: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, officeId: true, departmentId: true } },
     },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
   if (app.status !== LeaveStatus.PENDING) throw new LeaveError('Application is not pending')
 
-  const approvalChain = (app.leaveType.approvalChain as unknown as ApprovalStep[]) ?? []
-  const currentLevel = app.approvalLevel
-  const isFinalLevel = currentLevel >= approvalChain.length
+  const authorized = await canActOnTeamRequest(prisma, approvingEmployeeId, approverRole, app.currentApproverId, app.employee.departmentId)
+  if (!authorized) throw new LeaveError('You are not authorized to review this application', 403)
 
   const year = app.startDate.getFullYear()
 
-  const updated = await prisma.$transaction(async (tx) => {
-    let nextApproverId: string | null = null
-    let newStatus = app.status
-
-    if (isFinalLevel) {
-      newStatus = LeaveStatus.APPROVED
-    } else {
-      // Find next level approver
-      const nextStep = approvalChain[currentLevel] // index = currentLevel (0-indexed)
-      if (nextStep) {
-        const next = await tx.user.findFirst({
-          where: { employee: { officeId: app.employee.officeId }, role: nextStep.role },
-          select: { employeeId: true },
-        })
-        nextApproverId = next?.employeeId ?? null
-      }
-    }
-
+  const result = await prisma.$transaction(async (tx) => {
     // Guard the transition atomically — if another request already moved this
     // application off PENDING (double-click, retry, concurrent approve), this
     // matches zero rows and we bail out before touching history/balance.
     const { count } = await tx.leaveApplication.updateMany({
       where: { id: applicationId, status: LeaveStatus.PENDING },
       data: {
-        status: newStatus,
-        approvalLevel: isFinalLevel ? currentLevel : currentLevel + 1,
-        currentApproverId: isFinalLevel ? null : nextApproverId,
-        approvedById: isFinalLevel ? approvingEmployeeId : undefined,
-        approvedAt: isFinalLevel ? new Date() : undefined,
+        status: LeaveStatus.APPROVED,
+        currentApproverId: null,
+        approvedById: approvingEmployeeId,
+        approvedAt: new Date(),
       },
     })
     if (count === 0) throw new LeaveError('This application has already been processed')
@@ -230,56 +209,43 @@ export async function approveLeave(applicationId: string, approverId: string, ap
       data: {
         applicationId,
         approverId: approvingEmployeeId,
-        action: isFinalLevel ? 'APPROVED' : 'FORWARDED',
-        level: currentLevel,
+        action: 'APPROVED',
+        level: app.approvalLevel,
         comment: input.comment,
       },
     })
 
-    if (isFinalLevel) {
-      // Move from pending to taken
-      await tx.leaveBalance.updateMany({
-        where: { employeeId: app.employeeId, leaveTypeId: app.leaveTypeId, year },
-        data: { taken: { increment: Number(app.totalDays) }, pending: { decrement: Number(app.totalDays) } },
-      })
-    }
+    // Move from pending to taken
+    await tx.leaveBalance.updateMany({
+      where: { employeeId: app.employeeId, leaveTypeId: app.leaveTypeId, year },
+      data: { taken: { increment: Number(app.totalDays) }, pending: { decrement: Number(app.totalDays) } },
+    })
 
-    const result = await tx.leaveApplication.findUniqueOrThrow({ where: { id: applicationId } })
-
-    return { result, isFinalLevel, nextApproverId }
+    return tx.leaveApplication.findUniqueOrThrow({ where: { id: applicationId } })
   })
 
-  const appName = `${app.employee.firstName} ${app.employee.lastName}`
+  await createNotification(
+    app.employeeId,
+    NotificationType.LEAVE_APPROVED,
+    'Leave approved',
+    `Your ${app.leaveType.name} application (${Number(app.totalDays)} days) has been approved.`,
+    { applicationId }
+  )
 
-  if (updated.isFinalLevel) {
-    await createNotification(
-      app.employeeId,
-      NotificationType.LEAVE_APPROVED,
-      'Leave approved',
-      `Your ${app.leaveType.name} application (${Number(app.totalDays)} days) has been approved.`,
-      { applicationId }
-    )
-  } else if (updated.nextApproverId) {
-    await createNotification(
-      updated.nextApproverId,
-      NotificationType.LEAVE_REQUESTED,
-      'Leave request awaiting your approval',
-      `${appName}'s leave request has been forwarded to you for approval.`,
-      { applicationId }
-    )
-  }
-
-  return updated.result
+  return result
 }
 
 /** Reject a leave application. */
-export async function rejectLeave(applicationId: string, rejectingEmployeeId: string, input: RejectLeaveInput) {
+export async function rejectLeave(applicationId: string, rejectingEmployeeId: string, rejectorRole: string, input: RejectLeaveInput) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id: applicationId },
-    include: { leaveType: true, employee: { select: { id: true, firstName: true, lastName: true } } },
+    include: { leaveType: true, employee: { select: { id: true, firstName: true, lastName: true, departmentId: true } } },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
   if (app.status !== LeaveStatus.PENDING) throw new LeaveError('Application is not pending')
+
+  const authorized = await canActOnTeamRequest(prisma, rejectingEmployeeId, rejectorRole, app.currentApproverId, app.employee.departmentId)
+  if (!authorized) throw new LeaveError('You are not authorized to review this application', 403)
 
   const year = app.startDate.getFullYear()
 
@@ -333,7 +299,7 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
     where: { id: applicationId },
     include: {
       leaveType: true,
-      employee: { select: { firstName: true, lastName: true, officeId: true } },
+      employee: { select: { firstName: true, lastName: true, officeId: true, departmentId: true, user: { select: { role: true } } } },
     },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
@@ -373,18 +339,14 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
   // APPROVED → request cancellation, needs manager approval
   if (!cancelReason?.trim()) throw new LeaveError('A reason is required to cancel an approved leave')
 
-  // Find the original approver or any team lead in the office
-  let managerId = app.currentApproverId
-  if (!managerId) {
-    const mgr = await prisma.user.findFirst({
-      where: {
-        employee: { officeId: app.employee.officeId, employmentStatus: { in: ['ACTIVE', 'PROBATION'] } },
-        role: { in: ['TEAM_LEAD', 'HR_MANAGER', 'DEPT_HEAD'] },
-      },
-      select: { employeeId: true },
-    })
-    managerId = mgr?.employeeId ?? null
-  }
+  // The original approver (currentApproverId) was cleared when the application was
+  // approved, so re-resolve via the same reporting-chain logic used at apply-time.
+  const managerId = await resolveTeamApprover(
+    prisma,
+    employeeId,
+    app.employee.user?.role ?? UserRole.EMPLOYEE,
+    app.employee.officeId
+  )
 
   const { count } = await prisma.leaveApplication.updateMany({
     where: { id: applicationId, status: LeaveStatus.APPROVED },
@@ -432,16 +394,19 @@ export async function updateCancelReason(applicationId: string, employeeId: stri
 }
 
 /** Manager approves a cancellation request — restores leave balance and notifies employee. */
-export async function approveCancelLeave(applicationId: string, approvingEmployeeId: string) {
+export async function approveCancelLeave(applicationId: string, approvingEmployeeId: string, approverRole: string) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id: applicationId },
     include: {
       leaveType: true,
-      employee: { select: { id: true, firstName: true, lastName: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, departmentId: true } },
     },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
   if (app.status !== LeaveStatus.CANCEL_REQUESTED) throw new LeaveError('This application has no pending cancellation request')
+
+  const authorized = await canActOnTeamRequest(prisma, approvingEmployeeId, approverRole, app.currentApproverId, app.employee.departmentId)
+  if (!authorized) throw new LeaveError('You are not authorized to review this cancellation request', 403)
 
   const year = app.startDate.getFullYear()
 
@@ -490,16 +455,19 @@ export async function approveCancelLeave(applicationId: string, approvingEmploye
 }
 
 /** Manager rejects a cancellation request — leave stays APPROVED, employee notified. */
-export async function rejectCancelLeave(applicationId: string, rejectingEmployeeId: string, reason: string) {
+export async function rejectCancelLeave(applicationId: string, rejectingEmployeeId: string, rejectorRole: string, reason: string) {
   const app = await prisma.leaveApplication.findUnique({
     where: { id: applicationId },
     include: {
       leaveType: true,
-      employee: { select: { id: true } },
+      employee: { select: { id: true, departmentId: true } },
     },
   })
   if (!app) throw new LeaveError('Leave application not found', 404)
   if (app.status !== LeaveStatus.CANCEL_REQUESTED) throw new LeaveError('This application has no pending cancellation request')
+
+  const authorized = await canActOnTeamRequest(prisma, rejectingEmployeeId, rejectorRole, app.currentApproverId, app.employee.departmentId)
+  if (!authorized) throw new LeaveError('You are not authorized to review this cancellation request', 403)
 
   await prisma.$transaction(async (tx) => {
     const { count } = await tx.leaveApplication.updateMany({

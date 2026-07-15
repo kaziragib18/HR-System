@@ -8,7 +8,7 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
   [UserRole.SUPER_ADMIN]: 5,
   [UserRole.HR_MANAGER]: 4,
   [UserRole.DEPT_HEAD]: 3,
-  [UserRole.TEAM_LEAD]: 2,
+  [UserRole.DEPT_MANAGER]: 2,
   [UserRole.EMPLOYEE]: 1,
 }
 

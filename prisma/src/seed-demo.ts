@@ -29,49 +29,101 @@ interface DemoEmployee {
 }
 
 const EMPLOYEES: DemoEmployee[] = [
-  // ── Accounts ──────────────────────────────────────────────────────────────
-  { key: 'nadia',  firstName: 'Nadia',   lastName: 'Islam',     deptCode: 'ACC',   jobTitleName: 'Director of Finance and Accounts',               gradeLevel: 6, role: 'DEPT_HEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-01-10', password: 'Password@123' },
-  { key: 'hassan', firstName: 'Hassan',  lastName: 'Mahmud',    deptCode: 'ACC',   jobTitleName: 'Assistant Accounts Manager',                     gradeLevel: 4, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-05-01', password: 'Password@123', managerKey: 'nadia' },
-  { key: 'arif',   firstName: 'Arif',    lastName: 'Rahman',    deptCode: 'ACC',   jobTitleName: 'Accounts Team Leader',                           gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-06-01', password: 'Employee@123', managerKey: 'nadia' },
-  { key: 'mita',   firstName: 'Mita',    lastName: 'Roy',       deptCode: 'ACC',   jobTitleName: 'Accounts Assistant',                             gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-03-15', password: 'Password@123', managerKey: 'arif' },
+  // ── Accounts ── DEPT_HEAD: nadia · DEPT_MANAGER: hassan, arif ──────────────
+  { key: 'nadia',  firstName: 'Nadia',   lastName: 'Islam',     deptCode: 'ACC', jobTitleName: 'Director of Finance and Accounts', gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-01-10', password: 'Password@123' },
+  { key: 'hassan', firstName: 'Hassan',  lastName: 'Mahmud',    deptCode: 'ACC', jobTitleName: 'Assistant Accounts Manager',       gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-05-01', password: 'Password@123', managerKey: 'nadia' },
+  { key: 'arif',   firstName: 'Arif',    lastName: 'Rahman',    deptCode: 'ACC', jobTitleName: 'Accounts Team Leader',             gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-06-01', password: 'Employee@123', managerKey: 'nadia' },
+  { key: 'mita',   firstName: 'Mita',    lastName: 'Roy',       deptCode: 'ACC', jobTitleName: 'Accounts Assistant',               gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-03-15', password: 'Password@123', managerKey: 'hassan' },
+  { key: 'farida', firstName: 'Farida',  lastName: 'Yasmin',    deptCode: 'ACC', jobTitleName: 'Senior Accounts Officer',          gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-09-01', password: 'Password@123', managerKey: 'hassan' },
+  { key: 'liton',  firstName: 'Liton',   lastName: 'Barua',     deptCode: 'ACC', jobTitleName: 'Accounts Officer',                 gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-01', password: 'Password@123', managerKey: 'hassan' },
+  { key: 'joya',   firstName: 'Joya',    lastName: 'Chowdhury', deptCode: 'ACC', jobTitleName: 'Junior Accountant',                gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-10-01', password: 'Password@123', managerKey: 'arif' },
+  { key: 'rumana', firstName: 'Rumana',  lastName: 'Parvin',    deptCode: 'ACC', jobTitleName: 'Billing Coordinator',              gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-15', password: 'Password@123', managerKey: 'arif' },
+  { key: 'shafiq', firstName: 'Shafiq',  lastName: 'Alam',      deptCode: 'ACC', jobTitleName: 'Accounts Executive',               gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'arif' },
+  { key: 'dolon',  firstName: 'Dolon',   lastName: 'Saha',      deptCode: 'ACC', jobTitleName: 'Internal Auditor',                 gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-12-01', password: 'Password@123', managerKey: 'nadia' },
 
-  // ── Admissions ────────────────────────────────────────────────────────────
-  { key: 'jawad',  firstName: 'Jawad',   lastName: 'Uddin',     deptCode: 'ADM',   jobTitleName: 'Director of Operations and Business Development', gradeLevel: 6, role: 'DEPT_HEAD',  type: 'FULL_TIME', status: 'ACTIVE',   joiningDate: '2023-02-01', password: 'Password@123' },
-  { key: 'kabir',  firstName: 'Kabir',   lastName: 'Hossain',   deptCode: 'ADM',   jobTitleName: 'Senior Admissions Officer',                      gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-08-01', password: 'Password@123', managerKey: 'jawad' },
-  { key: 'sadia',  firstName: 'Sadia',   lastName: 'Akter',     deptCode: 'ADM',   jobTitleName: 'Admissions Officer & Interviewer',               gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-01-08', password: 'Password@123', managerKey: 'jawad' },
-  { key: 'puja',   firstName: 'Puja',    lastName: 'Sen',       deptCode: 'ADM',   jobTitleName: 'Admissions Coordinator',                         gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-06-10', password: 'Password@123', managerKey: 'kabir' },
+  // ── Admissions ── DEPT_HEAD: jawad · DEPT_MANAGER: kabir ───────────────────
+  { key: 'jawad',    firstName: 'Jawad',    lastName: 'Uddin',    deptCode: 'ADM', jobTitleName: 'Director of Operations and Business Development', gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-02-01', password: 'Password@123' },
+  { key: 'kabir',    firstName: 'Kabir',    lastName: 'Hossain',  deptCode: 'ADM', jobTitleName: 'Senior Admissions Officer',                        gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-08-01', password: 'Password@123', managerKey: 'jawad' },
+  { key: 'sadia',    firstName: 'Sadia',    lastName: 'Akter',    deptCode: 'ADM', jobTitleName: 'Admissions Officer & Interviewer',                 gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-01-08', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'puja',     firstName: 'Puja',     lastName: 'Sen',      deptCode: 'ADM', jobTitleName: 'Admissions Coordinator',                           gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-06-10', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'rafsan',   firstName: 'Rafsan',   lastName: 'Kader',    deptCode: 'ADM', jobTitleName: 'Admissions Officer',                               gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-04-01', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'moushumi', firstName: 'Moushumi', lastName: 'Rahman',   deptCode: 'ADM', jobTitleName: 'Admissions Assistant',                             gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-09-01', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'tania',    firstName: 'Tania',    lastName: 'Ferdous',  deptCode: 'ADM', jobTitleName: 'Enrollment Coordinator',                           gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-07-01', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'iqbal',    firstName: 'Iqbal',    lastName: 'Hasan',    deptCode: 'ADM', jobTitleName: 'Admissions Executive',                             gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-03-01', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'nayeem',   firstName: 'Nayeem',   lastName: 'Khan',     deptCode: 'ADM', jobTitleName: 'Student Counselor',                                gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-11-01', password: 'Password@123', managerKey: 'kabir' },
+  { key: 'farhana',  firstName: 'Farhana', lastName: 'Islam',     deptCode: 'ADM', jobTitleName: 'Admissions Officer',                               gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-10-15', password: 'Password@123', managerKey: 'jawad' },
 
-  // ── Finance ───────────────────────────────────────────────────────────────
-  { key: 'imran',  firstName: 'Imran',   lastName: 'Khan',      deptCode: 'FIN',   jobTitleName: 'Lead Payments Officer',                          gradeLevel: 5, role: 'DEPT_HEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-01-15', password: 'Password@123' },
-  { key: 'fatema', firstName: 'Fatema',  lastName: 'Begum',     deptCode: 'FIN',   jobTitleName: 'Payments Officer',                               gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-02-14', password: 'Password@123', managerKey: 'imran' },
+  // ── Finance ── DEPT_HEAD: imran · DEPT_MANAGER: shirin ─────────────────────
+  { key: 'imran',  firstName: 'Imran',  lastName: 'Khan',      deptCode: 'FIN', jobTitleName: 'Lead Payments Officer',    gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-01-15', password: 'Password@123' },
+  { key: 'shirin', firstName: 'Shirin', lastName: 'Nahar',     deptCode: 'FIN', jobTitleName: 'Finance Manager',          gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'imran' },
+  { key: 'fatema', firstName: 'Fatema', lastName: 'Begum',     deptCode: 'FIN', jobTitleName: 'Payments Officer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-14', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'babul',  firstName: 'Babul',  lastName: 'Sarker',    deptCode: 'FIN', jobTitleName: 'Senior Payments Officer', gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-09-01', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'nasrin', firstName: 'Nasrin', lastName: 'Jahan',     deptCode: 'FIN', jobTitleName: 'Finance Executive',       gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-01', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'kamal',  firstName: 'Kamal',  lastName: 'Uddin',     deptCode: 'FIN', jobTitleName: 'Billing Officer',         gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-06-01', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'shila',  firstName: 'Shila',  lastName: 'Akhter',    deptCode: 'FIN', jobTitleName: 'Accounts Payable Officer', gradeLevel: 2, role: 'EMPLOYEE',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-07-15', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'forhad', firstName: 'Forhad', lastName: 'Molla',     deptCode: 'FIN', jobTitleName: 'Treasury Officer',        gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-12-01', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'ruma',   firstName: 'Ruma',   lastName: 'Khatun',    deptCode: 'FIN', jobTitleName: 'Finance Assistant',       gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-10-01', password: 'Password@123', managerKey: 'shirin' },
+  { key: 'opu',    firstName: 'Opu',    lastName: 'Talukder',  deptCode: 'FIN', jobTitleName: 'Payments Officer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-15', password: 'Password@123', managerKey: 'imran' },
 
-  // ── Human Resources ───────────────────────────────────────────────────────
-  { key: 'sarah',  firstName: 'Sarah',   lastName: 'Ahmed',     deptCode: 'HR',    jobTitleName: 'Director of People Experience',                  gradeLevel: 6, role: 'HR_MANAGER', type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-03-01', password: 'Manager@123' },
-  { key: 'riya',   firstName: 'Riya',    lastName: 'Sultana',   deptCode: 'HR',    jobTitleName: 'HR Assistant Manager',                           gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'sarah' },
-  { key: 'rina',   firstName: 'Rina',    lastName: 'Das',       deptCode: 'HR',    jobTitleName: 'HR Assistant',                                   gradeLevel: 2, role: 'EMPLOYEE',   type: 'PART_TIME', status: 'ACTIVE',    joiningDate: '2024-09-15', password: 'Password@123', managerKey: 'sarah' },
+  // ── Human Resources ── HR_MANAGER: sarah · DEPT_HEAD: farzana · DEPT_MANAGER: riya
+  { key: 'sarah',   firstName: 'Sarah',   lastName: 'Ahmed',    deptCode: 'HR', jobTitleName: 'Director of People Experience', gradeLevel: 6, role: 'HR_MANAGER',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-03-01', password: 'Manager@123' },
+  { key: 'farzana', firstName: 'Farzana', lastName: 'Karim',    deptCode: 'HR', jobTitleName: 'HR Director',                   gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-04-01', password: 'Password@123' },
+  { key: 'riya',    firstName: 'Riya',    lastName: 'Sultana',  deptCode: 'HR', jobTitleName: 'HR Assistant Manager',          gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'farzana' },
+  { key: 'rina',    firstName: 'Rina',    lastName: 'Das',      deptCode: 'HR', jobTitleName: 'HR Assistant',                  gradeLevel: 2, role: 'EMPLOYEE',     type: 'PART_TIME', status: 'ACTIVE',    joiningDate: '2024-09-15', password: 'Password@123', managerKey: 'riya' },
+  { key: 'mahin',   firstName: 'Mahin',   lastName: 'Reza',     deptCode: 'HR', jobTitleName: 'HR Officer',                    gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-04-01', password: 'Password@123', managerKey: 'riya' },
+  { key: 'shampa',  firstName: 'Shampa',  lastName: 'Biswas',   deptCode: 'HR', jobTitleName: 'Recruitment Officer',           gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-06-15', password: 'Password@123', managerKey: 'riya' },
+  { key: 'zubair',  firstName: 'Zubair',  lastName: 'Hossain',  deptCode: 'HR', jobTitleName: 'HR Executive',                  gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'riya' },
+  { key: 'nasima',  firstName: 'Nasima',  lastName: 'Begum',    deptCode: 'HR', jobTitleName: 'Payroll Coordinator',           gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-12-15', password: 'Password@123', managerKey: 'riya' },
+  { key: 'kamrul',  firstName: 'Kamrul',  lastName: 'Islam',    deptCode: 'HR', jobTitleName: 'Training Officer',              gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-05-01', password: 'Password@123', managerKey: 'riya' },
+  { key: 'labonno', firstName: 'Labonno', lastName: 'Akter',    deptCode: 'HR', jobTitleName: 'HR Officer',                    gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-11-01', password: 'Password@123', managerKey: 'farzana' },
 
-  // ── Information Technology ────────────────────────────────────────────────
-  { key: 'tanvir', firstName: 'Tanvir',  lastName: 'Islam',     deptCode: 'IT',    jobTitleName: 'Director of IT',                                 gradeLevel: 6, role: 'DEPT_HEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-04-01', password: 'Password@123' },
-  { key: 'salam',  firstName: 'Salam',   lastName: 'Chowdhury', deptCode: 'IT',    jobTitleName: 'IT Manager',                                     gradeLevel: 4, role: 'TEAM_LEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-09-01', password: 'Password@123', managerKey: 'tanvir' },
-  { key: 'mehedi', firstName: 'Mehedi',  lastName: 'Hasan',     deptCode: 'IT',    jobTitleName: 'System Administrator',                           gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-01-20', password: 'Password@123', managerKey: 'salam' },
+  // ── Information Technology ── DEPT_HEAD: tanvir · DEPT_MANAGER: salam ──────
+  { key: 'tanvir',  firstName: 'Tanvir',  lastName: 'Islam',     deptCode: 'IT', jobTitleName: 'Director of IT',        gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-04-01', password: 'Password@123' },
+  { key: 'salam',   firstName: 'Salam',   lastName: 'Chowdhury', deptCode: 'IT', jobTitleName: 'IT Manager',            gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-09-01', password: 'Password@123', managerKey: 'tanvir' },
+  { key: 'mehedi',  firstName: 'Mehedi',  lastName: 'Hasan',     deptCode: 'IT', jobTitleName: 'System Administrator',  gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-01-20', password: 'Password@123', managerKey: 'salam' },
+  { key: 'kajal',   firstName: 'Kajal',   lastName: 'Debnath',   deptCode: 'IT', jobTitleName: 'IT Support Officer',    gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-03-01', password: 'Password@123', managerKey: 'salam' },
+  { key: 'shanto',  firstName: 'Shanto',  lastName: 'Bepari',    deptCode: 'IT', jobTitleName: 'Network Engineer',      gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-10-15', password: 'Password@123', managerKey: 'salam' },
+  { key: 'himel',   firstName: 'Himel',   lastName: 'Sikder',    deptCode: 'IT', jobTitleName: 'IT Coordinator',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-06-01', password: 'Password@123', managerKey: 'salam' },
+  { key: 'proma',   firstName: 'Proma',   lastName: 'Dutta',     deptCode: 'IT', jobTitleName: 'Systems Analyst',       gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-01', password: 'Password@123', managerKey: 'salam' },
+  { key: 'eshan',   firstName: 'Eshan',   lastName: 'Mridha',    deptCode: 'IT', jobTitleName: 'IT Officer',            gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-07-01', password: 'Password@123', managerKey: 'salam' },
+  { key: 'nabila',  firstName: 'Nabila',  lastName: 'Yeasmin',   deptCode: 'IT', jobTitleName: 'Helpdesk Executive',    gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-09-01', password: 'Password@123', managerKey: 'salam' },
+  { key: 'rehnuma', firstName: 'Rehnuma', lastName: 'Afrin',     deptCode: 'IT', jobTitleName: 'IT Support Officer',    gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-11-15', password: 'Password@123', managerKey: 'tanvir' },
 
-  // ── IT (Software Development) ─────────────────────────────────────────────
-  { key: 'karim',  firstName: 'Karim',   lastName: 'Hossain',   deptCode: 'IT-SW', jobTitleName: 'Software Engineering Manager',                   gradeLevel: 5, role: 'TEAM_LEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-06-01', password: 'Password@123', managerKey: 'tanvir' },
-  { key: 'rakib',  firstName: 'Rakib',   lastName: 'Hasan',     deptCode: 'IT-SW', jobTitleName: 'Senior PHP Developer',                           gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'PROBATION', joiningDate: '2026-05-01', password: 'Password@123', managerKey: 'karim' },
-  { key: 'nusrat', firstName: 'Nusrat',  lastName: 'Jahan',     deptCode: 'IT-SW', jobTitleName: 'React Developer',                                gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-05-20', password: 'Password@123', managerKey: 'karim' },
+  // ── IT (Software Development) ── DEPT_HEAD: karim · DEPT_MANAGER: farabi ───
+  { key: 'karim',     firstName: 'Karim',     lastName: 'Hossain',  deptCode: 'IT-SW', jobTitleName: 'Software Engineering Manager', gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-06-01', password: 'Password@123', managerKey: 'tanvir' },
+  { key: 'farabi',    firstName: 'Farabi',    lastName: 'Anwar',    deptCode: 'IT-SW', jobTitleName: 'Engineering Team Lead',        gradeLevel: 5, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-10-01', password: 'Password@123', managerKey: 'karim' },
+  { key: 'rakib',     firstName: 'Rakib',     lastName: 'Hasan',    deptCode: 'IT-SW', jobTitleName: 'Senior PHP Developer',         gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'PROBATION', joiningDate: '2026-05-01', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'nusrat',    firstName: 'Nusrat',    lastName: 'Jahan',    deptCode: 'IT-SW', jobTitleName: 'React Developer',              gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-05-20', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'tashfia',   firstName: 'Tashfia',   lastName: 'Noor',     deptCode: 'IT-SW', jobTitleName: 'QA Engineer',                  gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-06-01', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'bijoy',     firstName: 'Bijoy',     lastName: 'Halder',   deptCode: 'IT-SW', jobTitleName: 'Junior Developer',             gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'mizan',     firstName: 'Mizan',     lastName: 'Sheikh',   deptCode: 'IT-SW', jobTitleName: 'DevOps Engineer',              gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-01-15', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'ovi',       firstName: 'Ovi',       lastName: 'Chakma',   deptCode: 'IT-SW', jobTitleName: 'Frontend Developer',           gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-04-15', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'shanchita', firstName: 'Shanchita', lastName: 'Mondol',   deptCode: 'IT-SW', jobTitleName: 'Senior PHP Developer',         gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-12-01', password: 'Password@123', managerKey: 'farabi' },
+  { key: 'fahim',     firstName: 'Fahim',     lastName: 'Rashid',   deptCode: 'IT-SW', jobTitleName: 'Junior Developer',             gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-10-15', password: 'Password@123', managerKey: 'karim' },
 
-  // ── IT (Tech Support) ─────────────────────────────────────────────────────
-  { key: 'masum',  firstName: 'Masum',   lastName: 'Hossain',   deptCode: 'IT-TS', jobTitleName: 'Project Manager',                                gradeLevel: 4, role: 'TEAM_LEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-07-15', password: 'Password@123', managerKey: 'tanvir' },
-  { key: 'shahed', firstName: 'Shahed',  lastName: 'Ali',       deptCode: 'IT-TS', jobTitleName: 'Infrastructure Technician',                      gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-10-01', password: 'Password@123', managerKey: 'masum' },
-  { key: 'rubel',  firstName: 'Rubel',   lastName: 'Mia',       deptCode: 'IT-TS', jobTitleName: 'Cloud Engineer',                                 gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-03-01', password: 'Password@123', managerKey: 'masum' },
-  { key: 'shuvo',  firstName: 'Shuvo',   lastName: 'Roy',       deptCode: 'IT-TS', jobTitleName: 'IT Technician',                                  gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'PROBATION', joiningDate: '2026-06-01', password: 'Password@123', managerKey: 'masum' },
-  { key: 'sagor',  firstName: 'Sagor',   lastName: 'Miah',      deptCode: 'IT-TS', jobTitleName: 'Tech Support',                                   gradeLevel: 1, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'masum' },
-  { key: 'rafi',   firstName: 'Rafi',    lastName: 'Islam',     deptCode: 'IT-TS', jobTitleName: 'Tech Support Specialist',                        gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-11-01', password: 'Password@123', managerKey: 'masum' },
+  // ── IT (Tech Support) ── DEPT_HEAD: masum · DEPT_MANAGER: yeasin ───────────
+  { key: 'masum',  firstName: 'Masum',  lastName: 'Hossain',  deptCode: 'IT-TS', jobTitleName: 'Project Manager',           gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-07-15', password: 'Password@123', managerKey: 'tanvir' },
+  { key: 'yeasin', firstName: 'Yeasin', lastName: 'Arafat',   deptCode: 'IT-TS', jobTitleName: 'Support Team Lead',         gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-11-15', password: 'Password@123', managerKey: 'masum' },
+  { key: 'shahed', firstName: 'Shahed', lastName: 'Ali',      deptCode: 'IT-TS', jobTitleName: 'Infrastructure Technician', gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-10-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'rubel',  firstName: 'Rubel',  lastName: 'Mia',      deptCode: 'IT-TS', jobTitleName: 'Cloud Engineer',            gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-03-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'shuvo',  firstName: 'Shuvo',  lastName: 'Roy',      deptCode: 'IT-TS', jobTitleName: 'IT Technician',             gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'PROBATION', joiningDate: '2026-06-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'sagor',  firstName: 'Sagor',  lastName: 'Miah',     deptCode: 'IT-TS', jobTitleName: 'Tech Support',              gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'rafi',   firstName: 'Rafi',   lastName: 'Islam',    deptCode: 'IT-TS', jobTitleName: 'Tech Support Specialist',   gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-11-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'milon',  firstName: 'Milon',  lastName: 'Prodhan',  deptCode: 'IT-TS', jobTitleName: 'IT Technician',             gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-05-01', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'poly',   firstName: 'Poly',   lastName: 'Dey',      deptCode: 'IT-TS', jobTitleName: 'Tech Support',              gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-09-15', password: 'Password@123', managerKey: 'yeasin' },
+  { key: 'zahid',  firstName: 'Zahid',  lastName: 'Kabir',    deptCode: 'IT-TS', jobTitleName: 'Cloud Engineer',            gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-09-15', password: 'Password@123', managerKey: 'masum' },
 
-  // ── IT (Web Development) ──────────────────────────────────────────────────
-  { key: 'habib',  firstName: 'Habib',   lastName: 'Ullah',     deptCode: 'IT-WD', jobTitleName: 'Line Manager',                                   gradeLevel: 4, role: 'TEAM_LEAD',  type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2023-05-15', password: 'Password@123', managerKey: 'karim' },
-  { key: 'rajib',  firstName: 'Rajib',   lastName: 'Ahmed',     deptCode: 'IT-WD', jobTitleName: 'Web Developer',                                  gradeLevel: 3, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-04-01', password: 'Password@123', managerKey: 'habib' },
-  { key: 'priya',  firstName: 'Priya',   lastName: 'Sharma',    deptCode: 'IT-WD', jobTitleName: 'UI/UX Designer',                                 gradeLevel: 2, role: 'EMPLOYEE',   type: 'FULL_TIME', status: 'ACTIVE',    joiningDate: '2024-07-10', password: 'Password@123', managerKey: 'habib' },
+  // ── IT (Web Development) ── DEPT_HEAD: habib · DEPT_MANAGER: tasnim ────────
+  { key: 'habib',   firstName: 'Habib',   lastName: 'Ullah',   deptCode: 'IT-WD', jobTitleName: 'Line Manager',          gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-05-15', password: 'Password@123', managerKey: 'tanvir' },
+  { key: 'tasnim',  firstName: 'Tasnim',  lastName: 'Rahman',  deptCode: 'IT-WD', jobTitleName: 'Web Team Lead',         gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-10-15', password: 'Password@123', managerKey: 'habib' },
+  { key: 'rajib',   firstName: 'Rajib',   lastName: 'Ahmed',   deptCode: 'IT-WD', jobTitleName: 'Web Developer',         gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-04-01', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'priya',   firstName: 'Priya',   lastName: 'Sharma',  deptCode: 'IT-WD', jobTitleName: 'UI/UX Designer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-07-10', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'shovon',  firstName: 'Shovon',  lastName: 'Datta',   deptCode: 'IT-WD', jobTitleName: 'Backend Developer',     gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-15', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'mitu',    firstName: 'Mitu',    lastName: 'Akhter',  deptCode: 'IT-WD', jobTitleName: 'QA Tester',             gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-06-15', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'rumi',    firstName: 'Rumi',    lastName: 'Nasrin',  deptCode: 'IT-WD', jobTitleName: 'Web Content Specialist', gradeLevel: 2, role: 'EMPLOYEE',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-09-01', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'aslam',   firstName: 'Aslam',   lastName: 'Bhuiyan', deptCode: 'IT-WD', jobTitleName: 'Web Developer',         gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-15', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'chumki',  firstName: 'Chumki',  lastName: 'Paul',    deptCode: 'IT-WD', jobTitleName: 'Backend Developer',     gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-15', password: 'Password@123', managerKey: 'tasnim' },
+  { key: 'tuhin',   firstName: 'Tuhin',   lastName: 'Ghosh',   deptCode: 'IT-WD', jobTitleName: 'UI/UX Designer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'habib' },
 ]
 
 function empEmail(e: DemoEmployee) {
@@ -165,15 +217,27 @@ async function main() {
     return `${prefix}${String(seqByPrefix[prefix]).padStart(3, '0')}`
   }
 
+  // ── Validate roster against seeded departments/job titles up front ───────
+  // Fail loudly before creating anything — a typo here would otherwise leave
+  // a silently under-titled employee (or a partial run) instead of a clear error.
+  const missing: string[] = []
+  for (const e of EMPLOYEES) {
+    const dept = deptByCode[e.deptCode]
+    if (!dept) { missing.push(`${e.key}: department "${e.deptCode}" does not exist`); continue }
+    if (!allTitles.some((t) => t.departmentId === dept.id && t.name === e.jobTitleName)) {
+      missing.push(`${e.key}: job title "${e.jobTitleName}" does not exist in ${e.deptCode}`)
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(`Seed roster references unknown departments/job titles:\n  ${missing.join('\n  ')}`)
+  }
+
   // ── Create employees + users ─────────────────────────────────────────────
   const idByKey: Record<string, string> = {}
   for (const e of EMPLOYEES) {
-    const dept = deptByCode[e.deptCode]
-    if (!dept) { console.warn(`  ⚠ dept not found: ${e.deptCode} — skipping ${e.key}`); continue }
-
+    const dept = deptByCode[e.deptCode]!
     const grade = grades.find((g) => g.officeId === bdOffice.id && g.level === e.gradeLevel)
     const title = allTitles.find((t) => t.departmentId === dept.id && t.name === e.jobTitleName)
-    if (!title) console.warn(`  ⚠ job title not found: "${e.jobTitleName}" in ${e.deptCode}`)
 
     const year       = new Date(e.joiningDate).getFullYear()
     const employeeId = await nextEmployeeId(year)
@@ -218,21 +282,26 @@ async function main() {
     }
   }
 
-  // Department managers
-  const deptManagerMap: Record<string, string> = {
-    'ACC':   'nadia',
-    'ADM':   'jawad',
-    'FIN':   'imran',
-    'HR':    'sarah',
-    'IT':    'tanvir',
-    'IT-SW': 'karim',
-    'IT-TS': 'masum',
-    'IT-WD': 'habib',
+  // Department managers — derived from the roster's DEPT_HEAD, not hardcoded.
+  // Every department THIS ROSTER POPULATES must end up with exactly one: this
+  // is the same invariant updateEmployeeRole enforces at runtime (see
+  // employees.service.ts), so the seed data must never violate it either.
+  // Scoped to the departments actually referenced by EMPLOYEES — the office
+  // may also contain unrelated legacy departments (e.g. leftover "ENG"/"MKT"/
+  // "OM" rows this demo roster never touches) that shouldn't be forced to
+  // have a head just because this script ran.
+  const rosterDeptCodes = [...new Set(EMPLOYEES.map((e) => e.deptCode))]
+  const deptHeadsByDept: Record<string, string[]> = {}
+  for (const e of EMPLOYEES) {
+    if (e.role !== 'DEPT_HEAD' || !idByKey[e.key]) continue
+    ;(deptHeadsByDept[e.deptCode] ??= []).push(e.key)
   }
-  for (const [deptCode, key] of Object.entries(deptManagerMap)) {
-    if (idByKey[key]) {
-      await prisma.department.update({ where: { code: deptCode }, data: { managerId: idByKey[key] } })
+  for (const deptCode of rosterDeptCodes) {
+    const heads = deptHeadsByDept[deptCode] ?? []
+    if (heads.length !== 1) {
+      throw new Error(`Department "${deptCode}" must have exactly one DEPT_HEAD, found ${heads.length} (${heads.join(', ') || 'none'})`)
     }
+    await prisma.department.update({ where: { code: deptCode }, data: { managerId: idByKey[heads[0]] } })
   }
   console.log('✓ Reporting lines + department managers set')
 
@@ -260,7 +329,10 @@ async function main() {
   const bdLeave = (code: string) => bdLeaveTypes.find((lt) => lt.code === code)!
   const today = dateOnly(new Date())
 
-  // Two employees on leave today
+  // Two employees on leave today. karim is IT-SW's DEPT_HEAD, so his own leave
+  // escalates to the HR department's DEPT_HEAD (farzana), not HR_MANAGER —
+  // matches resolveTeamApprover's DEPT_HEAD/HR_MANAGER branch. nusrat is a
+  // plain EMPLOYEE reporting to farabi (her DEPT_MANAGER).
   await prisma.leaveApplication.create({
     data: {
       employeeId:       idByKey['karim'],
@@ -270,7 +342,7 @@ async function main() {
       totalDays:        3,
       reason:           'Family event',
       status:           'APPROVED',
-      approvedById:     idByKey['sarah'],
+      approvedById:     idByKey['farzana'],
       approvedAt:       addDays(today, -3),
     },
   })
@@ -283,19 +355,20 @@ async function main() {
       totalDays:        1,
       reason:           'Fever',
       status:           'APPROVED',
-      approvedById:     idByKey['sarah'],
+      approvedById:     idByKey['farabi'],
       approvedAt:       today,
     },
   })
 
-  // Pending leaves for approval queue
-  const pending: Array<[string, string, number, number, string]> = [
-    ['fatema', 'AL',  5,  7, 'Annual vacation'],
-    ['sadia',  'CL', 10, 10, 'Personal errand'],
-    ['rina',   'AL',  8,  9, 'Travel'],
-    ['rajib',  'CL',  3,  4, 'Personal work'],
+  // Pending leaves for approval queue — each routed to the requester's real
+  // DEPT_MANAGER, matching resolveTeamApprover's reporting-chain resolution.
+  const pending: Array<[string, string, number, number, string, string]> = [
+    ['fatema', 'AL',  5,  7, 'Annual vacation',  'shirin'],
+    ['sadia',  'CL', 10, 10, 'Personal errand',  'kabir'],
+    ['rina',   'AL',  8,  9, 'Travel',           'riya'],
+    ['rajib',  'CL',  3,  4, 'Personal work',    'tasnim'],
   ]
-  for (const [key, code, startOff, endOff, reason] of pending) {
+  for (const [key, code, startOff, endOff, reason, approverKey] of pending) {
     if (!idByKey[key]) continue
     await prisma.leaveApplication.create({
       data: {
@@ -307,7 +380,7 @@ async function main() {
         reason,
         status:             'PENDING',
         approvalLevel:      1,
-        currentApproverId:  idByKey['sarah'],
+        currentApproverId:  idByKey[approverKey],
       },
     })
   }
@@ -426,36 +499,41 @@ async function main() {
     return { regime: 'BD_INCOME_TAX', taxableIncome: annualGross, totalTax: total, slabs }
   }
 
-  // [key, basicSalary BDT/month, presentDays, leaveDays]
+  // [key, basicSalary BDT/month, presentDays, leaveDays] — basic mirrors the
+  // employee's gradeLevel via seed.ts's bdGradeSalaries (g6=180000 ... g1=25000).
   const BD_PAY: Array<[string, number, number, number]> = [
-    ['nadia',  180000, 22, 0],
-    ['hassan',  85000, 22, 0],
-    ['arif',    60000, 21, 0],
-    ['mita',    40000, 22, 0],
-    ['jawad',  180000, 21, 0],
-    ['kabir',   60000, 22, 0],
-    ['sadia',   60000, 22, 0],
-    ['puja',    40000, 22, 0],
-    ['imran',  120000, 22, 0],
-    ['fatema',  40000, 22, 0],
-    ['sarah',  180000, 21, 0],
-    ['riya',    60000, 22, 0],
-    ['rina',    40000, 20, 0],
-    ['tanvir', 180000, 22, 0],
-    ['salam',   85000, 22, 0],
-    ['mehedi',  60000, 22, 0],
-    ['karim',  120000, 18, 2],
-    ['rakib',   60000, 20, 0],
-    ['nusrat',  60000, 19, 1],
-    ['masum',   85000, 22, 0],
-    ['shahed',  60000, 21, 0],
-    ['rubel',   60000, 22, 0],
-    ['shuvo',   40000, 18, 0],
-    ['sagor',   25000, 21, 0],
-    ['rafi',    40000, 22, 0],
-    ['habib',   85000, 22, 0],
-    ['rajib',   60000, 22, 0],
-    ['priya',   40000, 21, 0],
+    // Accounts
+    ['nadia', 180000, 22, 0], ['hassan', 85000, 22, 0], ['arif', 85000, 21, 0], ['mita', 40000, 22, 0],
+    ['farida', 60000, 22, 0], ['liton', 40000, 22, 0], ['joya', 25000, 22, 0], ['rumana', 40000, 22, 0],
+    ['shafiq', 40000, 22, 0], ['dolon', 60000, 22, 0],
+    // Admissions
+    ['jawad', 180000, 21, 0], ['kabir', 85000, 22, 0], ['sadia', 60000, 22, 0], ['puja', 40000, 22, 0],
+    ['rafsan', 40000, 22, 0], ['moushumi', 25000, 22, 0], ['tania', 40000, 22, 0], ['iqbal', 40000, 22, 0],
+    ['nayeem', 40000, 22, 0], ['farhana', 40000, 22, 0],
+    // Finance
+    ['imran', 180000, 22, 0], ['shirin', 85000, 22, 0], ['fatema', 40000, 22, 0], ['babul', 60000, 22, 0],
+    ['nasrin', 40000, 22, 0], ['kamal', 40000, 22, 0], ['shila', 40000, 22, 0], ['forhad', 60000, 22, 0],
+    ['ruma', 25000, 22, 0], ['opu', 40000, 22, 0],
+    // Human Resources
+    ['sarah', 180000, 21, 0], ['farzana', 180000, 22, 0], ['riya', 85000, 22, 0], ['rina', 40000, 20, 0],
+    ['mahin', 40000, 22, 0], ['shampa', 40000, 22, 0], ['zubair', 40000, 22, 0], ['nasima', 40000, 22, 0],
+    ['kamrul', 40000, 22, 0], ['labonno', 25000, 22, 0],
+    // Information Technology
+    ['tanvir', 180000, 22, 0], ['salam', 85000, 22, 0], ['mehedi', 60000, 22, 0], ['kajal', 40000, 22, 0],
+    ['shanto', 60000, 22, 0], ['himel', 40000, 22, 0], ['proma', 60000, 22, 0], ['eshan', 40000, 22, 0],
+    ['nabila', 25000, 22, 0], ['rehnuma', 40000, 22, 0],
+    // IT (Software Development)
+    ['karim', 180000, 18, 2], ['farabi', 120000, 22, 0], ['rakib', 60000, 20, 0], ['nusrat', 60000, 19, 1],
+    ['tashfia', 40000, 22, 0], ['bijoy', 25000, 22, 0], ['mizan', 60000, 22, 0], ['ovi', 40000, 22, 0],
+    ['shanchita', 60000, 22, 0], ['fahim', 25000, 22, 0],
+    // IT (Tech Support)
+    ['masum', 180000, 22, 0], ['yeasin', 85000, 22, 0], ['shahed', 60000, 21, 0], ['rubel', 60000, 22, 0],
+    ['shuvo', 40000, 18, 0], ['sagor', 25000, 21, 0], ['rafi', 40000, 22, 0], ['milon', 40000, 22, 0],
+    ['poly', 25000, 22, 0], ['zahid', 60000, 22, 0],
+    // IT (Web Development)
+    ['habib', 180000, 22, 0], ['tasnim', 85000, 22, 0], ['rajib', 60000, 22, 0], ['priya', 40000, 21, 0],
+    ['shovon', 60000, 22, 0], ['mitu', 40000, 22, 0], ['rumi', 40000, 22, 0], ['aslam', 40000, 22, 0],
+    ['chumki', 40000, 22, 0], ['tuhin', 40000, 22, 0],
   ]
   const WORKING_DAYS = 22
 
@@ -500,15 +578,20 @@ async function main() {
 
   console.log('\n──────────────────────────────────────────────────────')
   console.log('Demo logins:')
-  console.log('  SUPER ADMIN  : admin@company.com              / Admin@123')
-  console.log('  HR MANAGER   : sarah.ahmed@xyztech.com       / Manager@123')
-  console.log('  DEPT HEAD    : nadia.islam@xyztech.com       / Password@123  (Accounts)')
-  console.log('  DEPT HEAD    : jawad.uddin@xyztech.com       / Password@123  (Admissions)')
-  console.log('  DEPT HEAD    : tanvir.islam@xyztech.com      / Password@123  (IT)')
-  console.log('  TEAM LEAD    : karim.hossain@xyztech.com     / Password@123  (IT-SW)')
-  console.log('  TEAM LEAD    : masum.hossain@xyztech.com     / Password@123  (IT-TS)')
-  console.log('  TEAM LEAD    : habib.ullah@xyztech.com       / Password@123  (IT-WD)')
-  console.log('  EMPLOYEE     : arif.rahman@xyztech.com       / Employee@123  (Accounts)')
+  console.log('  SUPER ADMIN   : admin@company.com              / Admin@123')
+  console.log('  HR MANAGER    : sarah.ahmed@xyztech.com        / Manager@123   (view-only on approvals)')
+  console.log('  DEPT HEAD     : farzana.karim@xyztech.com      / Password@123  (HR — approves other DEPT_HEADs\' leave)')
+  console.log('  DEPT HEAD     : nadia.islam@xyztech.com        / Password@123  (Accounts)')
+  console.log('  DEPT HEAD     : jawad.uddin@xyztech.com        / Password@123  (Admissions)')
+  console.log('  DEPT HEAD     : imran.khan@xyztech.com         / Password@123  (Finance)')
+  console.log('  DEPT HEAD     : tanvir.islam@xyztech.com       / Password@123  (IT)')
+  console.log('  DEPT HEAD     : karim.hossain@xyztech.com      / Password@123  (IT-SW)')
+  console.log('  DEPT HEAD     : masum.hossain@xyztech.com      / Password@123  (IT-TS)')
+  console.log('  DEPT HEAD     : habib.ullah@xyztech.com        / Password@123  (IT-WD)')
+  console.log('  DEPT MANAGER  : hassan.mahmud@xyztech.com      / Password@123  (Accounts)')
+  console.log('  DEPT MANAGER  : arif.rahman@xyztech.com        / Employee@123  (Accounts)')
+  console.log('  DEPT MANAGER  : farabi.anwar@xyztech.com       / Password@123  (IT-SW — reports to karim)')
+  console.log('  EMPLOYEE      : mita.roy@xyztech.com           / Password@123  (Accounts)')
   console.log('  (all other demo staff: Password@123)')
   console.log('──────────────────────────────────────────────────────')
   console.log('Done!')

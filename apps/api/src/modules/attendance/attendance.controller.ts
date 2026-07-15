@@ -7,10 +7,12 @@ import { AuditAction } from '@hr-system/types'
 import { prisma } from '../../config/prisma'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
+import type { DepartmentScopedRequest } from '../../middleware/department.middleware'
 import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, LateExcuseInput, ReviewExcuseInput, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
 function user(req: Request) { return (req as AuthRequest).user }
 function scope(req: Request) { return (req as OfficeScopedRequest).officeScope }
+function deptScope(req: Request) { return (req as DepartmentScopedRequest).departmentScope }
 
 function handle(res: Response, err: unknown) {
   if (err instanceof AttendanceError) { sendError(res, err.message, err.status); return }
@@ -60,14 +62,14 @@ export async function getMyMonth(req: Request, res: Response) {
 
 export async function list(req: Request, res: Response) {
   try {
-    const { items, meta } = await service.listAttendance(scope(req), req.query as unknown as ListAttendanceQuery)
+    const { items, meta } = await service.listAttendance(scope(req), deptScope(req), req.query as unknown as ListAttendanceQuery)
     sendSuccess(res, items, meta)
   } catch (err) { handle(res, err) }
 }
 
 export async function manualEntry(req: Request, res: Response) {
   try {
-    const record = await service.manualEntry(req.body as ManualEntryInput, user(req).sub)
+    const record = await service.manualEntry(req.body as ManualEntryInput, user(req).sub, scope(req), deptScope(req))
     sendCreated(res, record)
   } catch (err) { handle(res, err) }
 }
@@ -102,14 +104,15 @@ export async function reviewExcuse(req: Request, res: Response) {
   try {
     const u = user(req)
     const { approved, newStatus } = req.body as ReviewExcuseInput
-    const record = await service.reviewExcuse(req.params.id, u.employeeId, approved, newStatus)
+    const record = await service.reviewExcuse(req.params.id, u.employeeId, u.role, approved, scope(req), newStatus)
     sendSuccess(res, record)
   } catch (err) { handle(res, err) }
 }
 
 export async function listPendingExcuses(req: Request, res: Response) {
   try {
-    const items = await service.listPendingExcuses(scope(req))
+    const u = user(req)
+    const items = await service.listPendingExcuses(scope(req), u.employeeId, u.role)
     sendSuccess(res, items)
   } catch (err) { handle(res, err) }
 }
@@ -119,7 +122,7 @@ export async function requestAdjustment(req: Request, res: Response) {
     const u = user(req)
     const employee = await prisma.employee.findUnique({ where: { id: u.employeeId }, select: { officeId: true } })
     if (!employee) { sendError(res, 'Employee record not found', 404); return }
-    const record = await service.requestAdjustment(u.employeeId, employee.officeId, req.body as RequestAdjustmentInput)
+    const record = await service.requestAdjustment(u.employeeId, employee.officeId, u.role, req.body as RequestAdjustmentInput)
     await auditFromRequest(req as AuthRequest, AuditAction.CREATE, 'Attendance', record.id, undefined, req.body)
     sendCreated(res, record)
   } catch (err) { handle(res, err) }

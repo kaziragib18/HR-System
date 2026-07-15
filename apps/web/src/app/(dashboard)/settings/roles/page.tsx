@@ -12,11 +12,12 @@ const ALL_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.HR_MANAGER,
   UserRole.DEPT_HEAD,
-  UserRole.TEAM_LEAD,
+  UserRole.DEPT_MANAGER,
   UserRole.EMPLOYEE,
 ]
 
-const MANAGER_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.TEAM_LEAD]
+const MANAGER_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
+const APPROVAL_ROLES = [UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
 const HR_ROLES = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER]
 
 const PERMISSION_MATRIX: { capability: string; roles: UserRole[] }[] = [
@@ -24,7 +25,8 @@ const PERMISSION_MATRIX: { capability: string; roles: UserRole[] }[] = [
   { capability: 'View department directory & org chart', roles: ALL_ROLES },
   { capability: 'View holiday calendar & job grade list', roles: ALL_ROLES },
   { capability: 'View the full employee directory', roles: MANAGER_ROLES },
-  { capability: 'Approve leave, late-excuse & attendance-adjustment requests', roles: MANAGER_ROLES },
+  { capability: 'Approve leave, late-excuse & attendance-adjustment requests for their own department', roles: APPROVAL_ROLES },
+  { capability: 'View all approval requests office-wide (cannot approve/reject)', roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER] },
   { capability: 'Create/edit employees, departments, job grades, holidays', roles: HR_ROLES },
   { capability: 'Manage salary structures', roles: HR_ROLES },
   { capability: "View any employee's individual salary", roles: HR_ROLES },

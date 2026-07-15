@@ -191,6 +191,24 @@ export async function updateEmployeeRole(employeeId: string, newRole: UserRole, 
     }
   }
 
+  // Each department may have exactly one DEPT_HEAD.
+  if (newRole === UserRole.DEPT_HEAD) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { departmentId: true } })
+    if (!employee) throw new EmployeeError('Employee not found', 404)
+    const existingHead = await prisma.user.findFirst({
+      where: {
+        role: UserRole.DEPT_HEAD,
+        isActive: true,
+        employeeId: { not: employeeId },
+        employee: { departmentId: employee.departmentId },
+      },
+      select: { employeeId: true },
+    })
+    if (existingHead) {
+      throw new EmployeeError('This department already has a department head. Reassign or demote them first.', 400)
+    }
+  }
+
   return prisma.user.update({
     where: { employeeId },
     data: { role: newRole },

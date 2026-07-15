@@ -57,6 +57,7 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
     lastName: user.employee.lastName,
     avatarUrl: user.employee.avatarUrl,
     isTwoFactorEnabled: user.isTwoFactorEnabled,
+    departmentId: user.employee.departmentId,
     departmentName: user.employee.department?.name ?? null,
     theme: (THEME_VALUES as readonly string[]).includes(user.theme) ? (user.theme as Theme) : 'light',
   }

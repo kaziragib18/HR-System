@@ -66,6 +66,22 @@ describe('computeAttendanceStatus', () => {
     expect(result.lateMinutes).toBe(15) // 30 min late - 15 min grace
   })
 
+  it('BD shift (13:30 start): stays PRESENT at 13:44, still PRESENT exactly at the 13:45 grace boundary', () => {
+    const at1344 = computeAttendanceStatus(timeOn('2026-07-06', '13:44'), null, false, false, false, BD_SHIFT)
+    expect(at1344.status).toBe(AttendanceStatus.PRESENT)
+    expect(at1344.lateMinutes).toBe(0)
+
+    const at1345 = computeAttendanceStatus(timeOn('2026-07-06', '13:45'), null, false, false, false, BD_SHIFT)
+    expect(at1345.status).toBe(AttendanceStatus.PRESENT)
+    expect(at1345.lateMinutes).toBe(0)
+  })
+
+  it('BD shift (13:30 start): flags LATE the minute the 13:45 grace boundary is passed', () => {
+    const result = computeAttendanceStatus(timeOn('2026-07-06', '13:46'), null, false, false, false, BD_SHIFT)
+    expect(result.status).toBe(AttendanceStatus.LATE)
+    expect(result.lateMinutes).toBe(1)
+  })
+
   it('flags EARLY_DEPARTURE for leaving well before shift end', () => {
     const result = computeAttendanceStatus(
       timeOn('2026-07-06', '09:00'),

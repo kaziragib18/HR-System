@@ -1,9 +1,10 @@
 'use client'
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ThemeProvider } from '@/components/theme/theme-provider'
-import { useEffect, useState } from 'react'
+import { queryClient } from '@/lib/queryClient'
+import { useEffect } from 'react'
 
 const NATIVE_PICKER_TYPES = new Set(['date', 'time', 'datetime-local', 'month', 'week'])
 
@@ -36,18 +37,6 @@ function useOpenPickerOnClick() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 60 * 1000,
-            retry: 1,
-          },
-        },
-      })
-  )
-
   useOpenPickerOnClick()
 
   return (
