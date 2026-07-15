@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../config/prisma'
-import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, type ShiftConfig } from '@hr-system/utils'
+import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
 import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
@@ -43,7 +43,13 @@ async function isOnApprovedLeave(employeeId: string, date: Date): Promise<boolea
 
 /** Self check-in for authenticated employee. */
 export async function selfCheckIn(employeeId: string, officeId: string, remarks?: string) {
-  const now = new Date()
+  // The office's current wall-clock time, not the server's real UTC instant —
+  // shift.startTime/endTime and every check-in/check-out in this app are
+  // office-local digits stored in a Date's UTC slots (see dateToMinutes in
+  // packages/utils/src/attendance.ts). Capturing a true UTC instant here would
+  // drift by the office's real UTC offset (e.g. BST is UTC+1 in summer).
+  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true } })
+  const now = toOfficeTime(new Date(), office?.code ?? 'UK')
   const today = toDateOnly(now)
 
   const existing = await prisma.attendance.findUnique({
@@ -54,8 +60,7 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
     throw new AttendanceError('Already checked in today')
   }
 
-  const [office, holiday, onLeave] = await Promise.all([
-    prisma.office.findUnique({ where: { id: officeId }, select: { code: true } }),
+  const [holiday, onLeave] = await Promise.all([
     isHoliday(officeId, today),
     isOnApprovedLeave(employeeId, today),
   ])
@@ -90,7 +95,7 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
       employeeId,
       NotificationType.ATTENDANCE_FLAGGED,
       'Late arrival recorded',
-      `Your check-in at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} is ${computed.lateMinutes} min late.`
+      `Your check-in at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} is ${computed.lateMinutes} min late.`
     )
   }
 
@@ -99,7 +104,8 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
 
 /** Self check-out for authenticated employee. */
 export async function selfCheckOut(employeeId: string, officeId: string, remarks?: string) {
-  const now = new Date()
+  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true } })
+  const now = toOfficeTime(new Date(), office?.code ?? 'UK')
   const today = toDateOnly(now)
 
   const existing = await prisma.attendance.findUnique({
@@ -109,8 +115,7 @@ export async function selfCheckOut(employeeId: string, officeId: string, remarks
   if (!existing) throw new AttendanceError('No check-in found for today')
   if (existing.checkOut) throw new AttendanceError('Already checked out today')
 
-  const [office, holiday, onLeave] = await Promise.all([
-    prisma.office.findUnique({ where: { id: officeId }, select: { code: true } }),
+  const [holiday, onLeave] = await Promise.all([
     isHoliday(officeId, today),
     isOnApprovedLeave(employeeId, today),
   ])

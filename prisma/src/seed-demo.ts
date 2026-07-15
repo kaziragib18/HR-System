@@ -79,20 +79,28 @@ function empEmail(e: DemoEmployee) {
 }
 
 function atTime(day: Date, h: number, m: number) {
+  // Check-in/check-out are office-local wall-clock digits stored in a Date's
+  // UTC slots throughout this app (see dateToMinutes in
+  // packages/utils/src/attendance.ts) — setUTCHours, not setHours, or the
+  // seeded times drift by the seeding machine's own local timezone offset.
   const d = new Date(day)
-  d.setHours(h, m, 0, 0)
+  d.setUTCHours(h, m, 0, 0)
   return d
 }
 
 function dateOnly(day: Date) {
+  // UTC, not local — Postgres receives this Date as a UTC ISO string for the
+  // @db.Date `date` column, so local midnight on a positive-UTC-offset
+  // machine (BST, BD) serializes as the *previous* day's late evening UTC,
+  // silently storing every seeded attendance row one calendar day early.
   const d = new Date(day)
-  d.setHours(0, 0, 0, 0)
+  d.setUTCHours(0, 0, 0, 0)
   return d
 }
 
 function addDays(d: Date, n: number) {
   const x = new Date(d)
-  x.setDate(x.getDate() + n)
+  x.setUTCDate(x.getUTCDate() + n)
   return x
 }
 
@@ -111,8 +119,20 @@ async function cleanup() {
   await prisma.notification.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.onboardingTask.deleteMany({ where: { employeeId: { in: ids } } })
   await prisma.bankInfo.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.document.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.workExperience.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.education.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.employeeSkill.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.certification.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.identification.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.salaryStructure.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.announcement.deleteMany({ where: { authorId: { in: ids } } })
   await prisma.complianceDoc.deleteMany({ where: { uploadedById: { in: ids } } })
+  await prisma.department.updateMany({ where: { managerId: { in: ids } }, data: { managerId: null } })
+  const demoUsers = await prisma.user.findMany({ where: { employeeId: { in: ids } }, select: { id: true } })
+  await prisma.auditLog.deleteMany({ where: { userId: { in: demoUsers.map((u) => u.id) } } })
   await prisma.user.deleteMany({ where: { employeeId: { in: ids } } })
+  await prisma.employee.updateMany({ where: { id: { in: ids } }, data: { reportingToId: null } })
   await prisma.employee.deleteMany({ where: { id: { in: ids } } })
   console.log(`✓ Cleaned up ${ids.length} prior demo employees`)
 }
@@ -330,7 +350,7 @@ async function main() {
     for (let offset = 30; offset >= 0; offset--) {
       const day    = dateOnly(addDays(today, -offset))
       if (day < dateOnly(joining)) continue
-      const dow        = day.getDay()
+      const dow        = day.getUTCDay()
       const isWeekend  = dow === 0 || dow === 6
       const isToday    = offset === 0
 
