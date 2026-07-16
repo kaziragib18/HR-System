@@ -29,7 +29,10 @@ attendanceRouter.patch('/me/adjustment-request/:id', validate(requestAdjustmentS
 attendanceRouter.get('/late-excuses', officeScope, requireRole(UserRole.DEPT_MANAGER), ctrl.listPendingExcuses)
 attendanceRouter.patch('/:id/review-excuse', officeScope, requireExactRole(UserRole.DEPT_MANAGER, UserRole.DEPT_HEAD, UserRole.SUPER_ADMIN), validate(reviewExcuseSchema), ctrl.reviewExcuse)
 attendanceRouter.get('/adjustment-requests', officeScope, requireRole(UserRole.DEPT_MANAGER), ctrl.listPendingAdjustments)
-attendanceRouter.patch('/:id/review-adjustment', officeScope, requireExactRole(UserRole.DEPT_MANAGER, UserRole.DEPT_HEAD, UserRole.SUPER_ADMIN), validate(reviewAdjustmentSchema), ctrl.reviewAdjustment)
+// HR_MANAGER is admitted here (unlike review-excuse above) purely for the
+// narrow DEPT_HEAD-requester carve-out enforced inside reviewAdjustment
+// itself — for every other requester the service still rejects them.
+attendanceRouter.patch('/:id/review-adjustment', officeScope, requireExactRole(UserRole.DEPT_MANAGER, UserRole.DEPT_HEAD, UserRole.HR_MANAGER, UserRole.SUPER_ADMIN), validate(reviewAdjustmentSchema), ctrl.reviewAdjustment)
 attendanceRouter.get('/', officeScope, departmentScope, requireRole(UserRole.DEPT_MANAGER), validate(listAttendanceQuery, 'query'), ctrl.list)
 // DEPT_HEAD/DEPT_MANAGER can now correct attendance too, but only for their
 // own department — departmentScope forces/validates that server-side (see

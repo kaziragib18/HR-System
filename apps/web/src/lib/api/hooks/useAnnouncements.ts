@@ -20,27 +20,16 @@ export interface CreateAnnouncementPayload {
   category: AnnouncementCategory
   officeId?: string
   expiresAt?: string
-  attachment?: File
-}
-
-function toFormData(payload: CreateAnnouncementPayload): FormData {
-  const form = new FormData()
-  form.append('title', payload.title)
-  form.append('body', payload.body)
-  form.append('category', payload.category)
-  if (payload.officeId) form.append('officeId', payload.officeId)
-  if (payload.expiresAt) form.append('expiresAt', payload.expiresAt)
-  if (payload.attachment) form.append('attachment', payload.attachment)
-  return form
 }
 
 export function useCreateAnnouncement() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (payload: CreateAnnouncementPayload) => {
-      const { data } = await apiClient.post('/announcements', toFormData(payload), {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      // Plain JSON — announcements no longer support attachments, so there's no
+      // file to send. The backend's multer middleware simply no-ops on a
+      // non-multipart request and express.json() parses the body.
+      const { data } = await apiClient.post('/announcements', payload)
       return data.data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['announcements'] }),
@@ -53,7 +42,14 @@ export function useUpdateAnnouncement() {
     mutationFn: async ({
       id,
       ...payload
-    }: { id: string; title?: string; body?: string; category?: AnnouncementCategory; expiresAt?: string | null }) => {
+    }: {
+      id: string
+      title?: string
+      body?: string
+      category?: AnnouncementCategory
+      expiresAt?: string | null
+      officeId?: string | null
+    }) => {
       const { data } = await apiClient.patch(`/announcements/${id}`, payload)
       return data.data
     },

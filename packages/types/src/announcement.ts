@@ -13,4 +13,6 @@ export interface AnnouncementFeedItem {
   authorId?: string | null
   publishedAt: string
   expiresAt?: string | null
+  /** For person-centric AUTO items (new joinee, birthday, anniversary): the employee's avatar, shown in place of the category icon when set. */
+  avatarUrl?: string | null
 }

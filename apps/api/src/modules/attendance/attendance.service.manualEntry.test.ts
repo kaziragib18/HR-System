@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const EMPLOYEES: Record<string, { id: string; officeId: string; departmentId: string }> = {
+const EMPLOYEES: Record<string, { id: string; officeId: string; departmentId: string; user?: { role: string } }> = {
   'emp-bd': { id: 'emp-bd', officeId: 'office-bd', departmentId: 'dept-own' },
   'emp-other-dept': { id: 'emp-other-dept', officeId: 'office-bd', departmentId: 'dept-other' },
+  'emp-head': { id: 'emp-head', officeId: 'office-bd', departmentId: 'dept-own', user: { role: 'DEPT_HEAD' } },
 }
 
 vi.mock('../../config/prisma', () => ({
@@ -125,6 +126,31 @@ describe('manualEntry', () => {
       'dept-own',
       'DEPT_HEAD',
       'emp-bd'
+    )
+    expect(attendanceUpsert).toHaveBeenCalled()
+  })
+
+  it("rejects a DEPT_MANAGER directly editing their department head's attendance", async () => {
+    await expect(
+      manualEntry(
+        { employeeId: 'emp-head', date: '2026-07-10', checkIn: null, checkOut: null },
+        'actor-1',
+        'office-bd',
+        'dept-own',
+        'DEPT_MANAGER',
+        'emp-bd'
+      )
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  it("allows HR_MANAGER/SUPER_ADMIN to edit a department head's attendance", async () => {
+    await manualEntry(
+      { employeeId: 'emp-head', date: '2026-07-10', checkIn: null, checkOut: null },
+      'actor-1',
+      'office-bd',
+      undefined,
+      'HR_MANAGER',
+      'emp-hr-manager'
     )
     expect(attendanceUpsert).toHaveBeenCalled()
   })

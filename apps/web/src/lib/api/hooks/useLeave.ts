@@ -134,9 +134,7 @@ export function useUploadLeaveAttachment() {
     mutationFn: async (file: File): Promise<string> => {
       const form = new FormData()
       form.append('file', file)
-      const { data } = await apiClient.post('/leave/attachments', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const { data } = await apiClient.post('/leave/attachments', form)
       return data.data.path as string
     },
   })

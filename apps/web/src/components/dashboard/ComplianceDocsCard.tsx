@@ -40,7 +40,7 @@ export function ComplianceDocsCard() {
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Compliance &amp; Policy Documents
         </p>
-        <div className="space-y-1">
+        <div className="max-h-[190px] space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
           {[
             { icon: FileText,    title: 'Leave & attendance policy',      desc: 'Encashment, carry-forward, WFH' },
             { icon: ShieldCheck, title: 'Code of conduct & IT security',  desc: 'Data handling, device use' },
@@ -68,7 +68,7 @@ export function ComplianceDocsCard() {
       {isLoading ? (
         <Spinner />
       ) : (
-        <div className="space-y-1">
+        <div className="max-h-[190px] space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
           {docs.map((doc) => (
             <div
               key={doc.id}

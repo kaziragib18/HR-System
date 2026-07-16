@@ -19,6 +19,8 @@ export const updateAnnouncementSchema = z.object({
   body: z.string().min(1).optional(),
   category: manualCategory.optional(),
   expiresAt: z.string().nullable().optional(),
+  // Re-scoping is SUPER_ADMIN-only, enforced in the service. null = all offices.
+  officeId: z.string().nullable().optional(),
 })
 
 export type CreateAnnouncementInput = z.infer<typeof createAnnouncementSchema>

@@ -76,6 +76,11 @@ export async function updateAnnouncement(
       ...(data.expiresAt !== undefined
         ? { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }
         : {}),
+      // Only a SUPER_ADMIN may re-scope which office an announcement targets;
+      // a non-SUPER_ADMIN's officeId in the body is ignored (mirrors create).
+      ...(actor.role === UserRole.SUPER_ADMIN && data.officeId !== undefined
+        ? { officeId: data.officeId }
+        : {}),
     },
   })
 }
@@ -91,10 +96,20 @@ export async function deleteAnnouncement(id: string, actor: AccessTokenPayload):
 export async function getFeed(officeScope: string | undefined): Promise<AnnouncementFeedItem[]> {
   const now = new Date()
 
+  // A SUPER_ADMIN (officeScope === undefined) sees every announcement, matching
+  // the "undefined means all offices" convention used everywhere else. Only when
+  // scoped to a specific office do we filter to that office + the "all offices"
+  // (officeId: null) posts. Getting this wrong previously meant a SUPER_ADMIN
+  // only ever saw officeId: null posts — anything they scoped to a specific
+  // office was created successfully but never showed up in the feed.
+  const officeWhere = officeScope
+    ? { OR: [{ officeId: null }, { officeId: officeScope }] }
+    : {}
+
   const manualRows = await prisma.announcement.findMany({
     where: {
       AND: [
-        { OR: [{ officeId: null }, ...(officeScope ? [{ officeId: officeScope }] : [])] },
+        officeWhere,
         { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
       ],
     },
@@ -125,11 +140,15 @@ export async function getFeed(officeScope: string | undefined): Promise<Announce
         joiningDate: { gte: daysAgo(NEW_JOINEE_WINDOW_DAYS) },
         employmentStatus: { not: 'TERMINATED' },
       },
-      select: { id: true, firstName: true, lastName: true, joiningDate: true, officeId: true },
+      select: {
+        id: true, firstName: true, lastName: true, joiningDate: true, officeId: true, avatarUrl: true,
+        department: { select: { name: true } },
+        jobTitle: { select: { name: true } },
+      },
     }),
     prisma.employee.findMany({
       where: { ...employeeOfficeFilter, employmentStatus: { not: 'TERMINATED' } },
-      select: { id: true, firstName: true, lastName: true, dateOfBirth: true, joiningDate: true, officeId: true },
+      select: { id: true, firstName: true, lastName: true, dateOfBirth: true, joiningDate: true, officeId: true, avatarUrl: true },
     }),
     prisma.publicHoliday.findMany({
       where: { ...employeeOfficeFilter, date: { gte: now, lte: daysAhead(UPCOMING_HOLIDAY_WINDOW_DAYS) } },
@@ -146,13 +165,24 @@ export async function getFeed(officeScope: string | undefined): Promise<Announce
   const today = now.toISOString().slice(0, 10)
 
   for (const e of newJoinees) {
+    // "<First> has joined the <Dept> team as a <Role>. Please join us in giving
+    //  them a warm welcome!" — each of dept/role is only mentioned if known.
+    const role = e.jobTitle?.name
+    const dept = e.department?.name
+    let intro: string
+    if (dept && role) intro = `${e.firstName} has joined the ${dept} team as ${role}.`
+    else if (dept) intro = `${e.firstName} has joined the ${dept} team.`
+    else if (role) intro = `${e.firstName} has joined as ${role}.`
+    else intro = `${e.firstName} ${e.lastName} recently joined the team.`
+
     auto.push({
       id: `auto-joinee-${e.id}`,
       source: 'AUTO',
       category: AnnouncementCategory.NEW_JOINEE,
       title: `Welcome ${e.firstName} ${e.lastName}!`,
-      body: `${e.firstName} ${e.lastName} recently joined the team.`,
+      body: `${intro} Please join us in giving them a warm welcome! 🎉`,
       officeId: e.officeId,
+      avatarUrl: e.avatarUrl,
       publishedAt: e.joiningDate.toISOString(),
     })
   }
@@ -166,6 +196,7 @@ export async function getFeed(officeScope: string | undefined): Promise<Announce
         title: `It's ${e.firstName} ${e.lastName}'s birthday!`,
         body: `Wish ${e.firstName} a happy birthday today.`,
         officeId: e.officeId,
+        avatarUrl: e.avatarUrl,
         publishedAt: now.toISOString(),
       })
     }
@@ -179,6 +210,7 @@ export async function getFeed(officeScope: string | undefined): Promise<Announce
         title: `${e.firstName} ${e.lastName}'s ${years}-year work anniversary`,
         body: `${e.firstName} ${e.lastName} has been with the company for ${years} year${years > 1 ? 's' : ''}.`,
         officeId: e.officeId,
+        avatarUrl: e.avatarUrl,
         publishedAt: now.toISOString(),
       })
     }

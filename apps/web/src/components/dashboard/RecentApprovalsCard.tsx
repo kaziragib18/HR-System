@@ -55,7 +55,6 @@ export function RecentApprovalsCard() {
     })),
   ]
     .sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime())
-    .slice(0, 5)
 
   return (
     <Card>
@@ -72,7 +71,8 @@ export function RecentApprovalsCard() {
       ) : items.length === 0 ? (
         <EmptyState message="No pending approval requests." />
       ) : (
-        <div>
+        // ~3 rows visible; scrolls (themed thin scrollbar) when there are more.
+        <div className="max-h-[168px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
           {items.map((item) => {
             const Icon = item.icon
             return (

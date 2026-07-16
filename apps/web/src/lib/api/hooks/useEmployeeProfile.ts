@@ -201,8 +201,7 @@ export function useCreateCertification(employeeId: string) {
     mutationFn: async ({ file, ...payload }: CreateCertificationRequest & { file?: File }) => {
       const { data } = await apiClient.post(
         `/employees/${employeeId}/certifications`,
-        certificationFormData(payload, file),
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        certificationFormData(payload, file)
       )
       return data.data as Certification
     },
@@ -216,8 +215,7 @@ export function useUpdateCertification(employeeId: string) {
     mutationFn: async ({ id, file, ...payload }: { id: string; file?: File } & UpdateCertificationRequest) => {
       const { data } = await apiClient.patch(
         `/employees/${employeeId}/certifications/${id}`,
-        certificationFormData(payload, file),
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        certificationFormData(payload, file)
       )
       return data.data as Certification
     },
@@ -263,8 +261,7 @@ export function useCreateIdentification(employeeId: string) {
     mutationFn: async ({ file, ...payload }: CreateIdentificationRequest & { file?: File }) => {
       const { data } = await apiClient.post(
         `/employees/${employeeId}/identifications`,
-        identificationFormData(payload, file),
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        identificationFormData(payload, file)
       )
       return data.data as Identification
     },
@@ -278,8 +275,7 @@ export function useUpdateIdentification(employeeId: string) {
     mutationFn: async ({ id, file, ...payload }: { id: string; file?: File } & UpdateIdentificationRequest) => {
       const { data } = await apiClient.patch(
         `/employees/${employeeId}/identifications/${id}`,
-        identificationFormData(payload, file),
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        identificationFormData(payload, file)
       )
       return data.data as Identification
     },
@@ -316,9 +312,7 @@ export function useUploadAvatar(employeeId: string) {
     mutationFn: async (file: File) => {
       const fd = new FormData()
       fd.append('avatar', file)
-      const { data } = await apiClient.post(`/employees/${employeeId}/avatar`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const { data } = await apiClient.post(`/employees/${employeeId}/avatar`, fd)
       return data.data as { avatarUrl: string }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employee', employeeId] }),

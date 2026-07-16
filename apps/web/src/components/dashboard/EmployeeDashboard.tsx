@@ -19,7 +19,6 @@ import {
   Plus,
   Building2,
   User,
-  Users,
 } from 'lucide-react'
 
 function shiftForOfficeCode(code?: string): ShiftConfig {
@@ -73,7 +72,7 @@ export function EmployeeDashboard() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Card className="flex items-center gap-3">
           <Avatar
             firstName={user?.firstName ?? '?'}
             lastName={user?.lastName ?? '?'}
@@ -95,21 +94,15 @@ export function EmployeeDashboard() {
                   {isTeamLead && data.departmentHeadcount > 0 && ` · ${data.departmentHeadcount} people`}
                 </span>
               )}
-              {data.me?.managerName && (
-                <span className="flex items-center gap-1">
+              {data.managers.map((mgr) => (
+                <span key={mgr.id} className="flex items-center gap-1">
                   <User className="h-3 w-3" />
-                  Manager: {data.me.managerName}
+                  {mgr.relation}: {mgr.firstName} {mgr.lastName}
                 </span>
-              )}
-              {isTeamLead && data.directReportsCount > 0 && (
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {data.directReportsCount} direct report{data.directReportsCount > 1 ? 's' : ''}
-                </span>
-              )}
+              ))}
             </div>
           </div>
-        </div>
+        </Card>
         <DualClock />
       </div>
 

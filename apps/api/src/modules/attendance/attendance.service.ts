@@ -4,7 +4,7 @@ import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftCo
 import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
-import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
+import { resolveTeamApprover, resolveApproverForRole, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
 export class AttendanceError extends Error {
@@ -285,7 +285,7 @@ export async function manualEntry(
 ) {
   const employee = await prisma.employee.findUnique({
     where: { id: input.employeeId },
-    select: { id: true, officeId: true, departmentId: true },
+    select: { id: true, officeId: true, departmentId: true, user: { select: { role: true } } },
   })
   if (!employee) throw new AttendanceError('Employee not found', 404)
   if (officeScope && employee.officeId !== officeScope) throw new AttendanceError('Employee not found', 404)
@@ -297,6 +297,11 @@ export async function manualEntry(
   // request flow so it routes to their DEPT_HEAD for approval.
   if (actorRole === UserRole.DEPT_MANAGER && actorEmployeeId === input.employeeId) {
     throw new AttendanceError('Submit an adjustment request for your own attendance — it needs your department head\'s approval', 403)
+  }
+  // A DEPT_MANAGER outranks no one above them in the department — they can't
+  // directly edit their own DEPT_HEAD's attendance either, same reasoning.
+  if (actorRole === UserRole.DEPT_MANAGER && employee.user?.role === UserRole.DEPT_HEAD) {
+    throw new AttendanceError('You cannot edit your department head\'s attendance directly', 403)
   }
 
   const date = toDateOnly(input.date)
@@ -606,7 +611,15 @@ export async function requestAdjustment(
   const requestedCheckIn = input.requestedCheckIn ? new Date(input.requestedCheckIn) : null
   const requestedCheckOut = input.requestedCheckOut ? new Date(input.requestedCheckOut) : null
 
-  const approverId = await resolveTeamApprover(prisma, employeeId, requesterRole, officeId)
+  // A DEPT_HEAD's own attendance correction is the one exception to the usual
+  // "escalates to the HR department head" rule (resolveTeamApprover) — it can
+  // only be approved by HR_MANAGER/SUPER_ADMIN, since a HR_MANAGER approving
+  // an ordinary team request would break their read-only status everywhere
+  // else. Late-excuse and leave routing for DEPT_HEAD are unaffected.
+  const approverId =
+    requesterRole === UserRole.DEPT_HEAD
+      ? await resolveApproverForRole(prisma, UserRole.HR_MANAGER, employeeId, officeId)
+      : await resolveTeamApprover(prisma, employeeId, requesterRole, officeId)
 
   const record = await prisma.attendance.upsert({
     where: { employeeId_date: { employeeId, date } },
@@ -713,13 +726,20 @@ export async function reviewAdjustment(
 ) {
   const record = await prisma.attendance.findUnique({
     where: { id: attendanceId },
-    include: { employee: { select: { officeId: true, departmentId: true } } },
+    include: { employee: { select: { officeId: true, departmentId: true, user: { select: { role: true } } } } },
   })
   if (!record) throw new AttendanceError('Attendance record not found', 404)
   if (officeScope && record.employee.officeId !== officeScope) throw new AttendanceError('Attendance record not found', 404)
   if (record.adjustmentStatus !== 'PENDING') throw new AttendanceError('This request is no longer pending')
 
-  const authorized = await canActOnTeamRequest(prisma, reviewerId, reviewerRole, record.adjustmentApproverId, record.employee.departmentId)
+  // Mirrors the requestAdjustment carve-out: a DEPT_HEAD's own record can only
+  // be approved by HR_MANAGER/SUPER_ADMIN — not their own DEPT_MANAGER(s), who
+  // sit below them, and not via the usual resolved-approver/dept-head check.
+  // HR_MANAGER stays fully read-only for every other requester.
+  const targetIsDeptHead = record.employee.user?.role === UserRole.DEPT_HEAD
+  const authorized = targetIsDeptHead
+    ? reviewerRole === UserRole.SUPER_ADMIN || reviewerRole === UserRole.HR_MANAGER
+    : await canActOnTeamRequest(prisma, reviewerId, reviewerRole, record.adjustmentApproverId, record.employee.departmentId)
   if (!authorized) {
     throw new AttendanceError('You are not authorized to review this request', 403)
   }

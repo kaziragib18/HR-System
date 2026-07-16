@@ -15,14 +15,28 @@ vi.mock('../../config/prisma', () => ({
   },
 }))
 
-import { getFeed } from './announcements.service'
+import { getFeed, updateAnnouncement } from './announcements.service'
 import { prisma } from '../../config/prisma'
-import { AnnouncementCategory } from '@hr-system/types'
+import { AnnouncementCategory, UserRole } from '@hr-system/types'
+import type { AccessTokenPayload } from '../../utils/jwt'
 
 const announcementFindMany = prisma.announcement.findMany as ReturnType<typeof vi.fn>
+const announcementFindUnique = prisma.announcement.findUnique as ReturnType<typeof vi.fn>
+const announcementUpdate = prisma.announcement.update as ReturnType<typeof vi.fn>
 const employeeFindMany = prisma.employee.findMany as ReturnType<typeof vi.fn>
 const holidayFindMany = prisma.publicHoliday.findMany as ReturnType<typeof vi.fn>
 const complianceDocFindMany = prisma.complianceDoc.findMany as ReturnType<typeof vi.fn>
+
+function actor(role: UserRole, employeeId: string): AccessTokenPayload {
+  return {
+    sub: `user-${employeeId}`,
+    employeeId,
+    email: `${employeeId}@test.com`,
+    role,
+    officeId: 'office-bd',
+    officeCode: 'BD',
+  }
+}
 
 const TODAY = '2026-07-14T00:00:00.000Z'
 
@@ -98,10 +112,19 @@ describe('getFeed', () => {
     expect(anniversaries[0].title).toContain('Ayesha')
   })
 
-  it('surfaces a new joinee row for whatever the office-scoped query returns', async () => {
+  it('surfaces a new joinee row with department, role, avatar, and a warm-welcome body', async () => {
     employeeFindMany
       .mockResolvedValueOnce([
-        { id: 'emp-new', firstName: 'Nadia', lastName: 'Islam', joiningDate: new Date('2026-07-10'), officeId: 'office-bd' },
+        {
+          id: 'emp-new',
+          firstName: 'Nadia',
+          lastName: 'Islam',
+          joiningDate: new Date('2026-07-10'),
+          officeId: 'office-bd',
+          avatarUrl: 'https://cdn/avatars/nadia.png',
+          department: { name: 'Accounts' },
+          jobTitle: { name: 'Accountant' },
+        },
       ])
       .mockResolvedValueOnce([])
 
@@ -110,6 +133,25 @@ describe('getFeed', () => {
 
     expect(joinees).toHaveLength(1)
     expect(joinees[0].title).toContain('Nadia')
+    expect(joinees[0].avatarUrl).toBe('https://cdn/avatars/nadia.png')
+    expect(joinees[0].body).toContain('Accounts')
+    expect(joinees[0].body).toContain('Accountant')
+    expect(joinees[0].body).toContain('warm welcome')
+  })
+
+  it('falls back to a generic welcome when a new joinee has no department/role/avatar', async () => {
+    employeeFindMany
+      .mockResolvedValueOnce([
+        { id: 'emp-new', firstName: 'Sam', lastName: 'Lee', joiningDate: new Date('2026-07-10'), officeId: 'office-bd', avatarUrl: null, department: null, jobTitle: null },
+      ])
+      .mockResolvedValueOnce([])
+
+    const feed = await getFeed('office-bd')
+    const joinee = feed.find((f) => f.category === AnnouncementCategory.NEW_JOINEE)!
+
+    expect(joinee.avatarUrl).toBeNull()
+    expect(joinee.body).toContain('recently joined the team')
+    expect(joinee.body).toContain('warm welcome')
   })
 
   it('includes an upcoming holiday and a recently uploaded policy document', async () => {
@@ -130,6 +172,22 @@ describe('getFeed', () => {
 
     expect(feed.some((f) => f.category === AnnouncementCategory.UPCOMING_HOLIDAY && f.title.includes('Independence Day'))).toBe(true)
     expect(feed.some((f) => f.category === AnnouncementCategory.POLICY_DOCUMENT && f.title.includes('Updated Leave Policy'))).toBe(true)
+  })
+
+  it('shows a SUPER_ADMIN (undefined scope) every announcement regardless of officeId — no office filter applied', async () => {
+    await getFeed(undefined)
+    const where = announcementFindMany.mock.calls[0][0].where
+    // The AND's office clause must NOT constrain officeId for an unscoped
+    // (SUPER_ADMIN) read — otherwise office-scoped posts silently vanish from
+    // the admin's own feed even though they were created successfully.
+    const officeClause = where.AND[0]
+    expect(officeClause).toEqual({})
+  })
+
+  it('scopes an office-bound reader to their office + all-offices posts only', async () => {
+    await getFeed('office-bd')
+    const where = announcementFindMany.mock.calls[0][0].where
+    expect(where.AND[0]).toEqual({ OR: [{ officeId: null }, { officeId: 'office-bd' }] })
   })
 
   it('sorts the merged feed by publishedAt descending', async () => {
@@ -155,5 +213,48 @@ describe('getFeed', () => {
 
     expect(feed[0].id).toBe('auto-holiday-hol-1') // published "now" (2026-07-14), sorts above the older manual post
     expect(feed[1].id).toBe('ann-old')
+  })
+})
+
+describe('updateAnnouncement', () => {
+  beforeEach(() => {
+    announcementFindUnique.mockResolvedValue({ id: 'ann-1', authorId: 'emp-hr', officeId: 'office-bd' })
+    announcementUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'ann-1', ...data }))
+  })
+
+  it('updates title/body/category/expiresAt for the author', async () => {
+    await updateAnnouncement(
+      'ann-1',
+      { title: 'New title', body: 'New body', category: AnnouncementCategory.OFFICE_CLOSURE, expiresAt: '2026-08-01' },
+      actor(UserRole.HR_MANAGER, 'emp-hr')
+    )
+    const data = announcementUpdate.mock.calls[0][0].data
+    expect(data).toMatchObject({ title: 'New title', body: 'New body', category: AnnouncementCategory.OFFICE_CLOSURE })
+    expect(data.expiresAt).toBeInstanceOf(Date)
+  })
+
+  it('clears the expiry when expiresAt is null', async () => {
+    await updateAnnouncement('ann-1', { expiresAt: null }, actor(UserRole.HR_MANAGER, 'emp-hr'))
+    expect(announcementUpdate.mock.calls[0][0].data.expiresAt).toBeNull()
+  })
+
+  it('lets a SUPER_ADMIN re-scope the office (including to null = all offices)', async () => {
+    await updateAnnouncement('ann-1', { officeId: null }, actor(UserRole.SUPER_ADMIN, 'emp-admin'))
+    expect(announcementUpdate.mock.calls[0][0].data).toHaveProperty('officeId', null)
+
+    announcementUpdate.mockClear()
+    await updateAnnouncement('ann-1', { officeId: 'office-uk' }, actor(UserRole.SUPER_ADMIN, 'emp-admin'))
+    expect(announcementUpdate.mock.calls[0][0].data).toHaveProperty('officeId', 'office-uk')
+  })
+
+  it('ignores an officeId re-scope from a non-SUPER_ADMIN author', async () => {
+    await updateAnnouncement('ann-1', { officeId: 'office-uk' }, actor(UserRole.HR_MANAGER, 'emp-hr'))
+    expect(announcementUpdate.mock.calls[0][0].data).not.toHaveProperty('officeId')
+  })
+
+  it('rejects a non-author, non-SUPER_ADMIN editor', async () => {
+    await expect(
+      updateAnnouncement('ann-1', { title: 'x' }, actor(UserRole.HR_MANAGER, 'emp-someone-else'))
+    ).rejects.toMatchObject({ status: 403 })
   })
 })

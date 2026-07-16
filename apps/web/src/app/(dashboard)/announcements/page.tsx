@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { PageHeader, Card, Spinner, EmptyState } from '@/components/ui/primitives'
-import { AnnouncementRow } from '@/components/dashboard/AnnouncementsCard'
+import { CATEGORY_META } from '@/components/dashboard/AnnouncementsCard'
 import {
   useAnnouncementFeed,
   useCreateAnnouncement,
@@ -13,10 +14,60 @@ import { useOffices } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
 import { AnnouncementCategory, MANUAL_ANNOUNCEMENT_CATEGORIES, UserRole } from '@hr-system/types'
 import type { AnnouncementFeedItem } from '@hr-system/types'
-import { Plus, X, Pencil, Trash2, AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Plus, X, Pencil, Trash2, AlertCircle, Clock, Megaphone } from 'lucide-react'
 
 function fmtCategory(c: string) {
   return c.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase())
+}
+
+const MAX_TITLE_LENGTH = 200
+
+/** Friendly relative-ish date: "Today", "Yesterday", "3 days ago", else a short date. */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const startOfDay = (x: Date) => Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays > 1 && diffDays < 7) return `${diffDays} days ago`
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/**
+ * validate.middleware.ts sends Zod failures as a JSON-stringified
+ * `{ field: string[] }` map (422) — turn that into readable lines instead of
+ * showing the raw JSON blob. Falls back to the plain string for any other
+ * error shape, and to a "can't reach the server" message when there's no
+ * response at all (matches the pattern already used by LoginForm).
+ */
+function parseApiError(err: unknown): string {
+  const axiosErr = err as { response?: { data?: { error?: string } } }
+  if (!axiosErr?.response) {
+    return 'Cannot reach the server. Please check your connection and try again.'
+  }
+  const raw = axiosErr.response.data?.error
+  if (!raw) return 'Something went wrong. Please try again.'
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string[]>
+    if (parsed && typeof parsed === 'object') {
+      const lines = Object.entries(parsed).map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+      if (lines.length) return lines.join('\n')
+    }
+  } catch {
+    // Not JSON — a plain error string, use as-is.
+  }
+  return raw
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <p className="flex items-start gap-2 whitespace-pre-line rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      {message}
+    </p>
+  )
 }
 
 function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
@@ -28,15 +79,22 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
   const [category, setCategory] = useState<AnnouncementCategory>(AnnouncementCategory.GENERAL)
   const [officeId, setOfficeId] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
-  const [attachment, setAttachment] = useState<File | null>(null)
   const [error, setError] = useState('')
 
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
 
   async function handleSubmit() {
     setError('')
-    if (!title.trim() || !body.trim()) {
-      setError('Title and body are required')
+    if (!title.trim()) {
+      setError('Title is required')
+      return
+    }
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      setError(`Title must be ${MAX_TITLE_LENGTH} characters or fewer (currently ${title.trim().length})`)
+      return
+    }
+    if (!body.trim()) {
+      setError('Body is required')
       return
     }
     try {
@@ -46,12 +104,10 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
         category,
         officeId: isSuperAdmin && officeId ? officeId : undefined,
         expiresAt: expiresAt || undefined,
-        attachment: attachment ?? undefined,
       })
       onClose()
     } catch (err) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(message ?? 'Failed to post announcement')
+      setError(parseApiError(err))
     }
   }
 
@@ -65,14 +121,159 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="space-y-3 p-4">
-          {error && (
-            <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {error}
-            </p>
-          )}
+          {error && <ErrorBanner message={error} />}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Title</label>
+            <div className="flex items-baseline justify-between">
+              <label className="text-xs font-medium text-muted-foreground">Title</label>
+              <span
+                className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+              >
+                {title.length}/{MAX_TITLE_LENGTH}
+              </span>
+            </div>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What's the update?"
+              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Body</label>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              placeholder="Share the details…"
+              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {MANUAL_ANNOUNCEMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{fmtCategory(c)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Expires (optional)</label>
+              <input
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+          {isSuperAdmin && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Office</label>
+              <select
+                value={officeId}
+                onChange={(e) => setOfficeId(e.target.value)}
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">All Offices</option>
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>{o.code}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 border-t px-4 py-3">
+          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={create.isPending}
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {create.isPending ? 'Posting…' : 'Post'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditAnnouncementModal({
+  item,
+  onClose,
+}: {
+  item: AnnouncementFeedItem
+  onClose: () => void
+}) {
+  const user = useAuthStore((s) => s.user)
+  const { data: offices = [] } = useOffices()
+  const update = useUpdateAnnouncement()
+  const [title, setTitle] = useState(item.title)
+  const [body, setBody] = useState(item.body)
+  const [category, setCategory] = useState<AnnouncementCategory>(item.category)
+  const [officeId, setOfficeId] = useState(item.officeId ?? '')
+  const [expiresAt, setExpiresAt] = useState(item.expiresAt ? item.expiresAt.slice(0, 10) : '')
+  const [error, setError] = useState('')
+
+  const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
+
+  async function handleSave() {
+    setError('')
+    if (!title.trim()) {
+      setError('Title is required')
+      return
+    }
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      setError(`Title must be ${MAX_TITLE_LENGTH} characters or fewer (currently ${title.trim().length})`)
+      return
+    }
+    if (!body.trim()) {
+      setError('Body is required')
+      return
+    }
+    try {
+      await update.mutateAsync({
+        id: item.id,
+        title: title.trim(),
+        body: body.trim(),
+        category,
+        // null clears the expiry; a date string sets it.
+        expiresAt: expiresAt || null,
+        // Only send officeId for a SUPER_ADMIN (null = all offices). Ignored server-side otherwise.
+        ...(isSuperAdmin ? { officeId: officeId || null } : {}),
+      })
+      onClose()
+    } catch (err) {
+      setError(parseApiError(err))
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-medium">Edit Announcement</p>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 p-4">
+          {error && <ErrorBanner message={error} />}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <label className="text-xs font-medium text-muted-foreground">Title</label>
+              <span
+                className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+              >
+                {title.length}/{MAX_TITLE_LENGTH}
+              </span>
+            </div>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -126,26 +327,70 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Attachment (optional)</label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}
-              className="mt-1 w-full text-xs"
-            />
-          </div>
         </div>
         <div className="flex gap-2 border-t px-4 py-3">
           <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={create.isPending}
+            onClick={handleSave}
+            disabled={update.isPending}
             className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {create.isPending ? 'Posting…' : 'Post'}
+            {update.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeleteConfirmModal({
+  item,
+  onClose,
+}: {
+  item: AnnouncementFeedItem
+  onClose: () => void
+}) {
+  const del = useDeleteAnnouncement()
+  const [error, setError] = useState('')
+
+  async function handleDelete() {
+    setError('')
+    try {
+      await del.mutateAsync(item.id)
+      onClose()
+    } catch (err) {
+      setError(parseApiError(err))
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-medium">Delete announcement?</p>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 p-4">
+          {error && <ErrorBanner message={error} />}
+          <p className="text-sm text-muted-foreground">
+            This will permanently remove <span className="font-medium text-foreground">“{item.title}”</span>. This
+            can&apos;t be undone.
+          </p>
+        </div>
+        <div className="flex gap-2 border-t px-4 py-3">
+          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={del.isPending}
+            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {del.isPending ? 'Deleting…' : 'Delete'}
           </button>
         </div>
       </div>
@@ -157,35 +402,141 @@ function canManage(item: AnnouncementFeedItem, userEmployeeId?: string, isSuperA
   return item.source === 'MANUAL' && (isSuperAdmin || item.authorId === userEmployeeId)
 }
 
+function AnnouncementItem({
+  item,
+  manageable,
+  highlighted,
+  onEdit,
+  onDelete,
+}: {
+  item: AnnouncementFeedItem
+  manageable: boolean
+  highlighted: boolean
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const meta = CATEGORY_META[item.category] ?? CATEGORY_META[AnnouncementCategory.GENERAL]
+  const Icon = meta.icon
+
+  return (
+    <div
+      id={`ann-${item.id}`}
+      className={cn(
+        'flex scroll-mt-24 gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40',
+        highlighted && 'border-primary ring-2 ring-primary/40'
+      )}
+    >
+      {item.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+      ) : (
+        <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', meta.chip)}>
+          <Icon className="h-5 w-5" />
+        </span>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', meta.chip)}>{meta.label}</span>
+              {item.source === 'AUTO' && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  Automated
+                </span>
+              )}
+            </div>
+            <p className="mt-1.5 text-sm font-semibold leading-snug">{item.title}</p>
+          </div>
+
+          {manageable && (
+            <div className="flex shrink-0 gap-1">
+              <button
+                onClick={onEdit}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Edit"
+                aria-label="Edit announcement"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={onDelete}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                title="Delete"
+                aria-label="Delete announcement"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{item.body}</p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <span>{fmtWhen(item.publishedAt)}</span>
+          {item.source === 'MANUAL' && item.authorName && <span>· {item.authorName}</span>}
+          {item.expiresAt && (
+            <span className="inline-flex items-center gap-1">
+              · <Clock className="h-3 w-3" /> Expires {new Date(item.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AnnouncementsPage() {
   const user = useAuthStore((s) => s.user)
+  const searchParams = useSearchParams()
+  const highlightId = searchParams.get('highlight')
   const { data: items = [], isLoading } = useAnnouncementFeed()
-  const deleteAnnouncement = useDeleteAnnouncement()
-  const updateAnnouncement = useUpdateAnnouncement()
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<AnnouncementFeedItem | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editBody, setEditBody] = useState('')
+  const [deleting, setDeleting] = useState<AnnouncementFeedItem | null>(null)
+  const [filter, setFilter] = useState<AnnouncementCategory | 'ALL'>('ALL')
+  const [flashId, setFlashId] = useState<string | null>(null)
+  // Guards against re-scrolling to the same deep-linked item on every render.
+  const scrolledForRef = useRef<string | null>(null)
 
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
   const canPost = !!user && [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(user.role as UserRole)
 
-  function startEdit(item: AnnouncementFeedItem) {
-    setEditing(item)
-    setEditTitle(item.title)
-    setEditBody(item.body)
-  }
+  // Deep link from the dashboard card (?highlight=<id>): once the feed has
+  // loaded and contains the item, clear any category filter that would hide
+  // it, scroll it into view, and flash a highlight ring for a couple seconds.
+  useEffect(() => {
+    if (!highlightId || isLoading) return
+    if (scrolledForRef.current === highlightId) return
+    if (!items.some((it) => it.id === highlightId)) return
+    scrolledForRef.current = highlightId
+    setFilter('ALL')
+    setFlashId(highlightId)
+    const el = document.getElementById(`ann-${highlightId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightId, isLoading, items])
 
-  async function saveEdit() {
-    if (!editing) return
-    await updateAnnouncement.mutateAsync({ id: editing.id, title: editTitle, body: editBody })
-    setEditing(null)
-  }
+  // Auto-clear the highlight ring 5s after it's set. Kept in its own effect
+  // (keyed only on flashId) so re-runs of the scroll effect above — which
+  // depends on the volatile `items` reference — can't cancel this timer.
+  useEffect(() => {
+    if (!flashId) return
+    const t = setTimeout(() => setFlashId(null), 5000)
+    return () => clearTimeout(t)
+  }, [flashId])
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this announcement?')) return
-    await deleteAnnouncement.mutateAsync(id)
-  }
+  // Category chips: "All" + only the categories actually present in the feed.
+  const presentCategories = useMemo(() => {
+    const seen = new Set<AnnouncementCategory>()
+    for (const it of items) seen.add(it.category)
+    return Array.from(seen)
+  }, [items])
+
+  const visible = useMemo(
+    () => (filter === 'ALL' ? items : items.filter((it) => it.category === filter)),
+    [items, filter]
+  )
 
   return (
     <div>
@@ -205,87 +556,95 @@ export default function AnnouncementsPage() {
         }
       />
 
-      <Card>
-        {isLoading ? (
-          <Spinner />
-        ) : items.length === 0 ? (
-          <EmptyState message="No announcements yet." />
-        ) : (
-          <div>
-            {items.map((item) => (
-              <div key={item.id} className="group flex items-start gap-2">
-                <div className="flex-1">
-                  <AnnouncementRow item={item} />
-                </div>
-                {canManage(item, user?.employeeId, isSuperAdmin) && (
-                  <div className="flex shrink-0 gap-1 pt-2.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      onClick={() => startEdit(item)}
-                      className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      title="Edit"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {showCreate && <CreateAnnouncementModal onClose={() => setShowCreate(false)} />}
-
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <p className="text-sm font-medium">Edit Announcement</p>
-              <button onClick={() => setEditing(null)} className="rounded-md p-1 hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3 p-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Title</label>
-                <input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Body</label>
-                <textarea
-                  value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 border-t px-4 py-3">
-              <button onClick={() => setEditing(null)} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
-                Cancel
-              </button>
-              <button
-                onClick={saveEdit}
-                disabled={updateAnnouncement.isPending}
-                className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {updateAnnouncement.isPending ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
+      {!isLoading && items.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          <FilterChip label="All" count={items.length} active={filter === 'ALL'} onClick={() => setFilter('ALL')} />
+          {presentCategories.map((c) => (
+            <FilterChip
+              key={c}
+              label={CATEGORY_META[c]?.label ?? fmtCategory(c)}
+              count={items.filter((it) => it.category === c).length}
+              active={filter === c}
+              onClick={() => setFilter(c)}
+            />
+          ))}
         </div>
       )}
+
+      {isLoading ? (
+        <Card>
+          <Spinner />
+        </Card>
+      ) : items.length === 0 ? (
+        <Card>
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Megaphone className="h-6 w-6 text-muted-foreground" />
+            </span>
+            <p className="text-sm font-medium">No announcements yet</p>
+            <p className="max-w-xs text-xs text-muted-foreground">
+              {canPost
+                ? 'Post company news, office closures, or policy updates — they’ll show up here and on everyone’s dashboard.'
+                : 'Company news and updates will appear here.'}
+            </p>
+            {canPost && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="mt-1 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                New Announcement
+              </button>
+            )}
+          </div>
+        </Card>
+      ) : visible.length === 0 ? (
+        <EmptyState message="No announcements in this category." />
+      ) : (
+        <div className="space-y-3">
+          {visible.map((item) => (
+            <AnnouncementItem
+              key={item.id}
+              item={item}
+              manageable={canManage(item, user?.employeeId, isSuperAdmin)}
+              highlighted={item.id === flashId}
+              onEdit={() => setEditing(item)}
+              onDelete={() => setDeleting(item)}
+            />
+          ))}
+        </div>
+      )}
+
+      {showCreate && <CreateAnnouncementModal onClose={() => setShowCreate(false)} />}
+      {editing && <EditAnnouncementModal item={editing} onClose={() => setEditing(null)} />}
+      {deleting && <DeleteConfirmModal item={deleting} onClose={() => setDeleting(null)} />}
     </div>
+  )
+}
+
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-muted-foreground hover:bg-muted'
+      )}
+    >
+      {label}
+      <span className={cn('ml-1.5', active ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>{count}</span>
+    </button>
   )
 }

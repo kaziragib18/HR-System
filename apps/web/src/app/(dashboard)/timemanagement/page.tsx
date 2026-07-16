@@ -274,6 +274,22 @@ async function exportBulkAttendance(
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function TabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+        active
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
 function StatusPill({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status]
   if (!cfg) return <span className="text-xs text-muted-foreground">—</span>
@@ -684,8 +700,9 @@ export default function TimeManagementPage() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
   const [selectedEmp, setSelectedEmp] = useState<{
-    id: string; firstName: string; lastName: string; department?: string
+    id: string; firstName: string; lastName: string; department?: string; role?: string
   } | null>(null)
+  const [activeTab, setActiveTab] = useState<'team' | 'mine'>('team')
   const [search, setSearch] = useState('')
   const [deptId, setDeptId] = useState('')
   const [empPage, setEmpPage] = useState(1)
@@ -702,11 +719,20 @@ export default function TimeManagementPage() {
   // office-wide department picker for them (SUPER_ADMIN/HR_MANAGER keep it).
   const isDeptScoped = isManager && !isAdmin
   const effectiveDeptId = isDeptScoped ? (user?.departmentId ?? '') : deptId
+  // DEPT_HEAD/DEPT_MANAGER get a "My Time" tab, separate from their team's
+  // list — their own attendance shouldn't be buried inside (or found by
+  // searching) the department roster.
+  const showMine = isDeptScoped && activeTab === 'mine'
+  const effectiveSelectedEmp = showMine ? null : selectedEmp
   // A DEPT_MANAGER can directly edit their team's attendance, but not their
   // own — their own correction still has to go through the request-adjustment
   // flow so it routes to their DEPT_HEAD for approval (enforced server-side too).
-  const isSelfSelected = !!selectedEmp && selectedEmp.id === user?.employeeId
+  const isSelfSelected = !!effectiveSelectedEmp && effectiveSelectedEmp.id === user?.employeeId
   const blockSelfEdit = user?.role === UserRole.DEPT_MANAGER && isSelfSelected
+  // Nor can a DEPT_MANAGER edit their own DEPT_HEAD's attendance directly —
+  // same reasoning, enforced server-side too (attendance.service.ts).
+  const blockManagerEditingHead =
+    user?.role === UserRole.DEPT_MANAGER && effectiveSelectedEmp?.role === UserRole.DEPT_HEAD
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
 
   // Employee self data
@@ -718,11 +744,14 @@ export default function TimeManagementPage() {
       ? { search: search || undefined, departmentId: effectiveDeptId || undefined, page: empPage, limit: 15 }
       : {}
   )
-  const employeeList = empResult?.data ?? []
+  // Own row is covered by the "My Time" tab — no need to also list it here.
+  const employeeList = isDeptScoped
+    ? (empResult?.data ?? []).filter(emp => emp.id !== user?.employeeId)
+    : empResult?.data ?? []
 
   // Admin: selected employee's records
   const { data: adminRecords = [], isLoading: adminLoading } = useAllAttendance(
-    isManager && selectedEmp ? { employeeId: selectedEmp.id, month, year, limit: 31 } : undefined
+    isManager && effectiveSelectedEmp ? { employeeId: effectiveSelectedEmp.id, month, year, limit: 31 } : undefined
   )
 
   const { data: departments = [] } = useDepartments()
@@ -731,11 +760,11 @@ export default function TimeManagementPage() {
   const updateAdjustmentRequest = useUpdateAdjustmentRequest()
 
   // Which records/rows to display
-  const activeRecords: AttendanceRecord[] = isManager && selectedEmp ? adminRecords : myRecords
-  const isLoading = isManager && selectedEmp ? adminLoading : myLoading
+  const activeRecords: AttendanceRecord[] = isManager && effectiveSelectedEmp ? adminRecords : myRecords
+  const isLoading = isManager && effectiveSelectedEmp ? adminLoading : myLoading
   const rows = buildMonthRows(year, month, activeRecords)
-  const showDetail = !isManager || !!selectedEmp
-  const isOwnRecords = !selectedEmp || selectedEmp.id === user?.employeeId
+  const showDetail = !isManager || !!effectiveSelectedEmp || showMine
+  const isOwnRecords = !effectiveSelectedEmp || effectiveSelectedEmp.id === user?.employeeId
   const todayStr = now.toISOString().slice(0, 10)
 
   function prevMonth() {
@@ -778,11 +807,11 @@ export default function TimeManagementPage() {
     setShowExportMenu(false)
     setExporting(true)
     try {
-      const isOwnData = !isManager || !selectedEmp
+      const isOwnData = !isManager || !effectiveSelectedEmp
       await exportAttendance(type, {
-        employeeId: isOwnData ? user!.employeeId : selectedEmp!.id,
-        firstName: isOwnData ? (user?.firstName ?? '') : selectedEmp!.firstName,
-        lastName: isOwnData ? (user?.lastName ?? '') : selectedEmp!.lastName,
+        employeeId: isOwnData ? user!.employeeId : effectiveSelectedEmp!.id,
+        firstName: isOwnData ? (user?.firstName ?? '') : effectiveSelectedEmp!.firstName,
+        lastName: isOwnData ? (user?.lastName ?? '') : effectiveSelectedEmp!.lastName,
         month,
         year,
         currentRows: rows,
@@ -814,7 +843,7 @@ export default function TimeManagementPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          {isManager && selectedEmp && (
+          {isManager && effectiveSelectedEmp && !showMine && (
             <button
               onClick={() => setSelectedEmp(null)}
               className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -824,14 +853,18 @@ export default function TimeManagementPage() {
           )}
           <h1 className="text-xl font-semibold">
             Time Management
-            {selectedEmp && (
+            {effectiveSelectedEmp && !showMine && (
               <span className="ml-2 font-normal text-muted-foreground">
-                — {selectedEmp.firstName} {selectedEmp.lastName}
+                — {effectiveSelectedEmp.firstName} {effectiveSelectedEmp.lastName}
               </span>
             )}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {showDetail ? 'Monthly attendance records' : 'Select an employee to view their records'}
+            {showMine
+              ? 'Your monthly attendance records'
+              : showDetail
+                ? 'Monthly attendance records'
+                : 'Select an employee to view their records'}
           </p>
         </div>
 
@@ -916,8 +949,24 @@ export default function TimeManagementPage() {
         </div>
       </div>
 
+      {/* My Team / My Time tabs — DEPT_HEAD/DEPT_MANAGER only */}
+      {isDeptScoped && (
+        <div className="flex gap-1 border-b">
+          <TabBtn
+            label="My Team"
+            active={activeTab === 'team'}
+            onClick={() => setActiveTab('team')}
+          />
+          <TabBtn
+            label="My Time"
+            active={activeTab === 'mine'}
+            onClick={() => { setActiveTab('mine'); setSelectedEmp(null) }}
+          />
+        </div>
+      )}
+
       {/* Admin filters + employee list */}
-      {isManager && !selectedEmp && (
+      {isManager && !selectedEmp && !showMine && (
         <>
           <div className="flex flex-wrap gap-2">
             <div className="relative min-w-[220px] flex-1">
@@ -954,7 +1003,9 @@ export default function TimeManagementPage() {
               <div className="py-10 text-center text-sm text-muted-foreground">No employees found</div>
             ) : (
               <div className="divide-y">
-                {employeeList.map(emp => (
+                {employeeList.map(emp => {
+                  const isDeptHead = emp.user?.role === UserRole.DEPT_HEAD
+                  return (
                   <button
                     key={emp.id}
                     onClick={() =>
@@ -963,14 +1014,20 @@ export default function TimeManagementPage() {
                         firstName: emp.firstName,
                         lastName: emp.lastName,
                         department: emp.department?.name,
+                        role: emp.user?.role,
                       })
                     }
                     className="flex w-full items-center gap-3 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-muted/50"
                   >
                     <Avatar firstName={emp.firstName} lastName={emp.lastName} size={32} url={emp.avatarUrl} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
                         {emp.firstName} {emp.lastName}
+                        {isDeptHead && (
+                          <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                            Department Head
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {emp.employeeId}
@@ -979,7 +1036,8 @@ export default function TimeManagementPage() {
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
-                ))}
+                  )
+                })}
               </div>
             )}
           </Card>
@@ -1016,6 +1074,13 @@ export default function TimeManagementPage() {
         <>
           {!isLoading && <StatsRow rows={rows} />}
 
+          {blockManagerEditingHead && (
+            <p className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              View only — a department head&apos;s attendance can&apos;t be edited from here. Corrections need HR/admin.
+            </p>
+          )}
+
           <Card>
             {isLoading ? (
               <div className="py-12 text-center">
@@ -1024,13 +1089,13 @@ export default function TimeManagementPage() {
             ) : (
               <DailyTable
                 rows={rows}
-                canEdit={isManager && !!selectedEmp && !blockSelfEdit}
-                canRequest={(isOwnRecords && !(isManager && !!selectedEmp)) || blockSelfEdit}
+                canEdit={isManager && !!effectiveSelectedEmp && !blockSelfEdit && !blockManagerEditingHead}
+                canRequest={(isOwnRecords && !(isManager && !!effectiveSelectedEmp)) || blockSelfEdit}
                 todayStr={todayStr}
                 onEdit={row =>
                   setEditTarget({
                     dateStr: row.dateStr,
-                    employeeId: selectedEmp!.id,
+                    employeeId: effectiveSelectedEmp!.id,
                     record: row.record,
                   })
                 }

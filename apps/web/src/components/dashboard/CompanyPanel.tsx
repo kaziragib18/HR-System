@@ -94,9 +94,7 @@ function OfficeForm({ office }: { office: Office }) {
     try {
       const fd = new FormData()
       fd.append('logo', file)
-      const { data } = await apiClient.post(`/company/offices/${office.id}/logo`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const { data } = await apiClient.post(`/company/offices/${office.id}/logo`, fd)
       setLogoPreview(data.data.logoUrl)
       qc.invalidateQueries({ queryKey: ['company-offices'] })
     } catch (err: unknown) {
@@ -232,9 +230,7 @@ function ComplianceDocs() {
       fd.append('title', title.trim())
       if (description.trim()) fd.append('description', description.trim())
 
-      await apiClient.post('/company/compliance-docs', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      await apiClient.post('/company/compliance-docs', fd)
       qc.invalidateQueries({ queryKey: ['compliance-docs'] })
       setTitle('')
       setDescription('')

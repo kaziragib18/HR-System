@@ -44,6 +44,7 @@ vi.mock('../../config/prisma', () => ({
 
 vi.mock('../../services/approver-resolution.service', () => ({
   resolveTeamApprover: vi.fn(async () => 'emp-manager'),
+  resolveApproverForRole: vi.fn(async () => 'emp-hr-manager'),
   canActOnTeamRequest: vi.fn(async (_db: unknown, reviewerId: string, reviewerRole: string, resolvedApproverId: string | null) =>
     reviewerRole === UserRole.SUPER_ADMIN || resolvedApproverId === reviewerId
   ),
@@ -60,7 +61,7 @@ import {
   reviewAdjustment,
 } from './attendance.service'
 import { prisma } from '../../config/prisma'
-import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
+import { resolveTeamApprover, resolveApproverForRole, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import { createNotification } from '../../services/notification.service'
 
 const attendanceFindUnique = prisma.attendance.findUnique as ReturnType<typeof vi.fn>
@@ -82,6 +83,7 @@ beforeEach(() => {
   publicHolidayCount.mockResolvedValue(0)
   leaveApplicationCount.mockResolvedValue(0)
   ;(resolveTeamApprover as ReturnType<typeof vi.fn>).mockResolvedValue('emp-manager')
+  ;(resolveApproverForRole as ReturnType<typeof vi.fn>).mockResolvedValue('emp-hr-manager')
   ;(canActOnTeamRequest as ReturnType<typeof vi.fn>).mockImplementation(
     async (_db: unknown, reviewerId: string, reviewerRole: string, resolvedApproverId: string | null) =>
       reviewerRole === UserRole.SUPER_ADMIN || resolvedApproverId === reviewerId
@@ -148,6 +150,22 @@ describe('requestAdjustment', () => {
     )
     expect(createNotification).toHaveBeenCalledWith(
       'emp-admin-2', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
+    )
+  })
+
+  it('routes a DEPT_HEAD requester to HR_MANAGER, not the usual HR-department-head escalation', async () => {
+    attendanceFindUnique.mockResolvedValue(null)
+    await requestAdjustment('emp-1', 'office-bd', UserRole.DEPT_HEAD, {
+      date: '2020-01-02',
+      requestedCheckIn: '2020-01-02T09:00:00.000Z',
+      reason: 'Forgot to check in',
+    })
+    expect(resolveApproverForRole).toHaveBeenCalledWith(prisma, UserRole.HR_MANAGER, 'emp-1', 'office-bd')
+    expect(resolveTeamApprover).not.toHaveBeenCalled()
+    expect(attendanceUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ adjustmentApproverId: 'emp-hr-manager' }),
+      })
     )
   })
 })
@@ -293,6 +311,45 @@ describe('reviewAdjustment', () => {
       expect.any(String),
       expect.any(String),
       { attendanceId: 'att-1' }
+    )
+  })
+
+  it("rejects a DEPT_MANAGER reviewing their department head's own adjustment, even as the resolved approver", async () => {
+    RECORDS['att-1'] = makeRecord({
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: 'emp-manager',
+      employee: { officeId: 'office-bd', departmentId: 'dept-1', user: { role: UserRole.DEPT_HEAD } },
+    })
+    attendanceFindUnique.mockResolvedValue(RECORDS['att-1'])
+    await expect(
+      reviewAdjustment('att-1', 'emp-manager', UserRole.DEPT_MANAGER, true, undefined, 'office-bd')
+    ).rejects.toThrow('You are not authorized to review this request')
+  })
+
+  it("allows HR_MANAGER to approve a department head's own adjustment request", async () => {
+    RECORDS['att-1'] = makeRecord({
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: 'emp-hr-manager',
+      requestedCheckIn: new Date('2020-01-02T09:00:00.000Z'),
+      employee: { officeId: 'office-bd', departmentId: 'dept-1', user: { role: UserRole.DEPT_HEAD } },
+    })
+    attendanceFindUnique.mockResolvedValue(RECORDS['att-1'])
+    await reviewAdjustment('att-1', 'emp-hr-manager', UserRole.HR_MANAGER, true, undefined, 'office-bd')
+    expect(txAttendanceUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ adjustmentStatus: 'APPROVED' }) })
+    )
+  })
+
+  it("still lets SUPER_ADMIN approve a department head's own adjustment request", async () => {
+    RECORDS['att-1'] = makeRecord({
+      adjustmentStatus: 'PENDING',
+      adjustmentApproverId: 'emp-hr-manager',
+      employee: { officeId: 'office-bd', departmentId: 'dept-1', user: { role: UserRole.DEPT_HEAD } },
+    })
+    attendanceFindUnique.mockResolvedValue(RECORDS['att-1'])
+    await reviewAdjustment('att-1', 'emp-admin', UserRole.SUPER_ADMIN, true, undefined, 'office-bd')
+    expect(txAttendanceUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ adjustmentStatus: 'APPROVED' }) })
     )
   })
 })
