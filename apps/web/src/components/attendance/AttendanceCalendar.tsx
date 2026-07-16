@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   useAttendanceCalendar,
   useSubmitLateExcuse,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/hooks/useAttendance'
 import { Card, Spinner } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, XCircle, X } from 'lucide-react'
 
 const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -264,18 +264,60 @@ export function AttendanceCalendar({ className }: { className?: string }) {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
   const [tooltip, setTooltip] = useState<{ info: DayInfo; rect: DOMRect } | null>(null)
+  const [pinned, setPinned] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
 
   function openTooltip(info: DayInfo, e: React.MouseEvent<HTMLDivElement>) {
     if (closeTimer.current) clearTimeout(closeTimer.current)
+    // A pinned card stays put — hovering other days won't move or replace it.
+    if (pinned) return
     setTooltip({ info, rect: e.currentTarget.getBoundingClientRect() })
   }
+  function togglePin(info: DayInfo, e: React.MouseEvent<HTMLDivElement>) {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    // Clicking the already-pinned day closes it.
+    if (pinned && tooltip?.info.date === info.date) {
+      closeTooltip()
+      return
+    }
+    setTooltip({ info, rect: e.currentTarget.getBoundingClientRect() })
+    setPinned(true)
+  }
   function startClose() {
+    // A pinned card never auto-closes on mouse-leave.
+    if (pinned) return
     closeTimer.current = setTimeout(() => setTooltip(null), 150)
   }
   function cancelClose() {
     if (closeTimer.current) clearTimeout(closeTimer.current)
   }
+  function closeTooltip() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setPinned(false)
+    setTooltip(null)
+  }
+
+  // While pinned, dismiss via Escape or a click outside the calendar/card.
+  useEffect(() => {
+    if (!pinned) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeTooltip()
+    }
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (popupRef.current?.contains(t)) return
+      if (gridRef.current?.contains(t)) return
+      closeTooltip()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [pinned])
 
   const { data: calData, isLoading } = useAttendanceCalendar(month, year)
 
@@ -301,11 +343,11 @@ export function AttendanceCalendar({ className }: { className?: string }) {
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear((y) => y - 1) } else setMonth((m) => m - 1)
-    setTooltip(null)
+    closeTooltip()
   }
   function nextMonth() {
     if (month === 12) { setMonth(1); setYear((y) => y + 1) } else setMonth((m) => m + 1)
-    setTooltip(null)
+    closeTooltip()
   }
 
   const legend = [
@@ -348,7 +390,7 @@ export function AttendanceCalendar({ className }: { className?: string }) {
         <Spinner />
       ) : (
         <>
-          <div className="grid grid-cols-7 gap-1">
+          <div ref={gridRef} className="grid grid-cols-7 gap-1">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
@@ -411,11 +453,15 @@ export function AttendanceCalendar({ className }: { className?: string }) {
                   key={i}
                   onMouseEnter={(e) => openTooltip(info, e)}
                   onMouseLeave={startClose}
+                  onClick={(e) => togglePin(info, e)}
                   className={cn(
-                    'flex h-9 cursor-default items-center justify-center rounded-md text-xs font-medium transition-colors',
+                    'flex h-9 cursor-pointer items-center justify-center rounded-md text-xs font-medium transition-colors',
                     cellCls,
                     isToday && !isWeekend && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
-                    isActive && 'ring-2 ring-primary/40 ring-offset-1 ring-offset-background',
+                    isActive &&
+                      (pinned
+                        ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                        : 'ring-2 ring-primary/40 ring-offset-1 ring-offset-background'),
                     !isWeekend && leave && !rawStatus && 'bg-blue-50 dark:bg-blue-500/15'
                   )}
                 >
@@ -438,6 +484,7 @@ export function AttendanceCalendar({ className }: { className?: string }) {
               )
               return (
                 <div
+                  ref={popupRef}
                   style={{
                     position: 'fixed',
                     top: popupTop,
@@ -448,12 +495,21 @@ export function AttendanceCalendar({ className }: { className?: string }) {
                   }}
                   onMouseEnter={cancelClose}
                   onMouseLeave={startClose}
-                  className="rounded-xl border bg-card p-3 shadow-xl"
+                  className="relative rounded-xl border bg-card p-3 shadow-xl"
                 >
+                  {pinned && (
+                    <button
+                      onClick={closeTooltip}
+                      aria-label="Close"
+                      className="absolute right-1.5 top-1.5 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <DayDetailPanel
                     key={info.date}
                     info={info}
-                    onExcuseSubmitted={() => setTooltip(null)}
+                    onExcuseSubmitted={closeTooltip}
                   />
                 </div>
               )

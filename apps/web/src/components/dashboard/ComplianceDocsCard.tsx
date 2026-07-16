@@ -70,7 +70,19 @@ export function ComplianceDocsCard() {
       ) : (
         <div className="space-y-1">
           {docs.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2 border-b py-2 last:border-0">
+            <div
+              key={doc.id}
+              onClick={() => handleDownload(doc.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleDownload(doc.id)
+                }
+              }}
+              className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md border-b px-2 py-2 last:border-0 hover:bg-muted/50"
+            >
               <FileText className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{doc.title}</p>
@@ -83,7 +95,10 @@ export function ComplianceDocsCard() {
                 </p>
               </div>
               <button
-                onClick={() => handleDownload(doc.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDownload(doc.id)
+                }}
                 className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 title="Download"
               >

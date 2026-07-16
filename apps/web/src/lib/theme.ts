@@ -5,6 +5,8 @@ export type DarkVariant = (typeof DARK_THEMES)[number]
 export type { Theme }
 
 export const THEME_STORAGE_KEY = 'hr-theme'
+export const LAST_LIGHT_STORAGE_KEY = 'hr-theme-last-light'
+export const LAST_DARK_STORAGE_KEY = 'hr-theme-last-dark'
 
 export const LIGHT_VARIANTS: LightVariant[] = [...LIGHT_THEMES]
 export const DARK_VARIANTS: DarkVariant[] = [...DARK_THEMES]
