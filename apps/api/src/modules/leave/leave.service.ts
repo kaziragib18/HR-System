@@ -86,14 +86,30 @@ export async function applyLeave(employeeId: string, officeId: string, requester
   }
 
   // Check balance if leave type tracks days
-  const balance = await prisma.leaveBalance.findUnique({
+  let balance = await prisma.leaveBalance.findUnique({
     where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: input.leaveTypeId, year } },
   })
-  if (!balance) throw new LeaveError('No leave balance found for this type and year')
+  if (!balance) {
+    // Compensatory Leave (CPL) has no balance row until first used — lazily
+    // create it here (entitled 0) so CPL only shows up in the employee's
+    // balance once they actually take it. Every other type is expected to
+    // have a balance already.
+    if (leaveType.code === 'CPL') {
+      balance = await prisma.leaveBalance.create({
+        data: { employeeId, leaveTypeId: input.leaveTypeId, year, entitled: leaveType.daysPerYear },
+      })
+    } else {
+      throw new LeaveError('No leave balance found for this type and year')
+    }
+  }
 
-  const available = Number(balance.entitled) - Number(balance.taken) - Number(balance.pending)
-  if (totalDays > available) {
-    throw new LeaveError(`Insufficient leave balance. Available: ${available} days, Requested: ${totalDays} days`)
+  // CPL has no fixed allowance — it just tracks days taken, so it isn't
+  // balance-gated. Every other type must stay within its entitlement.
+  if (leaveType.code !== 'CPL') {
+    const available = Number(balance.entitled) - Number(balance.taken) - Number(balance.pending)
+    if (totalDays > available) {
+      throw new LeaveError(`Insufficient leave balance. Available: ${available} days, Requested: ${totalDays} days`)
+    }
   }
 
   // Check for overlapping approved/pending leave

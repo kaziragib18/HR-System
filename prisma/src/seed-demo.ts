@@ -307,7 +307,10 @@ async function main() {
 
   // ── Leave balances (current year) ────────────────────────────────────────
   const year = new Date().getFullYear()
-  const bdLeaveTypes = leaveTypes.filter((lt) => lt.officeId === bdOffice.id)
+  // Compensatory Leave (CPL) is intentionally excluded here: it must only appear
+  // in an employee's balance once they actually take it (lazily created on first
+  // application in leave.service.ts), so no CPL balance row is pre-seeded.
+  const bdLeaveTypes = leaveTypes.filter((lt) => lt.officeId === bdOffice.id && lt.code !== 'CPL')
   function seededInt(empIdx: number, seed: number, max: number) {
     return ((empIdx * 31 + seed * 17) % (max + 1))
   }

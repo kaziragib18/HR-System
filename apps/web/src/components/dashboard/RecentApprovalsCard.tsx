@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Card, Spinner, EmptyState } from '@/components/ui/primitives'
 import { usePendingApprovals } from '@/lib/api/hooks/useLeave'
 import { usePendingExcuses, usePendingAdjustments } from '@/lib/api/hooks/useAttendance'
+import { cn } from '@/lib/utils'
 import { CalendarDays, Clock, Undo2, type LucideIcon } from 'lucide-react'
 
 interface RecentItem {
@@ -71,8 +72,13 @@ export function RecentApprovalsCard() {
       ) : items.length === 0 ? (
         <EmptyState message="No pending approval requests." />
       ) : (
-        // ~3 rows visible; scrolls (themed thin scrollbar) when there are more.
-        <div className="max-h-[168px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
+        // Scrolls only when there are more than 3 rows; at 3 or fewer it
+        // renders at natural height with no scrollbar.
+        <div
+          className={cn(
+            items.length > 3 && 'max-h-[168px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
+          )}
+        >
           {items.map((item) => {
             const Icon = item.icon
             return (

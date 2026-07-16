@@ -16,6 +16,9 @@ export interface MyDashboard {
     firstName: string
     lastName: string
     avatarUrl?: string | null
+    email?: string | null
+    employmentStatus?: string | null
+    joiningDate?: string | null
     department?: string | null
     managerName?: string | null
   } | null

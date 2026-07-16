@@ -184,6 +184,19 @@ async function main() {
       isCarryForward: false,
       approvalChain: [{ level: 1, role: 'HR_MANAGER' }],
     },
+    {
+      // Compensatory Leave — earned for working on a weekend/holiday. Has NO
+      // fixed annual allowance (daysPerYear 0): it starts at 0 and only tracks
+      // how many days have been taken (not balance-gated on apply). No balance
+      // row is pre-created; it only appears in an employee's balance once they
+      // first apply for it (lazily created in leave.service.ts).
+      code: 'CPL',
+      name: 'Compensatory Leave',
+      daysPerYear: 0,
+      isPaid: true,
+      isCarryForward: false,
+      approvalChain: [{ level: 1, role: 'DEPT_MANAGER' }],
+    },
   ]
 
   for (const lt of bdLeaveTypes) {
@@ -222,6 +235,16 @@ async function main() {
       isPaid: true,
       isCarryForward: false,
       approvalChain: [{ level: 1, role: 'HR_MANAGER' }],
+    },
+    {
+      // Compensatory Leave — see the BD note above. Starts at 0, tracks taken,
+      // shown only once first used.
+      code: 'CPL',
+      name: 'Compensatory Leave',
+      daysPerYear: 0,
+      isPaid: true,
+      isCarryForward: false,
+      approvalChain: [{ level: 1, role: 'DEPT_MANAGER' }],
     },
   ]
 

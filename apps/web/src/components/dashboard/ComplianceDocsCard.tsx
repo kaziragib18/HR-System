@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api/client'
 import { Card, Spinner } from '@/components/ui/primitives'
+import { cn } from '@/lib/utils'
 import { FileText, ShieldCheck, Coins, Award, Download } from 'lucide-react'
 
 interface ComplianceDoc {
@@ -40,7 +41,7 @@ export function ComplianceDocsCard() {
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Compliance &amp; Policy Documents
         </p>
-        <div className="max-h-[190px] space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
+        <div className="space-y-1">
           {[
             { icon: FileText,    title: 'Leave & attendance policy',      desc: 'Encashment, carry-forward, WFH' },
             { icon: ShieldCheck, title: 'Code of conduct & IT security',  desc: 'Data handling, device use' },
@@ -68,7 +69,12 @@ export function ComplianceDocsCard() {
       {isLoading ? (
         <Spinner />
       ) : (
-        <div className="max-h-[190px] space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
+        <div
+          className={cn(
+            'space-y-1',
+            docs.length > 3 && 'max-h-[190px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
+          )}
+        >
           {docs.map((doc) => (
             <div
               key={doc.id}

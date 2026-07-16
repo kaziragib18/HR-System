@@ -23,6 +23,7 @@ vi.mock('../../config/prisma', () => ({
     publicHoliday: { findMany: vi.fn(async () => []) },
     leaveBalance: {
       findUnique: vi.fn(async () => ({ entitled: 18, taken: 0, pending: 0 })),
+      create: vi.fn(async ({ data }: { data: any }) => ({ taken: 0, pending: 0, ...data })),
     },
     leaveApplication: {
       count: vi.fn(async () => 0),
@@ -128,6 +129,42 @@ describe('applyLeave', () => {
       leaveTypeId: 'lt-1', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'trip',
     } as any)
     expect(resolveTeamApprover).toHaveBeenCalledWith(prisma, 'emp-head', UserRole.DEPT_HEAD, 'office-bd')
+  })
+
+  it('lazily creates a zero-allowance balance row the first time an employee takes Compensatory Leave (CPL)', async () => {
+    ;(prisma.leaveType.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 'lt-cpl', code: 'CPL', minNoticeDays: 0, maxConsecutiveDays: null, approvalChain: [], daysPerYear: 0,
+    })
+    ;(prisma.leaveBalance.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null)
+    await applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
+      leaveTypeId: 'lt-cpl', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'worked a weekend',
+    } as any)
+    expect(prisma.leaveBalance.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ leaveTypeId: 'lt-cpl', entitled: 0 }) })
+    )
+  })
+
+  it('does not balance-gate CPL — allows it even though the zero-allowance balance leaves 0 available', async () => {
+    ;(prisma.leaveType.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 'lt-cpl', code: 'CPL', minNoticeDays: 0, maxConsecutiveDays: null, approvalChain: [], daysPerYear: 0,
+    })
+    // Existing CPL balance with 0 entitlement and 2 already taken (available would be negative).
+    ;(prisma.leaveBalance.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ entitled: 0, taken: 2, pending: 0 })
+    const app = await applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
+      leaveTypeId: 'lt-cpl', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'worked another weekend',
+    } as any)
+    expect(app).toBeDefined()
+    expect(txLeaveApplicationCreate).toHaveBeenCalled()
+  })
+
+  it('still throws for a non-CPL leave type that has no balance row', async () => {
+    ;(prisma.leaveBalance.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null)
+    await expect(
+      applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
+        leaveTypeId: 'lt-1', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'trip',
+      } as any)
+    ).rejects.toThrow('No leave balance found')
+    expect(prisma.leaveBalance.create).not.toHaveBeenCalled()
   })
 })
 

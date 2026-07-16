@@ -81,9 +81,18 @@ export function AnnouncementRow({ item }: { item: AnnouncementFeedItem }) {
     >
       {item.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.avatarUrl} alt="" className="mt-0.5 h-7 w-7 shrink-0 rounded-lg object-cover" />
+        <img
+          src={item.avatarUrl}
+          alt=""
+          className="mt-0.5 h-7 w-7 shrink-0 rounded-lg object-cover"
+        />
       ) : (
-        <span className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', meta.chip)}>
+        <span
+          className={cn(
+            'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+            meta.chip
+          )}
+        >
           <Icon className="h-3.5 w-3.5" />
         </span>
       )}
@@ -105,7 +114,9 @@ export function AnnouncementsCard() {
   return (
     <Card>
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Announcements</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Announcements
+        </p>
         <Link href="/announcements" className="text-xs font-medium text-primary hover:underline">
           View all →
         </Link>
@@ -115,8 +126,13 @@ export function AnnouncementsCard() {
       ) : items.length === 0 ? (
         <EmptyState message="No announcements right now." />
       ) : (
-        // ~3 rows visible; scrolls (themed thin scrollbar) when there are more.
-        <div className="max-h-[210px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
+        // Scrolls (themed thin scrollbar) only when there are more than 3 rows;
+        // at 3 or fewer it renders at natural height with no scrollbar.
+        <div
+          className={cn(
+            items.length > 3 && 'max-h-[215px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
+          )}
+        >
           {items.map((item) => (
             <AnnouncementRow key={item.id} item={item} />
           ))}

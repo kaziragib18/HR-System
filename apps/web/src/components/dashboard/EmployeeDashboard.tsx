@@ -18,8 +18,25 @@ import {
   Clock,
   Plus,
   Building2,
-  User,
+  Mail,
+  CalendarDays,
 } from 'lucide-react'
+
+const EMPLOYMENT_STATUS_STYLE: Record<string, string> = {
+  ACTIVE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  PROBATION: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  NOTICE_PERIOD: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+  TERMINATED: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+  ON_LEAVE: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+}
+
+function fmtStatus(s: string) {
+  return s.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function fmtJoinDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
 
 function shiftForOfficeCode(code?: string): ShiftConfig {
   return code === 'BD' ? BD_SHIFT : UK_SHIFT
@@ -33,6 +50,7 @@ const LEAVE_COLORS: Record<string, string> = {
   CL: 'bg-amber-500',
   ML: 'bg-rose-500',
   UL: 'bg-slate-500',
+  CPL: 'bg-teal-500',
 }
 
 function fmtTime(iso: string | null): string {
@@ -86,7 +104,7 @@ export function EmployeeDashboard() {
             <p className="text-sm text-muted-foreground">
               {user?.role.replace(/_/g, ' ')} · {user?.officeCode} office
             </p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {data.me?.department && (
                 <span className="flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
@@ -94,12 +112,28 @@ export function EmployeeDashboard() {
                   {isTeamLead && data.departmentHeadcount > 0 && ` · ${data.departmentHeadcount} people`}
                 </span>
               )}
-              {data.managers.map((mgr) => (
-                <span key={mgr.id} className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  {mgr.relation}: {mgr.firstName} {mgr.lastName}
+              {data.me?.email && (
+                <span className="flex items-center gap-1">
+                  <Mail className="h-3 w-3" />
+                  {data.me.email}
                 </span>
-              ))}
+              )}
+              {data.me?.joiningDate && (
+                <span className="flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3" />
+                  Joined {fmtJoinDate(data.me.joiningDate)}
+                </span>
+              )}
+              {data.me?.employmentStatus && (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    EMPLOYMENT_STATUS_STYLE[data.me.employmentStatus] ?? 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {fmtStatus(data.me.employmentStatus)}
+                </span>
+              )}
             </div>
           </div>
         </Card>
@@ -247,13 +281,18 @@ function LeaveBalanceCard({ balances }: { balances: MyDashboard['leaveBalances']
       ) : (
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
           {balances.map((b) => {
-            const pct = b.entitled > 0 ? Math.min(100, (b.taken / b.entitled) * 100) : 0
+            // No fixed allowance (e.g. Compensatory Leave) → show days taken,
+            // not a remaining-vs-entitled quota (which would read as negative).
+            const trackingOnly = b.entitled === 0
+            const pct = trackingOnly
+              ? b.taken > 0 ? 100 : 0
+              : b.entitled > 0 ? Math.min(100, (b.taken / b.entitled) * 100) : 0
             return (
               <div key={b.code}>
-                <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-muted-foreground">{b.name}</span>
-                  <span className="font-medium">
-                    {b.taken} / {b.entitled}
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">{b.name}</span>
+                  <span className="shrink-0 whitespace-nowrap font-medium">
+                    {trackingOnly ? `${b.taken} taken` : `${b.taken} / ${b.entitled}`}
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -262,7 +301,9 @@ function LeaveBalanceCard({ balances }: { balances: MyDashboard['leaveBalances']
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="mt-1 text-[10px] text-muted-foreground">{b.remaining} remaining</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {trackingOnly ? 'No fixed allowance' : `${b.remaining} remaining`}
+                </p>
               </div>
             )
           })}

@@ -7,7 +7,7 @@ import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
-import type { CreateDepartmentInput, UpdateDepartmentInput, AssignManagerInput } from './departments.schemas'
+import type { CreateDepartmentInput, UpdateDepartmentInput, AssignManagerInput, AppointRoleInput, DismissRoleInput } from './departments.schemas'
 
 function scope(req: Request): string | undefined {
   return (req as OfficeScopedRequest).officeScope
@@ -104,6 +104,28 @@ export async function removeManager(req: Request, res: Response) {
     })
     await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Department', dept.id, undefined, { managerId: null })
     sendSuccess(res, updated)
+  } catch (err) {
+    handle(res, err)
+  }
+}
+
+export async function appoint(req: Request, res: Response) {
+  try {
+    const { employeeId, role } = req.body as AppointRoleInput
+    const dept = await service.appointDeptRole(req.params.id, scope(req), employeeId, role)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Department', req.params.id, undefined, { appoint: { employeeId, role } })
+    sendSuccess(res, dept)
+  } catch (err) {
+    handle(res, err)
+  }
+}
+
+export async function dismiss(req: Request, res: Response) {
+  try {
+    const { employeeId } = req.body as DismissRoleInput
+    const dept = await service.dismissDeptRole(req.params.id, scope(req), employeeId)
+    await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Department', req.params.id, undefined, { dismiss: { employeeId } })
+    sendSuccess(res, dept)
   } catch (err) {
     handle(res, err)
   }

@@ -49,6 +49,9 @@ router.get('/me', async (req: Request, res: Response) => {
       firstName: true,
       lastName: true,
       avatarUrl: true,
+      email: true,
+      employmentStatus: true,
+      joiningDate: true,
       department: {
         select: {
           name: true,
@@ -105,11 +108,11 @@ router.get('/me', async (req: Request, res: Response) => {
             where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
           })
         : Promise.resolve(0),
-      // DEPT_HEAD and DEPT_MANAGER both see the whole department, not just
-      // their own direct reports — confirmed as the intended scope for this
-      // card specifically (approval power still stays scoped to a
-      // DEPT_MANAGER's own reports; this is a visibility-only broadening).
-      (role === UserRole.DEPT_HEAD || role === UserRole.DEPT_MANAGER) && me?.departmentId
+      // "My Team" is the caller's whole department for every role — a plain
+      // EMPLOYEE sees all their department colleagues, not just the sub-team
+      // sharing their manager. (Approval power still stays scoped to a
+      // DEPT_MANAGER's own reports; this is a visibility-only card.)
+      me?.departmentId
         ? prisma.employee.findMany({
             where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
             select: teamMemberSelect,
@@ -118,38 +121,16 @@ router.get('/me', async (req: Request, res: Response) => {
     ])
 
   let teamRaw: typeof directReports
-  if ((role === UserRole.DEPT_HEAD || role === UserRole.DEPT_MANAGER) && departmentRoster.length > 0) {
+  if (departmentRoster.length > 0) {
+    // Whole department, sorted DEPT_HEAD -> DEPT_MANAGER -> EMPLOYEE, then name.
     teamRaw = [...departmentRoster].sort((a, b) => {
       const ra = TEAM_ROLE_RANK[a.user?.role ?? ''] ?? 3
       const rb = TEAM_ROLE_RANK[b.user?.role ?? ''] ?? 3
       return ra !== rb ? ra - rb : a.firstName.localeCompare(b.firstName)
     })
   } else if (directReports.length > 0) {
+    // No department on record (shouldn't happen) — fall back to direct reports.
     teamRaw = directReports
-  } else if (me?.reportingTo) {
-    // An individual contributor's "team" is their actual manager plus the
-    // peers who share that same manager — not the whole department, which
-    // would also pull in other departments' managers/sub-teams that have no
-    // real relationship to this employee (e.g. a sibling DEPT_MANAGER
-    // running a different sub-team wrongly reading as "my team").
-    const peers = await prisma.employee.findMany({
-      where: { reportingToId: me.reportingTo.id, employmentStatus: { not: 'TERMINATED' }, id: { not: employeeId } },
-      select: teamMemberSelect,
-      orderBy: { firstName: 'asc' },
-    })
-    teamRaw = [
-      { id: me.reportingTo.id, firstName: me.reportingTo.firstName, lastName: me.reportingTo.lastName, avatarUrl: me.reportingTo.avatarUrl, jobTitle: me.reportingTo.jobTitle, user: me.reportingTo.user },
-      ...peers,
-    ]
-  } else if (me?.departmentId) {
-    // No manager on record at all (shouldn't happen once every employee has
-    // a reportingToId) — department-wide is a last-resort fallback only.
-    teamRaw = await prisma.employee.findMany({
-      where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
-      select: teamMemberSelect,
-      orderBy: { firstName: 'asc' },
-      take: 8,
-    })
   } else {
     teamRaw = []
   }
@@ -220,6 +201,9 @@ router.get('/me', async (req: Request, res: Response) => {
       firstName: me.firstName,
       lastName: me.lastName,
       avatarUrl: me.avatarUrl,
+      email: me.email,
+      employmentStatus: me.employmentStatus,
+      joiningDate: me.joiningDate,
       department: me.department?.name ?? null,
       managerName: me.reportingTo && role !== UserRole.DEPT_HEAD
         ? `${me.reportingTo.firstName} ${me.reportingTo.lastName}`

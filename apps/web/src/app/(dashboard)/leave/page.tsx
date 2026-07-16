@@ -13,6 +13,8 @@ import {
   type LeaveBalance,
   type LeaveApplication,
 } from '@/lib/api/hooks/useLeave'
+import { useHolidays } from '@/lib/api/hooks/useHolidays'
+import { useAuthStore } from '@/store/auth.store'
 import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
@@ -26,6 +28,7 @@ import {
   FileText,
   ImageIcon,
   Pencil,
+  AlertTriangle,
 } from 'lucide-react'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -36,6 +39,29 @@ const LEAVE_COLORS: Record<string, string> = {
   CL: 'bg-amber-500',
   ML: 'bg-rose-500',
   UL: 'bg-slate-500',
+  CPL: 'bg-teal-500',
+}
+
+/** Parse a 'YYYY-MM-DD' string as a UTC date, so day-of-week is timezone-safe. */
+function parseYmd(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d))
+}
+
+function isWeekendYmd(s: string): boolean {
+  const dow = parseYmd(s).getUTCDay()
+  return dow === 0 || dow === 6
+}
+
+/** e.g. "Sun, 12 Jul 2026" */
+function fmtDayLabel(s: string): string {
+  return parseYmd(s).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 const CONSUME_TYPES = [
@@ -54,17 +80,18 @@ function fmtRange(start: string, end: string): string {
   return `${sd} – ${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`
 }
 
-function workingDaysBetween(start: string, end: string): number {
+function workingDaysBetween(start: string, end: string, holidays?: Set<string>): number {
   if (!start || !end) return 0
-  const s = new Date(start)
-  const e = new Date(end)
+  const s = parseYmd(start)
+  const e = parseYmd(end)
   if (e < s) return 0
   let count = 0
   const cur = new Date(s)
   while (cur <= e) {
-    const dow = cur.getDay()
-    if (dow !== 0 && dow !== 6) count++
-    cur.setDate(cur.getDate() + 1)
+    const dow = cur.getUTCDay()
+    const ds = cur.toISOString().slice(0, 10)
+    if (dow !== 0 && dow !== 6 && !holidays?.has(ds)) count++
+    cur.setUTCDate(cur.getUTCDate() + 1)
   }
   return count
 }
@@ -77,9 +104,11 @@ export default function LeavePage() {
   const year = new Date().getFullYear()
   const today = new Date().toISOString().split('T')[0]
 
+  const user = useAuthStore((s) => s.user)
   const { data: types = [], isLoading: typesLoading } = useLeaveTypes()
   const { data: balances = [], isLoading: balLoading } = useLeaveBalances(year)
   const { data: applications = [], isLoading: appLoading } = useMyLeaveApplications()
+  const { data: holidays = [] } = useHolidays(year)
   const apply = useApplyLeave()
   const uploadFile = useUploadLeaveAttachment()
   const cancel = useCancelLeave()
@@ -100,13 +129,34 @@ export default function LeavePage() {
   const isHalfDay = consumeType !== 'FULL_DAY'
   const selectedType = types.find((t) => t.id === leaveTypeId)
   const selectedBalance = balances.find((b) => b.leaveTypeId === leaveTypeId)
-  const available = selectedBalance
-    ? Number(selectedBalance.entitled) -
-      Number(selectedBalance.taken) -
-      Number(selectedBalance.pending)
-    : null
+  // Compensatory Leave has no fixed allowance — it only tracks days taken, so
+  // it's never balance-gated (available stays null → no "exceeds" checks).
+  const isCplType = selectedType?.code === 'CPL'
+  const available =
+    !isCplType && selectedBalance
+      ? Number(selectedBalance.entitled) -
+        Number(selectedBalance.taken) -
+        Number(selectedBalance.pending)
+      : null
   const effectiveEnd = isHalfDay ? startDate : endDate || startDate
-  const days = isHalfDay ? (startDate ? 0.5 : 0) : workingDaysBetween(startDate, effectiveEnd)
+
+  // Public holidays for the caller's own office, as a date -> name map.
+  const holidayByDate = new Map(
+    holidays.filter((h) => h.office?.code === user?.officeCode).map((h) => [h.date.slice(0, 10), h.name])
+  )
+  const holidaySet = new Set(holidayByDate.keys())
+  const days = isHalfDay ? (startDate ? 0.5 : 0) : workingDaysBetween(startDate, effectiveEnd, holidaySet)
+
+  // Warn (not block) when a chosen date lands on a weekend or public holiday —
+  // those days aren't counted, so it's usually an accidental pick.
+  function dayNote(dateStr: string): string | null {
+    if (!dateStr) return null
+    if (holidayByDate.has(dateStr)) return `a public holiday (${holidayByDate.get(dateStr)})`
+    if (isWeekendYmd(dateStr)) return 'a weekend'
+    return null
+  }
+  const startNote = startDate ? dayNote(startDate) : null
+  const endNote = !isHalfDay && effectiveEnd && effectiveEnd !== startDate ? dayNote(effectiveEnd) : null
 
   // Only sick leave (code SL) allows selecting past dates for emergency applications
   const allowPastDates = selectedType?.code === 'SL'
@@ -257,14 +307,42 @@ export default function LeavePage() {
               const entitled = Number(b.entitled)
               const taken = Number(b.taken)
               const pending = Number(b.pending)
+              const color = LEAVE_COLORS[b.leaveType.code] ?? 'bg-primary'
+              // A leave type with no fixed allowance (e.g. Compensatory Leave)
+              // isn't a quota — show the running count of days taken instead of
+              // a remaining-vs-entitled bar (which would read as negative).
+              const trackingOnly = entitled === 0
+              if (trackingOnly) {
+                return (
+                  <div key={b.id}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                      <span className="truncate font-medium">{b.leaveType.name}</span>
+                      <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                        {taken} taken
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn('h-full rounded-full transition-all', color)}
+                        style={{ width: taken + pending > 0 ? '100%' : '0%' }}
+                      />
+                    </div>
+                    <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                      <span>No fixed allowance</span>
+                      {pending > 0 && (
+                        <span className="text-amber-600 dark:text-amber-400">{pending} pending</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
               const remaining = entitled - taken - pending
               const pct = entitled > 0 ? Math.min(100, ((taken + pending) / entitled) * 100) : 0
-              const color = LEAVE_COLORS[b.leaveType.code] ?? 'bg-primary'
               return (
                 <div key={b.id}>
-                  <div className="mb-1 flex justify-between text-xs">
-                    <span className="font-medium">{b.leaveType.name}</span>
-                    <span className="text-muted-foreground">
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                    <span className="truncate font-medium">{b.leaveType.name}</span>
+                    <span className="shrink-0 whitespace-nowrap text-muted-foreground">
                       {taken + pending} / {entitled}
                     </span>
                   </div>
@@ -424,9 +502,11 @@ export default function LeavePage() {
                       <option value="">Select leave type…</option>
                       {types.map((t: LeaveType) => {
                         const bal = balances.find((b: LeaveBalance) => b.leaveTypeId === t.id)
-                        const avail = bal
-                          ? Number(bal.entitled) - Number(bal.taken) - Number(bal.pending)
-                          : null
+                        // CPL has no allowance to show a "(N available)" for.
+                        const avail =
+                          bal && t.code !== 'CPL'
+                            ? Number(bal.entitled) - Number(bal.taken) - Number(bal.pending)
+                            : null
                         return (
                           <option key={t.id} value={t.id}>
                             {t.name} {avail !== null ? `(${avail} days available)` : ''}
@@ -442,12 +522,22 @@ export default function LeavePage() {
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                       <div>
                         <span className="font-medium">{selectedType.name}:</span>{' '}
-                        <span className="text-muted-foreground">
-                          Entitled {Number(selectedBalance.entitled)} · Taken{' '}
-                          {Number(selectedBalance.taken)} · Pending{' '}
-                          {Number(selectedBalance.pending)} ·
-                        </span>{' '}
-                        <span className="font-semibold text-foreground">Available {available}</span>
+                        {isCplType ? (
+                          <span className="text-muted-foreground">
+                            Taken {Number(selectedBalance.taken)} · Pending{' '}
+                            {Number(selectedBalance.pending)} ·{' '}
+                            <span className="font-semibold text-foreground">No fixed allowance</span>
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-muted-foreground">
+                              Entitled {Number(selectedBalance.entitled)} · Taken{' '}
+                              {Number(selectedBalance.taken)} · Pending{' '}
+                              {Number(selectedBalance.pending)} ·
+                            </span>{' '}
+                            <span className="font-semibold text-foreground">Available {available}</span>
+                          </>
+                        )}
                         {selectedType.minNoticeDays > 0 && (
                           <p className="mt-0.5 text-amber-600 dark:text-amber-400">
                             ⚠ Requires {selectedType.minNoticeDays} day(s) advance notice
@@ -538,6 +628,29 @@ export default function LeavePage() {
                       {available !== null &&
                         days > available &&
                         ` — exceeds balance by ${days - available}`}
+                    </div>
+                  )}
+
+                  {/* Weekend / public-holiday warning */}
+                  {(startNote || endNote) && (
+                    <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="space-y-0.5">
+                        {startNote && (
+                          <p>
+                            Your {isHalfDay ? 'selected date' : 'start date'} ({fmtDayLabel(startDate)}) falls on{' '}
+                            {startNote}.
+                          </p>
+                        )}
+                        {endNote && (
+                          <p>
+                            Your end date ({fmtDayLabel(effectiveEnd)}) falls on {endNote}.
+                          </p>
+                        )}
+                        <p className="text-xs opacity-80">
+                          Weekends and public holidays aren&apos;t counted toward your leave balance.
+                        </p>
+                      </div>
                     </div>
                   )}
 

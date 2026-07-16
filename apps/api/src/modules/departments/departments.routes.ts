@@ -9,6 +9,8 @@ import {
   createDepartmentSchema,
   updateDepartmentSchema,
   assignManagerSchema,
+  appointRoleSchema,
+  dismissRoleSchema,
 } from './departments.schemas'
 
 const router: RouterType = Router()
@@ -29,5 +31,8 @@ router.patch('/:id', HR, validate(updateDepartmentSchema), controller.update)
 router.delete('/:id', HR, controller.remove)
 router.patch('/:id/manager', HR, validate(assignManagerSchema), controller.assignManager)
 router.delete('/:id/manager', HR, controller.removeManager)
+// Appoint/remove a department Head or Manager — also switches the person's role.
+router.patch('/:id/appoint', HR, validate(appointRoleSchema), controller.appoint)
+router.patch('/:id/dismiss', HR, validate(dismissRoleSchema), controller.dismiss)
 
 export { router as departmentsRouter }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   usePendingApprovals,
@@ -15,7 +15,7 @@ import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdj
 import type { AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { useApprovalHistory } from '@/lib/api/hooks/useApprovalHistory'
 import type { ApprovalHistoryItem } from '@/lib/api/hooks/useApprovalHistory'
-import { Avatar, StatusBadge, Spinner, PageHeader, RolePill } from '@/components/ui/primitives'
+import { Avatar, StatusBadge, PageHeader, RolePill } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
@@ -198,7 +198,7 @@ function TabBtn({ label, count, active, onClick }: {
     <button
       onClick={onClick}
       className={cn(
-        'relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors',
+        'relative flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors',
         active
           ? 'text-foreground'
           : 'text-muted-foreground hover:text-foreground'
@@ -236,6 +236,11 @@ function ReasonModal({ title, description, placeholder, submitting, onSubmit, on
   submitting: boolean; onSubmit: (reason: string) => void; onClose: () => void
 }) {
   const [val, setVal] = useState('')
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
       <div
@@ -270,6 +275,11 @@ function ConfirmModal({ title, description, confirmLabel, confirmCls, submitting
   title: string; description: string; confirmLabel: string; confirmCls: string
   submitting: boolean; onConfirm: () => void; onClose: () => void
 }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
       <div
@@ -397,7 +407,7 @@ function LeaveSection({ onModal }: { onModal: (m: ModalState) => void }) {
   const pending   = (apps as LeaveApplication[]).filter(a => a.status === 'PENDING')
   const cancelReq = (apps as LeaveApplication[]).filter(a => a.status === 'CANCEL_REQUESTED')
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (isLoading) return <SectionSkeleton />
   if (!pending.length && !cancelReq.length) return <Empty icon={CalendarDays} message="No leave requests pending approval." />
 
   return (
@@ -494,7 +504,7 @@ function ExcusesSection({ onModal }: { onModal: (m: ModalState) => void }) {
   const { data: excuses = [], isLoading } = usePendingExcuses()
   const review = useReviewExcuse()
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (isLoading) return <SectionSkeleton />
   if (!excuses.length) return <Empty icon={Clock} message="No late excuses pending review." />
 
   return (
@@ -569,7 +579,7 @@ function AdjustmentsSection({ onModal }: { onModal: (m: ModalState) => void }) {
   const { data: requests = [], isLoading } = usePendingAdjustments()
   const review = useReviewAdjustment()
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (isLoading) return <SectionSkeleton />
   if (!requests.length) return <Empty icon={Clock} message="No attendance adjustment requests pending review." />
 
   return (
@@ -747,7 +757,7 @@ function HistorySection({ month, year, onMonthChange }: {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner /></div>
+        <SectionSkeleton />
       ) : items.length === 0 ? (
         <Empty icon={History} message={`No approval actions recorded in ${FULL_MONTHS[month - 1]} ${year}.`} />
       ) : (
@@ -755,6 +765,40 @@ function HistorySection({ month, year, onMonthChange }: {
           {items.map(item => <HistoryCard key={item.id} item={item} />)}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-l-[3px] border-l-muted bg-card shadow-sm">
+      <div className="flex items-center gap-3 px-5 py-4">
+        <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-muted" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+          <div className="h-2.5 w-56 animate-pulse rounded bg-muted" />
+        </div>
+      </div>
+      <Divider />
+      <div className="space-y-2 px-5 py-4">
+        <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+      </div>
+      <Divider />
+      <div className="flex justify-end gap-2 px-5 py-3">
+        <div className="h-9 w-24 animate-pulse rounded-lg bg-muted" />
+        <div className="h-9 w-24 animate-pulse rounded-lg bg-muted" />
+      </div>
+    </div>
+  )
+}
+
+function SectionSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => <CardSkeleton key={i} />)}
     </div>
   )
 }
@@ -778,9 +822,17 @@ const VALID_TABS: Tab[] = ['leave', 'excuses', 'adjustments', 'history']
 
 export default function ApprovalsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const requestedTab = searchParams.get('tab') as Tab | null
   const [tab, setTab]   = useState<Tab>(requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : 'leave')
   const [modal, setModal] = useState<ModalState>(null)
+
+  // Keep the tab in the URL so it's shareable / back-button friendly and the
+  // dashboard deep-links (?tab=…) stay consistent.
+  function changeTab(t: Tab) {
+    setTab(t)
+    router.replace(`/approvals?tab=${t}`, { scroll: false })
+  }
 
   const now = new Date()
   const [historyMonth, setHistoryMonth] = useState(now.getMonth() + 1)
@@ -823,11 +875,11 @@ export default function ApprovalsPage() {
 
       {/* Tab bar */}
       <div className="border-b">
-        <div className="flex gap-1">
-          <TabBtn label="Leave"        count={leavePending}       active={tab === 'leave'}       onClick={() => setTab('leave')} />
-          <TabBtn label="Late Excuses" count={excusesPending}     active={tab === 'excuses'}      onClick={() => setTab('excuses')} />
-          <TabBtn label="Adjustments"  count={adjustmentsPending} active={tab === 'adjustments'} onClick={() => setTab('adjustments')} />
-          <TabBtn label="History"      count={0}                  active={tab === 'history'}     onClick={() => setTab('history')} />
+        <div className="scrollbar-thin flex gap-1 overflow-x-auto">
+          <TabBtn label="Leave"        count={leavePending}       active={tab === 'leave'}       onClick={() => changeTab('leave')} />
+          <TabBtn label="Late Excuses" count={excusesPending}     active={tab === 'excuses'}      onClick={() => changeTab('excuses')} />
+          <TabBtn label="Adjustments"  count={adjustmentsPending} active={tab === 'adjustments'} onClick={() => changeTab('adjustments')} />
+          <TabBtn label="History"      count={0}                  active={tab === 'history'}     onClick={() => changeTab('history')} />
         </div>
       </div>
 

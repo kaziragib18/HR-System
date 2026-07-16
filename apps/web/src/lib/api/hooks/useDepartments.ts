@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../client'
 
+export interface DeptRoleHolder {
+  id: string
+  firstName: string
+  lastName: string
+  avatarUrl?: string | null
+  user?: { role: string } | null
+}
+
 export interface Department {
   id: string
   name: string
@@ -9,6 +17,8 @@ export interface Department {
   officeId: string
   office: { id: string; code: string; name: string }
   manager?: { id: string; firstName: string; lastName: string } | null
+  /** Employees in this department holding DEPT_HEAD / DEPT_MANAGER roles. */
+  employees?: DeptRoleHolder[]
   jobTitles: { id: string; name: string }[]
   _count: { employees: number }
 }
@@ -22,6 +32,7 @@ export interface DepartmentMember {
   avatarUrl?: string | null
   jobTitle?: { name: string } | null
   jobGrade?: { name: string } | null
+  user?: { role: string } | null
 }
 
 export function useDepartments() {
@@ -103,6 +114,38 @@ export function useRemoveDeptManager() {
       await apiClient.delete(`/departments/${id}/manager`)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['departments'] }),
+  })
+}
+
+/** Appoint a department Head or Manager (also switches the person's role). */
+export function useAppointDeptRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, employeeId, role }: { id: string; employeeId: string; role: 'DEPT_HEAD' | 'DEPT_MANAGER' }) => {
+      const { data } = await apiClient.patch(`/departments/${id}/appoint`, { employeeId, role })
+      return data.data as Department
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+      qc.invalidateQueries({ queryKey: ['department-members', vars.id] })
+    },
+  })
+}
+
+/** Remove a Head/Manager appointment (resets the person's role to EMPLOYEE). */
+export function useDismissDeptRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, employeeId }: { id: string; employeeId: string }) => {
+      const { data } = await apiClient.patch(`/departments/${id}/dismiss`, { employeeId })
+      return data.data as Department
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+      qc.invalidateQueries({ queryKey: ['department-members', vars.id] })
+    },
   })
 }
 
