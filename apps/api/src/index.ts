@@ -6,6 +6,26 @@ import { env } from './config/env'
 
 const app = createApp()
 
+// Last-resort safety net: every controller is expected to catch its own
+// errors and always send a response (see sendUnexpectedError in
+// utils/response.ts) rather than let one reach here. But on Node 15+ an
+// unhandled promise rejection crashes the whole process by default — so if
+// anything still slips through (a background task, a bug in code outside a
+// request handler), log it instead of taking down the API for every user
+// over a single bad request.
+process.on('unhandledRejection', (err) => {
+  logger.error({ err }, 'Unhandled promise rejection')
+})
+
+// A synchronous throw outside any request handler means process state may
+// be corrupted — log with full context (unlike an unattributed crash) and
+// exit so the process manager (nodemon in dev, PM2 in production per
+// ecosystem.config.js) restarts it cleanly.
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception — exiting')
+  process.exit(1)
+})
+
 async function start() {
   try {
     await prisma.$connect()

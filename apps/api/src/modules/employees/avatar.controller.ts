@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import multer from 'multer'
 import { prisma } from '../../config/prisma'
 import { supabase } from '../../config/supabase'
-import { sendSuccess, sendError } from '../../utils/response'
+import { sendSuccess, sendError, sendUnexpectedError } from '../../utils/response'
 import { isAllowedImage, ALLOWED_IMAGE_MESSAGE } from '../../utils/upload'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import { getEmployee, EmployeeError } from './employees.service'
@@ -50,6 +50,6 @@ export async function uploadAvatar(req: Request, res: Response) {
       sendError(res, err.message, err.status)
       return
     }
-    throw err
+    sendUnexpectedError(res, err)
   }
 }

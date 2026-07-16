@@ -64,21 +64,33 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
 }
 
 async function createSession(userId: string, deviceInfo?: string, ipAddress?: string) {
-  const session = await prisma.session.create({
-    data: {
-      userId,
-      refreshToken: 'pending', // replaced below once we have the session id
-      deviceInfo,
-      ipAddress,
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-    },
+  // refreshToken is unique and embeds the session's own id, so it can't be
+  // known before the row exists — create with a placeholder, then fill in
+  // the real token. Both wrapped in one transaction: if anything between the
+  // two statements fails (a crash, a dropped DB connection — this pooler has
+  // hiccupped more than once), Postgres rolls the whole thing back instead of
+  // leaving a stale row behind. That stale-placeholder scenario is exactly
+  // what broke login for everyone previously — a fixed literal ('pending')
+  // left over from an interrupted attempt collided with the unique
+  // constraint on every subsequent login. The random suffix is defense in
+  // depth on top of the transaction, not a substitute for it.
+  return prisma.$transaction(async (tx) => {
+    const session = await tx.session.create({
+      data: {
+        userId,
+        refreshToken: `pending-${randomBytes(16).toString('hex')}`,
+        deviceInfo,
+        ipAddress,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    })
+    const refreshToken = signRefreshToken(userId, session.id)
+    await tx.session.update({
+      where: { id: session.id },
+      data: { refreshToken },
+    })
+    return refreshToken
   })
-  const refreshToken = signRefreshToken(userId, session.id)
-  await prisma.session.update({
-    where: { id: session.id },
-    data: { refreshToken },
-  })
-  return refreshToken
 }
 
 interface LoginResult {

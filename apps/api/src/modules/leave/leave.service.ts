@@ -5,6 +5,7 @@ import { LeaveStatus, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification } from '../../services/notification.service'
 import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
+import { markLeaveDates, clearLeaveDates } from '../attendance/attendance.service'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery } from './leave.schemas'
 
 export class LeaveError extends Error {
@@ -153,16 +154,43 @@ export async function applyLeave(employeeId: string, officeId: string, requester
     return app
   })
 
-  // Notify the first approver
+  const applicantName = `${application.employee.firstName} ${application.employee.lastName}`
+
+  if (autoApproved) {
+    // No Attendance row gets created for a day the employee is on leave (they
+    // never check in), so without this, the day falls back to ABSENT instead
+    // of ON_LEAVE — see markLeaveDates in attendance.service.ts.
+    await markLeaveDates(employeeId, officeId, new Date(input.startDate), new Date(input.endDate))
+  }
+
   if (currentApproverId && application.status === LeaveStatus.PENDING) {
-    const name = `${application.employee.firstName} ${application.employee.lastName}`
+    // Notify the resolved approver.
     await createNotification(
       currentApproverId,
       NotificationType.LEAVE_REQUESTED,
       'New leave request',
-      `${name} has requested ${totalDays} day(s) of ${application.leaveType.name}.`,
+      `${applicantName} has requested ${totalDays} day(s) of ${application.leaveType.name}.`,
       { applicationId: application.id }
     )
+  } else if (autoApproved) {
+    // No manager/department head resolved for this employee (shouldn't happen
+    // once every department has exactly one DEPT_HEAD, but the leave still
+    // auto-approved silently — fall back to every SUPER_ADMIN in the office so
+    // this doesn't go completely unnoticed, mirroring the same fallback
+    // requestAdjustment already uses in attendance.service.ts).
+    const superAdmins = await prisma.user.findMany({
+      where: { employee: { officeId }, role: UserRole.SUPER_ADMIN },
+      select: { employeeId: true },
+    })
+    for (const admin of superAdmins) {
+      await createNotification(
+        admin.employeeId,
+        NotificationType.LEAVE_REQUESTED,
+        'Leave auto-approved (no approver found)',
+        `${applicantName}'s ${totalDays} day(s) of ${application.leaveType.name} was auto-approved because no manager or department head could be resolved for them.`,
+        { applicationId: application.id }
+      )
+    }
   }
 
   return application
@@ -223,6 +251,10 @@ export async function approveLeave(
 
     return tx.leaveApplication.findUniqueOrThrow({ where: { id: applicationId } })
   })
+
+  // Without this, days the employee is on leave have no Attendance row (they
+  // never check in) and fall back to ABSENT instead of ON_LEAVE.
+  await markLeaveDates(app.employeeId, app.employee.officeId, app.startDate, app.endDate)
 
   await createNotification(
     app.employeeId,
@@ -442,6 +474,11 @@ export async function approveCancelLeave(applicationId: string, approvingEmploye
       data: { taken: { decrement: Number(app.totalDays) } },
     })
   })
+
+  // Cancellation is only ever allowed before the leave starts, so these are
+  // always future placeholder rows markLeaveDates created — remove them, or
+  // the calendar keeps showing ON_LEAVE for a leave that no longer exists.
+  await clearLeaveDates(app.employeeId, app.startDate, app.endDate)
 
   await createNotification(
     app.employeeId,

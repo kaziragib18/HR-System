@@ -28,6 +28,9 @@ vi.mock('../../config/prisma', () => ({
       count: vi.fn(async () => 0),
       findUnique: vi.fn(async () => null),
     },
+    user: {
+      findMany: vi.fn(async () => [{ employeeId: 'emp-admin-1' }, { employeeId: 'emp-admin-2' }]),
+    },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         leaveApplication: {
@@ -53,10 +56,16 @@ vi.mock('../../services/notification.service', () => ({
   createNotification: vi.fn(async () => {}),
 }))
 
-import { applyLeave, approveLeave, rejectLeave } from './leave.service'
+vi.mock('../attendance/attendance.service', () => ({
+  markLeaveDates: vi.fn(async () => {}),
+  clearLeaveDates: vi.fn(async () => {}),
+}))
+
+import { applyLeave, approveLeave, rejectLeave, approveCancelLeave } from './leave.service'
 import { prisma } from '../../config/prisma'
 import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import { createNotification } from '../../services/notification.service'
+import { markLeaveDates, clearLeaveDates } from '../attendance/attendance.service'
 
 const leaveApplicationFindUnique = prisma.leaveApplication.findUnique as ReturnType<typeof vi.fn>
 
@@ -92,6 +101,26 @@ describe('applyLeave', () => {
       expect.objectContaining({ data: expect.objectContaining({ status: 'APPROVED', currentApproverId: null }) })
     )
     expect(txLeaveBalanceUpdate).toHaveBeenCalledTimes(2) // reserve pending + immediate deduct
+    // Otherwise these days have no Attendance row at all (no check-in happens
+    // while on leave) and fall back to ABSENT instead of ON_LEAVE.
+    expect(markLeaveDates).toHaveBeenCalledWith('emp-1', 'office-bd', expect.any(Date), expect.any(Date))
+  })
+
+  it('notifies every SUPER_ADMIN in the office when no approver resolves, instead of going silent', async () => {
+    ;(resolveTeamApprover as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    await applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
+      leaveTypeId: 'lt-1', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'trip',
+    } as any)
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employee: { officeId: 'office-bd' }, role: UserRole.SUPER_ADMIN } })
+    )
+    expect(createNotification).toHaveBeenCalledWith(
+      'emp-admin-1', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
+    )
+    expect(createNotification).toHaveBeenCalledWith(
+      'emp-admin-2', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
+    )
+    expect(createNotification).toHaveBeenCalledTimes(2)
   })
 
   it("escalates a DEPT_HEAD requester's own application per resolveTeamApprover", async () => {
@@ -146,6 +175,7 @@ describe('approveLeave', () => {
     expect(createNotification).toHaveBeenCalledWith(
       'emp-1', 'LEAVE_APPROVED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
     )
+    expect(markLeaveDates).toHaveBeenCalledWith('emp-1', 'office-bd', pendingApp().startDate, undefined)
   })
 
   it('lets the department head override-approve even when routed to a different DEPT_MANAGER', async () => {
@@ -170,5 +200,20 @@ describe('rejectLeave', () => {
     await expect(
       rejectLeave('app-1', 'emp-someone-else', UserRole.DEPT_MANAGER, { rejectionReason: 'no' } as any)
     ).rejects.toThrow('You are not authorized to review this application')
+  })
+})
+
+describe('approveCancelLeave', () => {
+  it('clears the ON_LEAVE placeholder attendance rows once a cancellation is approved', async () => {
+    const startDate = new Date('2026-08-10')
+    const endDate = new Date('2026-08-12')
+    leaveApplicationFindUnique.mockResolvedValue({
+      id: 'app-1', status: 'CANCEL_REQUESTED', approvalLevel: 1, currentApproverId: 'emp-manager',
+      employeeId: 'emp-1', totalDays: 3, leaveTypeId: 'lt-1', startDate, endDate,
+      leaveType: { name: 'Annual Leave' },
+      employee: { id: 'emp-1', firstName: 'A', lastName: 'B', departmentId: 'dept-1' },
+    })
+    await approveCancelLeave('app-1', 'emp-manager', UserRole.DEPT_MANAGER)
+    expect(clearLeaveDates).toHaveBeenCalledWith('emp-1', startDate, endDate)
   })
 })

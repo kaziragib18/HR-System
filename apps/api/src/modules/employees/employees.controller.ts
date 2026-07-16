@@ -4,7 +4,7 @@ import { EmployeeError } from './employees.service'
 import * as authService from '../auth/auth.service'
 import { prisma } from '../../config/prisma'
 import { env } from '../../config/env'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction, UserRole } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
@@ -39,7 +39,7 @@ function handle(res: Response, err: unknown) {
     sendError(res, err.message, err.status)
     return
   }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function list(req: Request, res: Response) {

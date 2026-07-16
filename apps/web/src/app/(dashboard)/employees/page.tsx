@@ -219,7 +219,7 @@ export default function EmployeesPage() {
   const { data, isLoading } = useEmployees({
     search,
     page,
-    limit: 20,
+    limit: 15,
     departmentId: deptFilter || undefined,
     officeId:     officeFilter || undefined,
     employmentStatus: statusFilter || undefined,

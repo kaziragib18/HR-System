@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth.store'
 import { useNotificationStore } from '@/store/notification.store'
@@ -15,6 +16,7 @@ import type { Notification } from '@hr-system/types'
 export function NotificationRealtimeProvider() {
   const employeeId = useAuthStore((s) => s.user?.employeeId)
   const addNotification = useNotificationStore((s) => s.addNotification)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (!employeeId) return
@@ -24,14 +26,21 @@ export function NotificationRealtimeProvider() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'Notification', filter: `employeeId=eq.${employeeId}` },
-        (payload) => addNotification(payload.new as Notification)
+        (payload) => {
+          addNotification(payload.new as Notification)
+          // addNotification only updates the Zustand store (bell badge) — the
+          // /notifications page itself renders from this React Query cache,
+          // which otherwise wouldn't pick up the new row until an unrelated
+          // refetch (e.g. remounting the page).
+          void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+        }
       )
       .subscribe()
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [employeeId, addNotification])
+  }, [employeeId, addNotification, queryClient])
 
   return null
 }

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import * as service from './salary.service'
 import { SalaryError } from './salary.service'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import { prisma } from '../../config/prisma'
@@ -11,7 +11,7 @@ import type { CreateSalaryStructureInput, ListSalaryQuery } from './salary.schem
 
 function handle(res: Response, err: unknown) {
   if (err instanceof SalaryError) { sendError(res, err.message, err.status); return }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function create(req: Request, res: Response) {

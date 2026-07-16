@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   usePendingApprovals,
   useApproveLeave,
@@ -69,6 +70,23 @@ function EmployeeRow({ firstName, lastName, employeeId, avatarUrl, department, r
 
 function Divider() {
   return <div className="h-px bg-border" />
+}
+
+// Wraps a card so that approving/rejecting it (which removes it from the
+// underlying query data) slides it out to the right instead of vanishing
+// instantly — `layout` makes framer-motion smoothly animate the position
+// change for the remaining siblings as they move up to fill the gap.
+function AnimatedCard({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      layout
+      initial={false}
+      exit={{ opacity: 0, x: 300 }}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
+    >
+      {children}
+    </motion.div>
+  )
 }
 
 function MetaChip({ icon: Icon, children, className }: {
@@ -387,28 +405,36 @@ function LeaveSection({ onModal }: { onModal: (m: ModalState) => void }) {
       {pending.length > 0 && (
         <div className="space-y-3">
           <SectionLabel label="New requests" count={pending.length} />
-          {pending.map(app => (
-            <LeaveCard key={app.id} app={app}
-              onApprove={() => approve.mutateAsync({ id: app.id })}
-              onReject={() => onModal({ type: 'reject-leave', id: app.id })}
-              approveLabel="Approve" approveVariant="green"
-              approving={approve.isPending}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {pending.map(app => (
+              <AnimatedCard key={app.id}>
+                <LeaveCard app={app}
+                  onApprove={() => approve.mutateAsync({ id: app.id })}
+                  onReject={() => onModal({ type: 'reject-leave', id: app.id })}
+                  approveLabel="Approve" approveVariant="green"
+                  approving={approve.isPending}
+                />
+              </AnimatedCard>
+            ))}
+          </AnimatePresence>
         </div>
       )}
       {cancelReq.length > 0 && (
         <div className="space-y-3">
           <SectionLabel label="Cancellation requests" count={cancelReq.length} />
-          {cancelReq.map(app => (
-            <LeaveCard key={app.id} app={app}
-              onApprove={() => approveCancel.mutateAsync(app.id)}
-              onReject={() => onModal({ type: 'reject-cancel', id: app.id })}
-              approveLabel="Approve Cancel" approveVariant="orange"
-              approving={approveCancel.isPending}
-              cancelNote={app.cancelReason ?? undefined}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {cancelReq.map(app => (
+              <AnimatedCard key={app.id}>
+                <LeaveCard app={app}
+                  onApprove={() => approveCancel.mutateAsync(app.id)}
+                  onReject={() => onModal({ type: 'reject-cancel', id: app.id })}
+                  approveLabel="Approve Cancel" approveVariant="orange"
+                  approving={approveCancel.isPending}
+                  cancelNote={app.cancelReason ?? undefined}
+                />
+              </AnimatedCard>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>
@@ -474,13 +500,17 @@ function ExcusesSection({ onModal }: { onModal: (m: ModalState) => void }) {
   return (
     <div className="space-y-3">
       <SectionLabel label="Late arrival excuses" count={excuses.length} />
-      {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
-        <ExcuseCard key={rec.id} rec={rec}
-          onApprove={() => onModal({ type: 'approve-excuse', id: rec.id })}
-          onReject={() => onModal({ type: 'reject-excuse', id: rec.id })}
-          reviewing={review.isPending}
-        />
-      ))}
+      <AnimatePresence initial={false}>
+        {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
+          <AnimatedCard key={rec.id}>
+            <ExcuseCard rec={rec}
+              onApprove={() => onModal({ type: 'approve-excuse', id: rec.id })}
+              onReject={() => onModal({ type: 'reject-excuse', id: rec.id })}
+              reviewing={review.isPending}
+            />
+          </AnimatedCard>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }
@@ -545,13 +575,17 @@ function AdjustmentsSection({ onModal }: { onModal: (m: ModalState) => void }) {
   return (
     <div className="space-y-3">
       <SectionLabel label="Attendance adjustment requests" count={requests.length} />
-      {(requests as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
-        <AdjustmentCard key={rec.id} rec={rec}
-          onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
-          onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
-          reviewing={review.isPending}
-        />
-      ))}
+      <AnimatePresence initial={false}>
+        {(requests as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
+          <AnimatedCard key={rec.id}>
+            <AdjustmentCard rec={rec}
+              onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
+              onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
+              reviewing={review.isPending}
+            />
+          </AnimatedCard>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }

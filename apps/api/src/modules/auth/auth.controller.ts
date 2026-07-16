@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import * as authService from './auth.service'
 import { AuthError, REFRESH_TOKEN_TTL_MS } from './auth.service'
 import { verifyTempToken } from '../../utils/jwt'
-import { sendSuccess, sendError } from '../../utils/response'
+import { sendSuccess, sendError, sendUnexpectedError } from '../../utils/response'
 import { env } from '../../config/env'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type {
@@ -39,7 +39,7 @@ function handleError(res: Response, err: unknown) {
     sendError(res, err.message, err.status)
     return
   }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function login(req: Request, res: Response) {

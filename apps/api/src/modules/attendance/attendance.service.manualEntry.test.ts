@@ -91,6 +91,43 @@ describe('manualEntry', () => {
     )
     expect(attendanceUpsert).toHaveBeenCalled()
   })
+
+  it('rejects a DEPT_MANAGER directly editing their own attendance', async () => {
+    await expect(
+      manualEntry(
+        { employeeId: 'emp-bd', date: '2026-07-10', checkIn: null, checkOut: null },
+        'actor-1',
+        'office-bd',
+        'dept-own',
+        'DEPT_MANAGER',
+        'emp-bd'
+      )
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('allows a DEPT_MANAGER to directly edit a teammate (not themselves)', async () => {
+    await manualEntry(
+      { employeeId: 'emp-bd', date: '2026-07-10', checkIn: null, checkOut: null },
+      'actor-1',
+      'office-bd',
+      'dept-own',
+      'DEPT_MANAGER',
+      'emp-someone-else'
+    )
+    expect(attendanceUpsert).toHaveBeenCalled()
+  })
+
+  it('allows a DEPT_HEAD to directly edit their own attendance (restriction is DEPT_MANAGER-only)', async () => {
+    await manualEntry(
+      { employeeId: 'emp-bd', date: '2026-07-10', checkIn: null, checkOut: null },
+      'actor-1',
+      'office-bd',
+      'dept-own',
+      'DEPT_HEAD',
+      'emp-bd'
+    )
+    expect(attendanceUpsert).toHaveBeenCalled()
+  })
 })
 
 describe('bulkImport', () => {

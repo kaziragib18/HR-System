@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import * as service from './payroll.service'
 import { PayrollError } from './payroll.service'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
@@ -13,7 +13,7 @@ function scope(req: Request) { return (req as OfficeScopedRequest).officeScope }
 
 function handle(res: Response, err: unknown) {
   if (err instanceof PayrollError) { sendError(res, err.message, err.status); return }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function create(req: Request, res: Response) {

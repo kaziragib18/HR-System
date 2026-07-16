@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import * as service from './announcements.service'
 import { AnnouncementError } from './announcements.service'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
@@ -19,7 +19,7 @@ function handle(res: Response, err: unknown) {
     sendError(res, err.message, err.status)
     return
   }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function getFeed(req: Request, res: Response) {

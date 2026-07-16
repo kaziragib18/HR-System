@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import * as service from './attendance.service'
 import { AttendanceError } from './attendance.service'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import { prisma } from '../../config/prisma'
@@ -16,7 +16,7 @@ function deptScope(req: Request) { return (req as DepartmentScopedRequest).depar
 
 function handle(res: Response, err: unknown) {
   if (err instanceof AttendanceError) { sendError(res, err.message, err.status); return }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function checkIn(req: Request, res: Response) {
@@ -69,7 +69,8 @@ export async function list(req: Request, res: Response) {
 
 export async function manualEntry(req: Request, res: Response) {
   try {
-    const record = await service.manualEntry(req.body as ManualEntryInput, user(req).sub, scope(req), deptScope(req))
+    const u = user(req)
+    const record = await service.manualEntry(req.body as ManualEntryInput, u.sub, scope(req), deptScope(req), u.role, u.employeeId)
     sendCreated(res, record)
   } catch (err) { handle(res, err) }
 }

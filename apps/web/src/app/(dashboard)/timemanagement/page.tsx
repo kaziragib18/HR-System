@@ -412,11 +412,17 @@ function DailyTable({
                   {row.record?.overtimeMinutes ? `${row.record.overtimeMinutes}m` : '—'}
                 </td>
                 <td className="max-w-[200px] py-2.5 text-xs text-muted-foreground">
-                  {row.record?.adjustmentReason ? (
-                    <span className="block truncate" title={row.record.adjustmentReason}>
-                      {row.record.adjustmentReason}
-                    </span>
-                  ) : '—'}
+                  {(() => {
+                    // adjustmentReason: employee-submitted adjustment REQUEST.
+                    // remarks: a manager's direct manual-entry correction —
+                    // previously never shown here at all.
+                    const reason = row.record?.adjustmentReason || row.record?.remarks
+                    return reason ? (
+                      <span className="block truncate" title={reason}>
+                        {reason}
+                      </span>
+                    ) : '—'
+                  })()}
                 </td>
                 {showAction && (
                   <td className="py-2.5">
@@ -682,6 +688,7 @@ export default function TimeManagementPage() {
   } | null>(null)
   const [search, setSearch] = useState('')
   const [deptId, setDeptId] = useState('')
+  const [empPage, setEmpPage] = useState(1)
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [requestTarget, setRequestTarget] = useState<EditTarget | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -695,6 +702,11 @@ export default function TimeManagementPage() {
   // office-wide department picker for them (SUPER_ADMIN/HR_MANAGER keep it).
   const isDeptScoped = isManager && !isAdmin
   const effectiveDeptId = isDeptScoped ? (user?.departmentId ?? '') : deptId
+  // A DEPT_MANAGER can directly edit their team's attendance, but not their
+  // own — their own correction still has to go through the request-adjustment
+  // flow so it routes to their DEPT_HEAD for approval (enforced server-side too).
+  const isSelfSelected = !!selectedEmp && selectedEmp.id === user?.employeeId
+  const blockSelfEdit = user?.role === UserRole.DEPT_MANAGER && isSelfSelected
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
 
   // Employee self data
@@ -703,7 +715,7 @@ export default function TimeManagementPage() {
   // Admin: employee list for selection
   const { data: empResult, isLoading: empLoading } = useEmployees(
     isManager
-      ? { search: search || undefined, departmentId: effectiveDeptId || undefined, limit: 100 }
+      ? { search: search || undefined, departmentId: effectiveDeptId || undefined, page: empPage, limit: 15 }
       : {}
   )
   const employeeList = empResult?.data ?? []
@@ -912,7 +924,7 @@ export default function TimeManagementPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setEmpPage(1) }}
                 placeholder="Search by name or ID…"
                 className="w-full rounded-lg border bg-card py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
@@ -924,7 +936,7 @@ export default function TimeManagementPage() {
             ) : (
               <select
                 value={deptId}
-                onChange={e => setDeptId(e.target.value)}
+                onChange={e => { setDeptId(e.target.value); setEmpPage(1) }}
                 className="rounded-lg border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">All Departments</option>
@@ -971,6 +983,31 @@ export default function TimeManagementPage() {
               </div>
             )}
           </Card>
+
+          {/* Pagination */}
+          {empResult && empResult.meta.totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Page {empResult.meta.page} of {empResult.meta.totalPages} · {empResult.meta.total} total
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={empPage <= 1}
+                  onClick={() => setEmpPage(p => p - 1)}
+                  className="rounded-md border px-3 py-1 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  disabled={empPage >= empResult.meta.totalPages}
+                  onClick={() => setEmpPage(p => p + 1)}
+                  className="rounded-md border px-3 py-1 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -987,8 +1024,8 @@ export default function TimeManagementPage() {
             ) : (
               <DailyTable
                 rows={rows}
-                canEdit={isManager && !!selectedEmp}
-                canRequest={isOwnRecords && !(isManager && !!selectedEmp)}
+                canEdit={isManager && !!selectedEmp && !blockSelfEdit}
+                canRequest={(isOwnRecords && !(isManager && !!selectedEmp)) || blockSelfEdit}
                 todayStr={todayStr}
                 onEdit={row =>
                   setEditTarget({

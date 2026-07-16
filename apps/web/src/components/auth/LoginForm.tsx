@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import axios from 'axios'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
@@ -17,6 +18,25 @@ const loginSchema = z.object({
 })
 
 type LoginForm = z.infer<typeof loginSchema>
+
+// Distinguishes "the server told us the credentials are wrong" from "we
+// never got a real answer" — collapsing both into a fixed "Invalid email or
+// password" (the previous behavior) is actively misleading when the real
+// cause is the API being down, a network drop, or an unexpected 500: it
+// tells the user to re-check a password that was never actually checked.
+function loginErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    if (err.response) {
+      // Server responded with an error status — trust its message if present.
+      return err.response.data?.error ?? `Something went wrong (server responded ${err.response.status}).`
+    }
+    if (err.request) {
+      // Request went out but no response ever came back — server down, CORS, timeout, etc.
+      return 'Cannot reach the server right now. Please check your connection and try again.'
+    }
+  }
+  return 'Something went wrong. Please try again.'
+}
 
 export function LoginForm() {
   const router = useRouter()
@@ -49,10 +69,7 @@ export function LoginForm() {
       const redirect = searchParams.get('redirect') ?? '/'
       router.push(redirect)
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Invalid email or password'
-      setError(message)
+      setError(loginErrorMessage(err))
     }
   }
 

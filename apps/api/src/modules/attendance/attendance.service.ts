@@ -41,6 +41,61 @@ async function isOnApprovedLeave(employeeId: string, date: Date): Promise<boolea
   return count > 0
 }
 
+function datesBetween(start: Date, end: Date): Date[] {
+  const dates: Date[] = []
+  const cur = toDateOnly(start)
+  const last = toDateOnly(end)
+  while (cur <= last) {
+    dates.push(new Date(cur))
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+  return dates
+}
+
+/**
+ * Called when a leave application is approved (or auto-approved) — without
+ * this, a day the employee is on leave has no Attendance row at all (they
+ * never check in), so the frontend's "no record → ABSENT" fallback shows
+ * ABSENT instead of ON_LEAVE for that day. Skips weekends/holidays, and
+ * skips any date that already has real attendance data (a genuine check-in)
+ * rather than clobbering it.
+ */
+export async function markLeaveDates(employeeId: string, officeId: string, startDate: Date, endDate: Date): Promise<void> {
+  for (const date of datesBetween(startDate, endDate)) {
+    const dow = date.getUTCDay()
+    if (dow === 0 || dow === 6) continue
+    if (await isHoliday(officeId, date)) continue
+
+    const existing = await prisma.attendance.findUnique({ where: { employeeId_date: { employeeId, date } } })
+    if (existing && existing.status !== AttendanceStatus.ABSENT && existing.status !== AttendanceStatus.ON_LEAVE) continue
+
+    await prisma.attendance.upsert({
+      where: { employeeId_date: { employeeId, date } },
+      create: { employeeId, date, status: AttendanceStatus.ON_LEAVE, source: AttendanceSource.SYSTEM },
+      update: { status: AttendanceStatus.ON_LEAVE, source: AttendanceSource.SYSTEM },
+    })
+  }
+}
+
+/**
+ * Inverse of markLeaveDates — called when an approved leave's cancellation
+ * is approved. Only removes the placeholder rows markLeaveDates created
+ * (source SYSTEM + status ON_LEAVE); a real attendance record is never
+ * touched. Cancellation is only ever allowed before the leave starts, so
+ * these are always future dates that would otherwise render as ON_LEAVE
+ * for a leave that no longer exists.
+ */
+export async function clearLeaveDates(employeeId: string, startDate: Date, endDate: Date): Promise<void> {
+  await prisma.attendance.deleteMany({
+    where: {
+      employeeId,
+      date: { gte: toDateOnly(startDate), lte: toDateOnly(endDate) },
+      status: AttendanceStatus.ON_LEAVE,
+      source: AttendanceSource.SYSTEM,
+    },
+  })
+}
+
 /** Self check-in for authenticated employee. */
 export async function selfCheckIn(employeeId: string, officeId: string, remarks?: string) {
   // The office's current wall-clock time, not the server's real UTC instant —
@@ -224,7 +279,9 @@ export async function manualEntry(
   input: ManualEntryInput,
   actorId: string,
   officeScope?: string,
-  departmentScope?: string
+  departmentScope?: string,
+  actorRole?: string,
+  actorEmployeeId?: string
 ) {
   const employee = await prisma.employee.findUnique({
     where: { id: input.employeeId },
@@ -234,6 +291,12 @@ export async function manualEntry(
   if (officeScope && employee.officeId !== officeScope) throw new AttendanceError('Employee not found', 404)
   if (departmentScope && employee.departmentId !== departmentScope) {
     throw new AttendanceError('You can only edit attendance for your own department', 403)
+  }
+  // A DEPT_MANAGER can correct their team's attendance directly, but not
+  // their own — their own correction still goes through the adjustment-
+  // request flow so it routes to their DEPT_HEAD for approval.
+  if (actorRole === UserRole.DEPT_MANAGER && actorEmployeeId === input.employeeId) {
+    throw new AttendanceError('Submit an adjustment request for your own attendance — it needs your department head\'s approval', 403)
   }
 
   const date = toDateOnly(input.date)

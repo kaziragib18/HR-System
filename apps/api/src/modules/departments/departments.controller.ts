@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import { prisma } from '../../config/prisma'
 import * as service from './departments.service'
 import { DepartmentError } from './departments.service'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
 import type { AuthRequest } from '../../middleware/auth.middleware'
@@ -18,7 +18,7 @@ function handle(res: Response, err: unknown) {
     sendError(res, err.message, err.status)
     return
   }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function list(req: Request, res: Response) {

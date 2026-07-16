@@ -3,7 +3,7 @@ import multer from 'multer'
 import { UserRole } from '@hr-system/types'
 import * as service from './documents.service'
 import { DocumentError } from './documents.service'
-import { sendSuccess, sendCreated, sendError, sendForbidden } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendForbidden, sendUnexpectedError } from '../../utils/response'
 import { isSelfOrRole } from '../../middleware/rbac.middleware'
 import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import type { AuthRequest } from '../../middleware/auth.middleware'
@@ -16,7 +16,7 @@ function handle(res: Response, err: unknown) {
     sendError(res, err.message, err.status)
     return
   }
-  throw err
+  sendUnexpectedError(res, err)
 }
 
 export async function list(req: Request, res: Response) {
