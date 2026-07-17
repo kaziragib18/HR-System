@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useMyDashboard, type MyDashboard, type ManagerInfo } from '@/lib/api/hooks/useMyDashboard'
 import { useTodayAttendance } from '@/lib/api/hooks/useAttendance'
-import { Card, Avatar, StatusBadge, Spinner } from '@/components/ui/primitives'
+import { Card, Avatar, StatusBadge, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -74,11 +74,49 @@ function fmtRange(start: string, end: string): string {
   return `${sd} – ${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`
 }
 
+function EmployeeDashboardSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <Card className="flex flex-1 items-center gap-3">
+          <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-3 w-64 max-w-full" />
+          </div>
+        </Card>
+        <Skeleton className="hidden h-16 w-40 rounded-xl sm:block" />
+      </div>
+      {/* Card row */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="space-y-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-3 w-full" />
+          </Card>
+        ))}
+      </div>
+      {/* Calendar + cards */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-3"><Skeleton className="h-56 w-full" /></Card>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="space-y-2">
+            {Array.from({ length: 4 }).map((_, j) => <Skeleton key={j} className="h-8 w-full" />)}
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function EmployeeDashboard() {
   const { user } = useAuthStore()
   const { data, isLoading } = useMyDashboard()
 
-  if (isLoading) return <Spinner />
+  if (isLoading) return <EmployeeDashboardSkeleton />
   if (!data) return null
 
   // DEPT_MANAGER/DEPT_HEAD get this same employee-style dashboard (see

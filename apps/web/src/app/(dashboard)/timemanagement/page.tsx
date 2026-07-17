@@ -13,7 +13,7 @@ import {
 import { useEmployees } from '@/lib/api/hooks/useEmployees'
 import { useDepartments } from '@/lib/api/hooks/useDepartments'
 import { useAuthStore } from '@/store/auth.store'
-import { Card, Avatar, Spinner } from '@/components/ui/primitives'
+import { Card, Avatar, ListSkeleton, Skeleton } from '@/components/ui/primitives'
 import { UserRole } from '@hr-system/types'
 import { BD_SHIFT, UK_SHIFT } from '@hr-system/utils'
 import { apiClient } from '@/lib/api/client'
@@ -996,9 +996,9 @@ export default function TimeManagementPage() {
             )}
           </div>
 
-          <Card>
+          <Card className={empLoading ? 'p-0' : undefined}>
             {empLoading ? (
-              <Spinner />
+              <ListSkeleton rows={6} />
             ) : employeeList.length === 0 ? (
               <div className="py-10 text-center text-sm text-muted-foreground">No employees found</div>
             ) : (
@@ -1083,8 +1083,14 @@ export default function TimeManagementPage() {
 
           <Card>
             {isLoading ? (
-              <div className="py-12 text-center">
-                <Spinner />
+              <div className="space-y-2 py-1">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-4 w-16 shrink-0" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-5 w-20 shrink-0 rounded-full" />
+                  </div>
+                ))}
               </div>
             ) : (
               <DailyTable

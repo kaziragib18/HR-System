@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { useUiStore } from '@/store/ui.store'
 import { useNotificationStore } from '@/store/notification.store'
+import { usePendingApprovals } from '@/lib/api/hooks/useLeave'
+import { usePendingExcuses, usePendingAdjustments } from '@/lib/api/hooks/useAttendance'
 import { logout } from '@/lib/api/auth'
 import { UserRole } from '@hr-system/types'
 import { Avatar } from '@/components/ui/primitives'
@@ -94,6 +96,24 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUiStore()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
 
+  // Pending-approval count for the Approvals nav badge — only fetched for roles
+  // that can act on approvals (matches who sees the Approvals item), polled every
+  // 60s like the notifications badge. Shares query cache with the approvals page.
+  const canApprove =
+    !!user &&
+    [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER].includes(
+      user.role as UserRole
+    )
+  const approvalOpts = { enabled: canApprove, refetchInterval: 60_000 }
+  const { data: pendingLeave = [] } = usePendingApprovals(approvalOpts)
+  const { data: pendingExcuses = [] } = usePendingExcuses(approvalOpts)
+  const { data: pendingAdjustments = [] } = usePendingAdjustments(approvalOpts)
+  const approvalsCount = canApprove
+    ? pendingLeave.filter((a) => a.status === 'PENDING' || a.status === 'CANCEL_REQUESTED').length +
+      pendingExcuses.length +
+      pendingAdjustments.length
+    : 0
+
   const handleLogout = async () => {
     await logout()
     router.replace('/login')
@@ -118,7 +138,14 @@ export function Sidebar() {
 
   function NavLink({ item }: { item: NavItem }) {
     const active = isActive(item.href)
-    const badge = item.href === '/notifications' && unreadCount > 0 ? unreadCount : 0
+    // Notifications badge is red (destructive); the Approvals queue badge is
+    // primary so the two signals read distinctly.
+    const badge =
+      item.href === '/notifications' ? unreadCount : item.href === '/approvals' ? approvalsCount : 0
+    const badgeTone =
+      item.href === '/approvals'
+        ? { dot: 'bg-primary', pill: 'bg-primary text-primary-foreground' }
+        : { dot: 'bg-destructive', pill: 'bg-destructive text-destructive-foreground' }
     return (
       <Link
         href={item.href}
@@ -139,12 +166,12 @@ export function Sidebar() {
           <item.icon className="h-[18px] w-[18px]" />
           {/* collapsed: show a dot instead of a numeric badge */}
           {badge > 0 && collapsed && (
-            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-card" />
+            <span className={cn('absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-card', badgeTone.dot)} />
           )}
         </span>
         {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
         {!collapsed && badge > 0 && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+          <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold', badgeTone.pill)}>
             {badge > 99 ? '99+' : badge}
           </span>
         )}

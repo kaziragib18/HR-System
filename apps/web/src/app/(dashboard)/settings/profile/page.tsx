@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth.store'
 import { useEmployee } from '@/lib/api/hooks/useEmployees'
-import { Card, Spinner } from '@/components/ui/primitives'
+import { Card, Skeleton } from '@/components/ui/primitives'
 import { Tabs } from '@/components/ui/tabs'
 import { AvatarUploader } from '@/components/profile/AvatarUploader'
 import { EmployeeOverviewTab } from '@/components/employees/EmployeeOverviewTab'
@@ -31,7 +31,27 @@ export default function ProfileSettingsPage() {
   const [tab, setTab] = useState('overview')
 
   if (!user) return null
-  if (isLoading) return <Spinner />
+  if (isLoading) {
+    return (
+      <div>
+        <Card className="mb-4 max-w-2xl">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3.5 w-52" />
+            </div>
+          </div>
+        </Card>
+        <div className="mb-6 flex gap-2 border-b pb-1">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-6 w-20" />)}
+        </div>
+        <Card className="max-w-2xl space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
+        </Card>
+      </div>
+    )
+  }
   if (!emp) return <p className="text-sm text-muted-foreground">Profile not found.</p>
 
   return (

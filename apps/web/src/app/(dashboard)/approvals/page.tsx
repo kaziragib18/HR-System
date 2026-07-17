@@ -15,11 +15,11 @@ import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdj
 import type { AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { useApprovalHistory } from '@/lib/api/hooks/useApprovalHistory'
 import type { ApprovalHistoryItem } from '@/lib/api/hooks/useApprovalHistory'
-import { Avatar, StatusBadge, PageHeader, RolePill } from '@/components/ui/primitives'
+import { Avatar, PageHeader, RolePill } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
-  AlertCircle, Building2, History,
+  AlertCircle, Building2, History, ArrowRight, Quote, UserCheck,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
@@ -320,6 +320,15 @@ function SectionLabel({ label, count }: { label: string; count: number }) {
   )
 }
 
+const LEAVE_TYPE_CHIP: Record<string, string> = {
+  AL:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  SL:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  CL:  'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  ML:  'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+  UL:  'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+  CPL: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+}
+
 function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, approving, cancelNote }: {
   app: LeaveApplication
   onApprove: () => void; onReject: () => void
@@ -327,15 +336,21 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
   approving: boolean; cancelNote?: string
 }) {
   const emp = app.employee
+  const days = Number(app.totalDays)
+  const isCancel = approveVariant === 'orange'
+  const sameDay = app.startDate.slice(0, 10) === app.endDate.slice(0, 10)
+  const dayTint = isCancel
+    ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+    : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+  const typeChip = LEAVE_TYPE_CHIP[app.leaveType?.code ?? ''] ?? 'bg-primary/10 text-primary'
 
   return (
     <div className={cn(
-      'overflow-hidden rounded-xl border bg-card shadow-sm',
-      'border-l-[3px]',
-      approveVariant === 'orange' ? 'border-l-orange-500' : 'border-l-blue-500'
+      'overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md',
+      isCancel ? 'border-l-orange-500' : 'border-l-blue-500'
     )}>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 py-4">
+      {/* Header: employee + day-count hero */}
+      <div className="flex items-start justify-between gap-3 px-4 pt-4">
         {emp && (
           <EmployeeRow
             firstName={emp.firstName} lastName={emp.lastName}
@@ -343,33 +358,57 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
             department={emp.department} role={emp.user?.role}
           />
         )}
-        <div className="shrink-0 pt-0.5">
-          <StatusBadge status={app.status} />
+        <div className={cn('shrink-0 rounded-lg px-3 py-1.5 text-center', dayTint)}>
+          <p className="text-xl font-bold leading-none tabular-nums">{days}</p>
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide">{days === 1 ? 'day' : 'days'}</p>
         </div>
       </div>
 
-      <Divider />
-
       {/* Body */}
-      <div className="space-y-3 px-5 py-4">
-        {/* Leave type + key stats */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+      <div className="space-y-3 px-4 py-4">
+        {/* Leave type + applied date */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', typeChip)}>
             <CalendarDays className="h-3.5 w-3.5" />
             {app.leaveType?.name}
           </span>
-          <MetaChip icon={CalendarDays}>{fmtDateRange(app.startDate, app.endDate)}</MetaChip>
-          <span className="text-sm font-semibold tabular-nums">
-            {Number(app.totalDays)} <span className="text-xs font-normal text-muted-foreground">day{Number(app.totalDays) !== 1 ? 's' : ''}</span>
-          </span>
+          {isCancel && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">
+              <Undo2 className="h-3 w-3" /> Cancellation
+            </span>
+          )}
           <span className="ml-auto text-xs text-muted-foreground">Applied {fmtDate(app.createdAt)}</span>
         </div>
 
+        {/* Date range timeline */}
+        {sameDay ? (
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
+            <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="font-medium">{fmtDate(app.startDate)}</span>
+            <span className="text-xs text-muted-foreground">· single day</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From</p>
+              <p className="truncate text-sm font-medium">{fmtDate(app.startDate)}</p>
+            </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">To</p>
+              <p className="truncate text-sm font-medium">{fmtDate(app.endDate)}</p>
+            </div>
+          </div>
+        )}
+
         {/* Reason */}
         {app.reason && (
-          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Reason: </span>{app.reason}
-          </p>
+          <div className="rounded-lg bg-muted/50 px-3 py-2">
+            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Quote className="h-3 w-3" /> Reason
+            </p>
+            <p className="text-sm text-muted-foreground">{app.reason}</p>
+          </div>
         )}
 
         {/* Cancel note */}
@@ -388,11 +427,9 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
         )}
       </div>
 
-      <Divider />
-
       {/* Footer actions */}
-      <div className="flex items-center justify-end gap-2 px-5 py-3">
-        <RejectBtn onClick={onReject} label={approveVariant === 'orange' ? 'Keep Leave' : 'Reject'} />
+      <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+        <RejectBtn onClick={onReject} label={isCancel ? 'Keep Leave' : 'Reject'} />
         <ApproveBtn onClick={onApprove} disabled={approving} label={approveLabel} variant={approveVariant} />
       </div>
     </div>
@@ -415,36 +452,40 @@ function LeaveSection({ onModal }: { onModal: (m: ModalState) => void }) {
       {pending.length > 0 && (
         <div className="space-y-3">
           <SectionLabel label="New requests" count={pending.length} />
-          <AnimatePresence initial={false}>
-            {pending.map(app => (
-              <AnimatedCard key={app.id}>
-                <LeaveCard app={app}
-                  onApprove={() => approve.mutateAsync({ id: app.id })}
-                  onReject={() => onModal({ type: 'reject-leave', id: app.id })}
-                  approveLabel="Approve" approveVariant="green"
-                  approving={approve.isPending}
-                />
-              </AnimatedCard>
-            ))}
-          </AnimatePresence>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AnimatePresence initial={false}>
+              {pending.map(app => (
+                <AnimatedCard key={app.id}>
+                  <LeaveCard app={app}
+                    onApprove={() => approve.mutateAsync({ id: app.id })}
+                    onReject={() => onModal({ type: 'reject-leave', id: app.id })}
+                    approveLabel="Approve" approveVariant="green"
+                    approving={approve.isPending && approve.variables?.id === app.id}
+                  />
+                </AnimatedCard>
+              ))}
+            </AnimatePresence>
+          </div>
         </div>
       )}
       {cancelReq.length > 0 && (
         <div className="space-y-3">
           <SectionLabel label="Cancellation requests" count={cancelReq.length} />
-          <AnimatePresence initial={false}>
-            {cancelReq.map(app => (
-              <AnimatedCard key={app.id}>
-                <LeaveCard app={app}
-                  onApprove={() => approveCancel.mutateAsync(app.id)}
-                  onReject={() => onModal({ type: 'reject-cancel', id: app.id })}
-                  approveLabel="Approve Cancel" approveVariant="orange"
-                  approving={approveCancel.isPending}
-                  cancelNote={app.cancelReason ?? undefined}
-                />
-              </AnimatedCard>
-            ))}
-          </AnimatePresence>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AnimatePresence initial={false}>
+              {cancelReq.map(app => (
+                <AnimatedCard key={app.id}>
+                  <LeaveCard app={app}
+                    onApprove={() => approveCancel.mutateAsync(app.id)}
+                    onReject={() => onModal({ type: 'reject-cancel', id: app.id })}
+                    approveLabel="Approve Cancel" approveVariant="orange"
+                    approving={approveCancel.isPending && approveCancel.variables === app.id}
+                    cancelNote={app.cancelReason ?? undefined}
+                  />
+                </AnimatedCard>
+              ))}
+            </AnimatePresence>
+          </div>
         </div>
       )}
     </div>
@@ -510,17 +551,19 @@ function ExcusesSection({ onModal }: { onModal: (m: ModalState) => void }) {
   return (
     <div className="space-y-3">
       <SectionLabel label="Late arrival excuses" count={excuses.length} />
-      <AnimatePresence initial={false}>
-        {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
-          <AnimatedCard key={rec.id}>
-            <ExcuseCard rec={rec}
-              onApprove={() => onModal({ type: 'approve-excuse', id: rec.id })}
-              onReject={() => onModal({ type: 'reject-excuse', id: rec.id })}
-              reviewing={review.isPending}
-            />
-          </AnimatedCard>
-        ))}
-      </AnimatePresence>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AnimatePresence initial={false}>
+          {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
+            <AnimatedCard key={rec.id}>
+              <ExcuseCard rec={rec}
+                onApprove={() => onModal({ type: 'approve-excuse', id: rec.id })}
+                onReject={() => onModal({ type: 'reject-excuse', id: rec.id })}
+                reviewing={review.isPending}
+              />
+            </AnimatedCard>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }
@@ -585,17 +628,19 @@ function AdjustmentsSection({ onModal }: { onModal: (m: ModalState) => void }) {
   return (
     <div className="space-y-3">
       <SectionLabel label="Attendance adjustment requests" count={requests.length} />
-      <AnimatePresence initial={false}>
-        {(requests as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
-          <AnimatedCard key={rec.id}>
-            <AdjustmentCard rec={rec}
-              onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
-              onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
-              reviewing={review.isPending}
-            />
-          </AnimatedCard>
-        ))}
-      </AnimatePresence>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AnimatePresence initial={false}>
+          {(requests as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(rec => (
+            <AnimatedCard key={rec.id}>
+              <AdjustmentCard rec={rec}
+                onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
+                onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
+                reviewing={review.isPending}
+              />
+            </AnimatedCard>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }
@@ -672,63 +717,101 @@ function HistoryCard({ item }: { item: ApprovalHistoryItem }) {
     return item.comment
   })()
 
-  return (
-    <div className={cn('overflow-hidden rounded-xl border bg-card shadow-sm border-l-[3px]', actionCfg.border)}>
-      <div className="flex items-start gap-4 px-5 py-4">
-        {/* Left: employee + details */}
-        <div className="min-w-0 flex-1 space-y-3">
-          <EmployeeRow
-            firstName={emp.firstName} lastName={emp.lastName}
-            employeeId={emp.employeeId} avatarUrl={undefined}
-            department={emp.department}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', typeCfg.cls)}>
-              <TypeIcon className="h-3.5 w-3.5" />{typeCfg.label}
-              {item.type === 'LEAVE' && (
-                <span className="opacity-70">· {(item as Extract<ApprovalHistoryItem, { type: 'LEAVE' }>).leaveType?.name}</span>
-              )}
-            </span>
-            <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', actionCfg.cls)}>
-              {actionCfg.label}
-            </span>
-            {item.level != null && (
-              <span className="text-xs text-muted-foreground">Level {item.level}</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <MetaChip icon={CalendarDays}>{detail.primary}</MetaChip>
-            <span className="text-xs font-semibold">{detail.secondary}</span>
-          </div>
-          {extraText && (
-            <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              {extraText}
-            </p>
-          )}
-        </div>
+  const ActionIcon = item.action === 'APPROVED' ? CheckCircle2 : item.action === 'REJECTED' ? XCircle : History
 
-        {/* Right: approver block */}
-        {item.approver && (
-          <div className="shrink-0 text-right space-y-0.5">
-            <p className="text-xs font-semibold leading-tight">
-              {item.approver.firstName} {item.approver.lastName}
-            </p>
-            {item.approver.jobTitle && (
-              <p className="text-[11px] text-muted-foreground">{item.approver.jobTitle.name}</p>
+  return (
+    <div className={cn('flex flex-col overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm', actionCfg.border)}>
+      {/* Header: employee + action badge */}
+      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+        <EmployeeRow
+          firstName={emp.firstName} lastName={emp.lastName}
+          employeeId={emp.employeeId} avatarUrl={undefined}
+          department={emp.department}
+        />
+        <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold', actionCfg.cls)}>
+          <ActionIcon className="h-3 w-3" /> {actionCfg.label}
+        </span>
+      </div>
+
+      {/* Body: type + detail + note */}
+      <div className="space-y-2 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', typeCfg.cls)}>
+            <TypeIcon className="h-3.5 w-3.5" />{typeCfg.label}
+            {item.type === 'LEAVE' && (
+              <span className="opacity-70">· {(item as Extract<ApprovalHistoryItem, { type: 'LEAVE' }>).leaveType?.name}</span>
             )}
-            <p className="text-[11px] text-muted-foreground pt-1">{fmtDate(item.actionAt)}</p>
-          </div>
+          </span>
+          <MetaChip icon={CalendarDays}>{detail.primary}</MetaChip>
+          <span className="text-xs font-semibold text-muted-foreground">{detail.secondary}</span>
+        </div>
+        {extraText && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">{extraText}</p>
         )}
       </div>
+
+      {/* Footer: who actioned it + when */}
+      {item.approver && (
+        <div className="mt-auto flex items-center gap-1.5 border-t px-4 py-2.5 text-[11px] text-muted-foreground">
+          <UserCheck className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            by <span className="font-medium text-foreground">{item.approver.firstName} {item.approver.lastName}</span>
+            {item.approver.jobTitle && ` · ${item.approver.jobTitle.name}`}
+          </span>
+          <span className="ml-auto shrink-0">{fmtDate(item.actionAt)}</span>
+        </div>
+      )}
     </div>
   )
 }
+
+// Windowed page numbers: 1 … (p-1) p (p+1) … last
+function pageWindow(current: number, total: number): (number | '…')[] {
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b)
+  const out: (number | '…')[] = []
+  let prev = 0
+  for (const p of sorted) {
+    if (p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
+function TypeChip({ label, count, active, onClick, icon: Icon }: {
+  label: string; count: number; active: boolean; onClick: () => void; icon?: React.ElementType
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+        active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted'
+      )}
+    >
+      {Icon && <Icon className="h-3 w-3" />}
+      {label}
+      <span className={cn(active ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>{count}</span>
+    </button>
+  )
+}
+
+type HistoryType = 'ALL' | 'LEAVE' | 'EXCUSE' | 'ADJUSTMENT'
+type HistoryAction = 'ALL' | 'APPROVED' | 'REJECTED' | 'FORWARDED'
+const HISTORY_PAGE_SIZE = 8
 
 function HistorySection({ month, year, onMonthChange }: {
   month: number; year: number
   onMonthChange: (m: number, y: number) => void
 }) {
   const { data: items = [], isLoading } = useApprovalHistory(month, year)
+  const [typeFilter, setTypeFilter] = useState<HistoryType>('ALL')
+  const [actionFilter, setActionFilter] = useState<HistoryAction>('ALL')
+  const [page, setPage] = useState(1)
+
+  // Reset to page 1 whenever the month or filters change.
+  useEffect(() => { setPage(1) }, [month, year, typeFilter, actionFilter])
 
   const counts = {
     LEAVE:      items.filter(i => i.type === 'LEAVE').length,
@@ -736,34 +819,94 @@ function HistorySection({ month, year, onMonthChange }: {
     ADJUSTMENT: items.filter(i => i.type === 'ADJUSTMENT').length,
   }
 
+  const filtered = items.filter(
+    i => (typeFilter === 'ALL' || i.type === typeFilter) && (actionFilter === 'ALL' || i.action === actionFilter)
+  )
+  const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE))
+  const pageItems = filtered.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE)
+  const hasFilters = typeFilter !== 'ALL' || actionFilter !== 'ALL'
+
   return (
     <div className="space-y-4">
-      {/* Controls bar */}
+      {/* Controls: month picker + action filter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <MonthPicker month={month} year={year} onChange={onMonthChange} />
-        {items.length > 0 && (
-          <div className="flex items-center gap-3">
-            {(Object.entries(counts) as [keyof typeof counts, number][]).filter(([, n]) => n > 0).map(([type, n]) => {
-              const cfg = TYPE_CONFIG[type]
-              const Icon = cfg.icon
-              return (
-                <span key={type} className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium', cfg.cls)}>
-                  <Icon className="h-3 w-3" />{n} {cfg.label.toLowerCase()}
-                </span>
-              )
-            })}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <select
+            value={actionFilter}
+            onChange={e => setActionFilter(e.target.value as HistoryAction)}
+            className="h-9 rounded-md border bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="ALL">All actions</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="FORWARDED">Forwarded</option>
+          </select>
+          {hasFilters && (
+            <button
+              onClick={() => { setTypeFilter('ALL'); setActionFilter('ALL') }}
+              className="flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm text-muted-foreground hover:bg-muted"
+            >
+              <XCircle className="h-3.5 w-3.5" /> Clear
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Type filter chips */}
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <TypeChip label="All" count={items.length} active={typeFilter === 'ALL'} onClick={() => setTypeFilter('ALL')} />
+          {(['LEAVE', 'EXCUSE', 'ADJUSTMENT'] as const).filter(t => counts[t] > 0).map(t => (
+            <TypeChip
+              key={t}
+              label={TYPE_CONFIG[t].label}
+              count={counts[t]}
+              icon={TYPE_CONFIG[t].icon}
+              active={typeFilter === t}
+              onClick={() => setTypeFilter(t)}
+            />
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <SectionSkeleton />
       ) : items.length === 0 ? (
         <Empty icon={History} message={`No approval actions recorded in ${FULL_MONTHS[month - 1]} ${year}.`} />
+      ) : filtered.length === 0 ? (
+        <Empty icon={History} message="No actions match these filters." />
       ) : (
-        <div className="space-y-3">
-          {items.map(item => <HistoryCard key={item.id} item={item} />)}
-        </div>
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {pageItems.map(item => <HistoryCard key={item.id} item={item} />)}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm">
+              <span className="text-muted-foreground">
+                {filtered.length} {filtered.length === 1 ? 'action' : 'actions'} · page {page} of {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50">Previous</button>
+                {pageWindow(page, totalPages).map((p, i) =>
+                  p === '…' ? (
+                    <span key={`e${i}`} className="px-1 text-muted-foreground">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p as number)}
+                      className={cn('min-w-8 rounded-md border px-2.5 py-1', p === page ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted')}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+                <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -883,8 +1026,9 @@ export default function ApprovalsPage() {
         </div>
       </div>
 
-      {/* Content */}
-      <div>
+      {/* Content — clip horizontal overflow so a card's slide-out exit
+          animation (x: 300) doesn't briefly show a page-wide horizontal scrollbar. */}
+      <div className="overflow-x-hidden">
         {tab === 'leave'       && <LeaveSection       onModal={setModal} />}
         {tab === 'excuses'     && <ExcusesSection     onModal={setModal} />}
         {tab === 'adjustments' && <AdjustmentsSection onModal={setModal} />}

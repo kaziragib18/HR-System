@@ -103,7 +103,7 @@ export function useMyLeaveApplications(status?: string) {
   })
 }
 
-export function usePendingApprovals() {
+export function usePendingApprovals(opts?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
     queryKey: ['leave', 'applications', 'pending'],
     queryFn: async () => {
@@ -111,6 +111,8 @@ export function usePendingApprovals() {
       return (data.data ?? []) as LeaveApplication[]
     },
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

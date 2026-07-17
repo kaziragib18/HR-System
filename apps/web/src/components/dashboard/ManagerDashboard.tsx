@@ -2,12 +2,13 @@
 
 import { useDashboardStats, useHeadcountByDepartment } from '@/lib/api/hooks/useDashboard'
 import { usePendingExcuses, useReviewExcuse, type AttendanceRecord } from '@/lib/api/hooks/useAttendance'
-import { Card, Spinner, Avatar } from '@/components/ui/primitives'
+import { Card, Avatar, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
 import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 import {
   Users,
   CalendarOff,
@@ -15,6 +16,7 @@ import {
   Inbox,
   CheckCircle2,
   XCircle,
+  ChevronRight,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -37,30 +39,32 @@ export function ManagerDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">
-            Welcome back, {user?.firstName}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {user?.role.replace(/_/g, ' ')} · {user?.officeCode} office overview
-          </p>
+      {/* Header */}
+      <Card className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar firstName={user?.firstName ?? '?'} lastName={user?.lastName ?? '?'} url={user?.avatarUrl} size={48} />
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold">Welcome back, {user?.firstName}</h1>
+            <p className="truncate text-sm text-muted-foreground">
+              {user?.role.replace(/_/g, ' ')} · {user?.officeCode} office overview
+            </p>
+          </div>
         </div>
-        <span className="text-sm text-muted-foreground">
+        <span className="shrink-0 text-sm text-muted-foreground">
           {MONTHS[now.getMonth()]} {now.getFullYear()}
         </span>
-      </div>
+      </Card>
 
       {isLoading ? (
-        <Spinner />
+        <ManagerDashboardSkeleton />
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="grid grid-cols-2 gap-4">
-              <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" />
+              <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" href="/employees" />
               <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
               <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
-              <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" />
+              <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" href="/approvals?tab=leave" />
             </div>
             <RecentApprovalsCard />
           </div>
@@ -126,7 +130,17 @@ function LateExcuseReview() {
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Late excuse review · {excuses.length} pending
       </p>
-      {isLoading ? <Spinner /> : (
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
+              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-2"><Skeleton className="h-3 w-40" /><Skeleton className="h-3 w-2/3" /></div>
+              <Skeleton className="h-7 w-40 shrink-0" />
+            </div>
+          ))}
+        </div>
+      ) : (
         <div className="space-y-3">
           {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(exc => {
             const date = new Date(exc.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -171,6 +185,34 @@ function LateExcuseReview() {
   )
 }
 
+function ManagerDashboardSkeleton() {
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="flex items-center gap-4">
+              <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+              <div className="space-y-2"><Skeleton className="h-7 w-12" /><Skeleton className="h-3 w-20" /></div>
+            </Card>
+          ))}
+        </div>
+        <Card className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </Card>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i} className="space-y-3">
+            {Array.from({ length: 3 }).map((_, j) => <Skeleton key={j} className="h-10 w-full" />)}
+          </Card>
+        ))}
+      </div>
+      <Card><Skeleton className="h-64 w-full" /></Card>
+    </>
+  )
+}
+
 const TONES: Record<string, string> = {
   blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
   amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
@@ -185,21 +227,35 @@ function Stat({
   label,
   value,
   tone,
+  href,
 }: {
   icon: LucideIcon
   label: string
   value: number
   tone: string
+  href?: string
 }) {
-  return (
-    <Card className="flex items-center gap-4">
-      <div className={cn('flex h-11 w-11 items-center justify-center rounded-lg', TONES[tone])}>
+  const inner = (
+    <>
+      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-lg', TONES[tone])}>
         <Icon className="h-5 w-5" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-2xl font-semibold leading-none">{value}</p>
         <p className="mt-1 text-xs text-muted-foreground">{label}</p>
       </div>
-    </Card>
+      {href && <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground/50" />}
+    </>
   )
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="flex items-center gap-4 rounded-lg border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-muted/30"
+      >
+        {inner}
+      </Link>
+    )
+  }
+  return <Card className="flex items-center gap-4">{inner}</Card>
 }

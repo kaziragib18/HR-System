@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { PageHeader, Card, Spinner, EmptyState } from '@/components/ui/primitives'
+import { PageHeader, Card, EmptyState, Skeleton } from '@/components/ui/primitives'
 import { CATEGORY_META } from '@/components/dashboard/AnnouncementsCard'
 import {
   useAnnouncementFeed,
@@ -572,9 +572,19 @@ export default function AnnouncementsPage() {
       )}
 
       {isLoading ? (
-        <Card>
-          <Spinner />
-        </Card>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-3 rounded-xl border bg-card p-4">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-24 rounded-full" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-2.5 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center gap-2 py-10 text-center">

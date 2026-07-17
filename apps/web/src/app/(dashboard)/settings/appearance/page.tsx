@@ -43,11 +43,6 @@ export default function AppearanceSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Appearance</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Customize theme across the app.</p>
-      </div>
-
       <Card>
         <p className="text-sm font-medium">Theme</p>
         <p className="mt-1 text-xs text-muted-foreground">Choose how the interface looks.</p>

@@ -185,7 +185,7 @@ export function useManualEntry() {
   })
 }
 
-export function usePendingExcuses() {
+export function usePendingExcuses(opts?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
     queryKey: ['attendance', 'late-excuses'],
     queryFn: async () => {
@@ -193,6 +193,8 @@ export function usePendingExcuses() {
       return data.data as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]
     },
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 
@@ -243,7 +245,7 @@ export function useUpdateAdjustmentRequest() {
   })
 }
 
-export function usePendingAdjustments() {
+export function usePendingAdjustments(opts?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
     queryKey: ['attendance', 'adjustment-requests'],
     queryFn: async () => {
@@ -251,6 +253,8 @@ export function usePendingAdjustments() {
       return data.data as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]
     },
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

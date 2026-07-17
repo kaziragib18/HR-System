@@ -275,3 +275,26 @@ export function EmptyState({ message }: { message: string }) {
     </div>
   )
 }
+
+/** A single pulsing placeholder bar for skeleton loading states. */
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn('animate-pulse rounded bg-muted', className)} />
+}
+
+/** Skeleton rows for a list/table loading state (avatar + two text lines + trailing chip). */
+export function ListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="divide-y">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-3">
+          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-2.5 w-56 max-w-full" />
+          </div>
+          <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+        </div>
+      ))}
+    </div>
+  )
+}

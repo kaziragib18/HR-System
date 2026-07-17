@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Card, Spinner, EmptyState } from '@/components/ui/primitives'
+import { Card, EmptyState, Skeleton } from '@/components/ui/primitives'
 import { useAnnouncementFeed } from '@/lib/api/hooks/useAnnouncements'
 import { AnnouncementCategory, type AnnouncementFeedItem } from '@hr-system/types'
 import { cn } from '@/lib/utils'
@@ -122,7 +122,17 @@ export function AnnouncementsCard() {
         </Link>
       </div>
       {isLoading ? (
-        <Spinner />
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-2.5 py-1">
+              <Skeleton className="h-7 w-7 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-2.5 w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <EmptyState message="No announcements right now." />
       ) : (

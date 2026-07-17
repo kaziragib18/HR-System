@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/auth.store'
 import { useEmployees, useUpdateEmployeeRole } from '@/lib/api/hooks/useEmployees'
 import { useOffices } from '@/lib/api/hooks/useReference'
-import { Card, Avatar, Spinner, EmptyState, RolePill, fmtRole } from '@/components/ui/primitives'
+import { Card, Avatar, ListSkeleton, EmptyState, RolePill, fmtRole } from '@/components/ui/primitives'
 import { UserRole } from '@hr-system/types'
 import { ShieldOff, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react'
 
@@ -193,7 +193,7 @@ function PeopleList() {
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center"><Spinner /></div>
+        <ListSkeleton rows={6} />
       ) : items.length === 0 ? (
         <EmptyState message="No employees match these filters." />
       ) : (
