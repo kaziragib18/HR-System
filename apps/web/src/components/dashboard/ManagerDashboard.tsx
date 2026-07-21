@@ -1,7 +1,6 @@
 'use client'
 
 import { useDashboardStats, useHeadcountByDepartment } from '@/lib/api/hooks/useDashboard'
-import { usePendingExcuses, useReviewExcuse, type AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { Card, Avatar, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
@@ -14,8 +13,6 @@ import {
   CalendarOff,
   Clock,
   Inbox,
-  CheckCircle2,
-  XCircle,
   ChevronRight,
   type LucideIcon,
 } from 'lucide-react'
@@ -69,8 +66,6 @@ export function ManagerDashboard() {
             <RecentApprovalsCard />
           </div>
 
-          <LateExcuseReview />
-
           <div className="grid gap-4 lg:grid-cols-2">
             <AnnouncementsCard />
             <ComplianceDocsCard />
@@ -116,72 +111,6 @@ export function ManagerDashboard() {
         </>
       )}
     </div>
-  )
-}
-
-function LateExcuseReview() {
-  const { data: excuses = [], isLoading } = usePendingExcuses()
-  const review = useReviewExcuse()
-
-  if (!isLoading && excuses.length === 0) return null
-
-  return (
-    <Card className="lg:col-span-3">
-      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Late excuse review · {excuses.length} pending
-      </p>
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
-              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-              <div className="flex-1 space-y-2"><Skeleton className="h-3 w-40" /><Skeleton className="h-3 w-2/3" /></div>
-              <Skeleton className="h-7 w-40 shrink-0" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {(excuses as (AttendanceRecord & { employee: NonNullable<AttendanceRecord['employee']> })[]).map(exc => {
-            const date = new Date(exc.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            const isPending = review.isPending && review.variables?.id === exc.id
-            return (
-              <div key={exc.id} className="flex flex-wrap items-start gap-3 rounded-lg border p-3">
-                <Avatar firstName={exc.employee.firstName} lastName={exc.employee.lastName} size={32} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium">{exc.employee.firstName} {exc.employee.lastName}</p>
-                    <span className="text-xs text-muted-foreground">{exc.employee.employeeId} · {date}</span>
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-                      Late {exc.lateMinutes} min
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{exc.lateExcuse}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => review.mutate({ id: exc.id, approved: true, newStatus: 'PRESENT' })}
-                    disabled={isPending}
-                    className="flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => review.mutate({ id: exc.id, approved: false })}
-                    disabled={isPending}
-                    className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Reject
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </Card>
   )
 }
 

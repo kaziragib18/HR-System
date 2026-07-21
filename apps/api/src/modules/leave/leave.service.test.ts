@@ -55,6 +55,7 @@ vi.mock('../../services/approver-resolution.service', () => ({
 
 vi.mock('../../services/notification.service', () => ({
   createNotification: vi.fn(async () => {}),
+  notifyOfficeAdmins: vi.fn(async () => {}),
 }))
 
 vi.mock('../attendance/attendance.service', () => ({
@@ -65,7 +66,7 @@ vi.mock('../attendance/attendance.service', () => ({
 import { applyLeave, approveLeave, rejectLeave, approveCancelLeave } from './leave.service'
 import { prisma } from '../../config/prisma'
 import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
-import { createNotification } from '../../services/notification.service'
+import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
 import { markLeaveDates, clearLeaveDates } from '../attendance/attendance.service'
 
 const leaveApplicationFindUnique = prisma.leaveApplication.findUnique as ReturnType<typeof vi.fn>
@@ -107,21 +108,28 @@ describe('applyLeave', () => {
     expect(markLeaveDates).toHaveBeenCalledWith('emp-1', 'office-bd', expect.any(Date), expect.any(Date))
   })
 
-  it('notifies every SUPER_ADMIN in the office when no approver resolves, instead of going silent', async () => {
+  it('notifies office admins when no approver resolves, instead of going silent', async () => {
     ;(resolveTeamApprover as ReturnType<typeof vi.fn>).mockResolvedValue(null)
     await applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
       leaveTypeId: 'lt-1', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'trip',
     } as any)
-    expect(prisma.user.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { employee: { officeId: 'office-bd' }, role: UserRole.SUPER_ADMIN } })
+    expect(notifyOfficeAdmins).toHaveBeenCalledWith(
+      'office-bd', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
     )
+  })
+
+  it('notifies office admins in addition to the resolved approver for a normal request', async () => {
+    await applyLeave('emp-1', 'office-bd', UserRole.EMPLOYEE, {
+      leaveTypeId: 'lt-1', startDate: '2026-08-10', endDate: '2026-08-10', reason: 'trip',
+    } as any)
     expect(createNotification).toHaveBeenCalledWith(
-      'emp-admin-1', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
+      'emp-manager', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
     )
-    expect(createNotification).toHaveBeenCalledWith(
-      'emp-admin-2', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }
+    // Additive, not a replacement — and excludes the resolved approver so they
+    // don't get the same request twice if they also happen to be an admin.
+    expect(notifyOfficeAdmins).toHaveBeenCalledWith(
+      'office-bd', 'LEAVE_REQUESTED', expect.any(String), expect.any(String), { applicationId: 'app-1' }, 'emp-manager'
     )
-    expect(createNotification).toHaveBeenCalledTimes(2)
   })
 
   it("escalates a DEPT_HEAD requester's own application per resolveTeamApprover", async () => {

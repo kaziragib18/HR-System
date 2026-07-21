@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   useLeaveTypes,
   useLeaveBalances,
@@ -15,7 +15,7 @@ import {
 } from '@/lib/api/hooks/useLeave'
 import { useHolidays } from '@/lib/api/hooks/useHolidays'
 import { useAuthStore } from '@/store/auth.store'
-import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
+import { Card, StatusBadge, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   Plus,
@@ -23,12 +23,16 @@ import {
   Coins,
   X,
   Info,
-  Paperclip,
   Upload,
   FileText,
   ImageIcon,
   Pencil,
   AlertTriangle,
+  ArrowRight,
+  Quote,
+  Undo2,
+  Inbox,
+  Loader2,
 } from 'lucide-react'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -40,6 +44,50 @@ const LEAVE_COLORS: Record<string, string> = {
   ML: 'bg-rose-500',
   UL: 'bg-slate-500',
   CPL: 'bg-teal-500',
+}
+
+const LEAVE_TYPE_CHIP: Record<string, string> = {
+  AL: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  SL: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  CL: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  ML: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+  UL: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+  CPL: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+}
+
+const APP_PAGE_SIZE = 5
+type StatusFilter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CANCEL_REQUESTED'
+
+function pageWindow(current: number, total: number): (number | '…')[] {
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b)
+  const out: (number | '…')[] = []
+  let prev = 0
+  for (const p of sorted) {
+    if (p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
+function StatusChip({ label, count, active, onClick }: {
+  label: string; count: number; active: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-muted-foreground hover:bg-muted'
+      )}
+    >
+      {label}
+      <span className={cn(active ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>{count}</span>
+    </button>
+  )
 }
 
 /** Parse a 'YYYY-MM-DD' string as a UTC date, so day-of-week is timezone-safe. */
@@ -72,12 +120,9 @@ const CONSUME_TYPES = [
 
 type ConsumeType = 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF'
 
-function fmtRange(start: string, end: string): string {
-  const s = new Date(start)
-  const e = new Date(end)
-  const sd = `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}`
-  if (start.slice(0, 10) === end.slice(0, 10)) return sd
-  return `${sd} – ${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }
 
 function workingDaysBetween(start: string, end: string, holidays?: Set<string>): number {
@@ -113,6 +158,11 @@ export default function LeavePage() {
   const uploadFile = useUploadLeaveAttachment()
   const cancel = useCancelLeave()
   const updateCancelReason = useUpdateCancelReason()
+
+  // ── Applications list: status filter + pagination ──────────────────
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [appPage, setAppPage] = useState(1)
+  useEffect(() => { setAppPage(1) }, [statusFilter])
 
   // ── Apply modal state ──────────────────────────────────────────────
   const [showApply, setShowApply] = useState(false)
@@ -275,6 +325,27 @@ export default function LeavePage() {
 
   const isSubmitting = apply.isPending || uploadFile.isPending
 
+  // ── Applications: status counts, filter chips (only statuses present), pagination ──
+  const statusCounts: Record<string, number> = {}
+  applications.forEach((a: LeaveApplication) => {
+    statusCounts[a.status] = (statusCounts[a.status] ?? 0) + 1
+  })
+  const STATUS_LABEL: Record<StatusFilter, string> = {
+    ALL: 'All',
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+    CANCELLED: 'Cancelled',
+    CANCEL_REQUESTED: 'Cancel Requested',
+  }
+  const presentStatuses = (Object.keys(STATUS_LABEL) as StatusFilter[]).filter(
+    (s) => s === 'ALL' || (statusCounts[s] ?? 0) > 0
+  )
+  const filteredApps =
+    statusFilter === 'ALL' ? applications : applications.filter((a: LeaveApplication) => a.status === statusFilter)
+  const appTotalPages = Math.max(1, Math.ceil(filteredApps.length / APP_PAGE_SIZE))
+  const pagedApps = filteredApps.slice((appPage - 1) * APP_PAGE_SIZE, appPage * APP_PAGE_SIZE)
+
   return (
     <>
       <div className="space-y-4">
@@ -298,9 +369,25 @@ export default function LeavePage() {
           Leave balance · {year}
         </p>
         {balLoading ? (
-          <Spinner />
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="flex items-baseline justify-between">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-10" />
+                </div>
+                <Skeleton className="h-1.5 w-full rounded-full" />
+                <Skeleton className="h-2.5 w-16" />
+              </div>
+            ))}
+          </div>
         ) : balances.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No leave balances configured.</p>
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+              <Coins className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">No leave balances configured.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
             {balances.map((b: LeaveBalance) => {
@@ -371,7 +458,7 @@ export default function LeavePage() {
 
       {/* Applications List */}
       <Card>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             My applications
           </p>
@@ -382,82 +469,215 @@ export default function LeavePage() {
             <Plus className="h-3 w-3" /> New
           </button>
         </div>
+
+        {!appLoading && applications.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {presentStatuses.map((s) => (
+              <StatusChip
+                key={s}
+                label={STATUS_LABEL[s]}
+                count={s === 'ALL' ? applications.length : statusCounts[s] ?? 0}
+                active={statusFilter === s}
+                onClick={() => setStatusFilter(s)}
+              />
+            ))}
+          </div>
+        )}
+
         {appLoading ? (
-          <Spinner />
-        ) : applications.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No leave applications yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {applications.map((app: LeaveApplication) => (
-              <div
-                key={app.id}
-                className="flex items-start justify-between gap-3 rounded-lg border p-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white',
-                      LEAVE_COLORS[app.leaveType?.code ?? ''] ?? 'bg-primary'
-                    )}
-                  >
-                    {app.leaveType?.code ?? '?'}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{app.leaveType?.name}</p>
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <CalendarDays className="h-3 w-3" />
-                      {fmtRange(app.startDate, app.endDate)} · {Number(app.totalDays)} day
-                      {Number(app.totalDays) > 1 ? 's' : ''}
-                    </p>
-                    {app.status === 'CANCEL_REQUESTED' && app.cancelReason && (
-                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-orange-600 dark:text-orange-400">
-                        <span>Cancel reason: {app.cancelReason}</span>
-                        <button
-                          onClick={() => {
-                            setEditReasonModal({ id: app.id, currentReason: app.cancelReason! })
-                            setEditReasonText(app.cancelReason!)
-                          }}
-                          className="ml-0.5 rounded p-0.5 hover:bg-orange-100 dark:hover:bg-orange-900/30"
-                          title="Edit cancel reason"
-                        >
-                          <Pencil className="h-2.5 w-2.5" />
-                        </button>
-                      </p>
-                    )}
-                  </div>
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-2 rounded-xl border p-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-5 w-14 rounded-full" />
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <StatusBadge status={app.status} />
-                  {app.status === 'PENDING' && (
-                    <button
-                      onClick={() =>
-                        setPendingCancelConfirm({
-                          id: app.id,
-                          leaveName: app.leaveType?.name ?? 'leave',
-                        })
-                      }
-                      disabled={cancel.isPending}
-                      className="text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  {app.status === 'APPROVED' && app.startDate.slice(0, 10) > today && (
-                    <button
-                      onClick={() => {
-                        setCancelModal({ id: app.id, leaveName: app.leaveType?.name ?? 'leave' })
-                        setCancelReason('')
-                      }}
-                      disabled={cancel.isPending}
-                      className="text-[11px] text-orange-600 hover:text-orange-700 dark:text-orange-400 disabled:opacity-50"
-                    >
-                      Request Cancellation
-                    </button>
-                  )}
-                </div>
+                <Skeleton className="h-8 w-full rounded-lg" />
               </div>
             ))}
           </div>
+        ) : applications.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+              <Inbox className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">No leave applications yet.</p>
+          </div>
+        ) : filteredApps.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No {STATUS_LABEL[statusFilter].toLowerCase()} applications.
+          </p>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {pagedApps.map((app: LeaveApplication) => {
+                const days = Number(app.totalDays)
+                const sameDay = app.startDate.slice(0, 10) === app.endDate.slice(0, 10)
+                const isCancelFlow = app.status === 'CANCEL_REQUESTED' || app.status === 'CANCELLED'
+                const typeChip = LEAVE_TYPE_CHIP[app.leaveType?.code ?? ''] ?? 'bg-primary/10 text-primary'
+                return (
+                  <div
+                    key={app.id}
+                    className={cn(
+                      'overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md',
+                      isCancelFlow ? 'border-l-orange-500' : 'border-l-blue-500'
+                    )}
+                  >
+                    {/* Header: type chip + day-count hero */}
+                    <div className="flex items-start justify-between gap-3 px-4 pt-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold',
+                            typeChip
+                          )}
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {app.leaveType?.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">Applied {fmtDate(app.createdAt)}</span>
+                      </div>
+                      <div className="shrink-0 rounded-lg bg-muted/60 px-3 py-1.5 text-center">
+                        <p className="text-xl font-bold leading-none tabular-nums">{days}</p>
+                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {days === 1 ? 'day' : 'days'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="space-y-2.5 px-4 py-4">
+                      {/* Date range timeline */}
+                      {sameDay ? (
+                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="font-medium">{fmtDate(app.startDate)}</span>
+                          <span className="text-xs text-muted-foreground">· single day</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From</p>
+                            <p className="truncate text-sm font-medium">{fmtDate(app.startDate)}</p>
+                          </div>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">To</p>
+                            <p className="truncate text-sm font-medium">{fmtDate(app.endDate)}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reason */}
+                      {app.reason && (
+                        <div className="rounded-lg bg-muted/50 px-3 py-2">
+                          <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <Quote className="h-3 w-3" /> Reason
+                          </p>
+                          <p className="text-sm text-muted-foreground">{app.reason}</p>
+                        </div>
+                      )}
+
+                      {/* Cancel reason (with edit while still awaiting approval) */}
+                      {app.status === 'CANCEL_REQUESTED' && app.cancelReason && (
+                        <div className="flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/30 dark:bg-orange-500/10">
+                          <Undo2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
+                          <p className="flex-1 text-sm text-orange-700 dark:text-orange-300">
+                            <span className="font-medium">Cancel reason: </span>
+                            {app.cancelReason}
+                          </p>
+                          <button
+                            onClick={() => {
+                              setEditReasonModal({ id: app.id, currentReason: app.cancelReason! })
+                              setEditReasonText(app.cancelReason!)
+                            }}
+                            className="shrink-0 rounded p-0.5 text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                            title="Edit cancel reason"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Footer: status + actions */}
+                      <div className="flex items-center justify-between gap-2 border-t pt-2.5">
+                        <StatusBadge status={app.status} />
+                        <div className="flex items-center gap-3">
+                          {app.status === 'PENDING' && (
+                            <button
+                              onClick={() =>
+                                setPendingCancelConfirm({
+                                  id: app.id,
+                                  leaveName: app.leaveType?.name ?? 'leave',
+                                })
+                              }
+                              disabled={cancel.isPending}
+                              className="text-xs font-medium text-muted-foreground hover:text-destructive disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {app.status === 'APPROVED' && app.startDate.slice(0, 10) > today && (
+                            <button
+                              onClick={() => {
+                                setCancelModal({ id: app.id, leaveName: app.leaveType?.name ?? 'leave' })
+                                setCancelReason('')
+                              }}
+                              disabled={cancel.isPending}
+                              className="text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 disabled:opacity-50"
+                            >
+                              Request Cancellation
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pagination */}
+            {appTotalPages > 1 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">
+                  {filteredApps.length} application{filteredApps.length !== 1 ? 's' : ''} · page {appPage} of {appTotalPages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={appPage <= 1}
+                    onClick={() => setAppPage((p) => p - 1)}
+                    className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  {pageWindow(appPage, appTotalPages).map((p, i) =>
+                    p === '…' ? (
+                      <span key={`e${i}`} className="px-1 text-muted-foreground">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setAppPage(p as number)}
+                        className={cn(
+                          'min-w-8 rounded-md border px-2.5 py-1',
+                          p === appPage ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted'
+                        )}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                  <button
+                    disabled={appPage >= appTotalPages}
+                    onClick={() => setAppPage((p) => p + 1)}
+                    className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Card>
       </div>
@@ -465,7 +685,8 @@ export default function LeavePage() {
       {/* ── Apply Leave Modal ───────────────────────────────────────── */}
       {showApply && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-2xl">
+            <SubmitOverlay show={isSubmitting} label={uploadFile.isPending ? 'Uploading…' : 'Submitting…'} />
             {/* Modal header */}
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
@@ -474,7 +695,8 @@ export default function LeavePage() {
               </div>
               <button
                 onClick={closeApply}
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                disabled={isSubmitting}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -483,9 +705,18 @@ export default function LeavePage() {
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {typesLoading ? (
-                <Spinner />
+                <div className="space-y-4">
+                  <Skeleton className="h-9 w-full rounded-lg" />
+                  <Skeleton className="h-9 w-full rounded-lg" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                  </div>
+                  <Skeleton className="h-20 w-full rounded-lg" />
+                </div>
               ) : (
                 <form id="apply-form" onSubmit={handleApplySubmit} className="space-y-4">
+                <fieldset disabled={isSubmitting} className="contents">
                   {/* Row 1: Leave Type */}
                   <div>
                     <label className={labelCls}>
@@ -733,6 +964,7 @@ export default function LeavePage() {
                       {applyError}
                     </p>
                   )}
+                </fieldset>
                 </form>
               )}
             </div>
@@ -742,7 +974,8 @@ export default function LeavePage() {
               <button
                 type="button"
                 onClick={closeApply}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+                disabled={isSubmitting}
+                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -750,8 +983,9 @@ export default function LeavePage() {
                 type="submit"
                 form="apply-form"
                 disabled={isSubmitting || (available !== null && days > available) || days <= 0}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
+                {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {uploadFile.isPending
                   ? 'Uploading…'
                   : apply.isPending
@@ -765,8 +999,15 @@ export default function LeavePage() {
 
       {/* ── Pending leave cancel confirmation ──────────────────────── */}
       {pendingCancelConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !cancel.isPending && setPendingCancelConfirm(null)}
+        >
+          <div
+            className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SubmitOverlay show={cancel.isPending} label="Cancelling…" />
             <div className="mb-4 flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10">
                 <X className="h-5 w-5 text-destructive" />
@@ -783,7 +1024,8 @@ export default function LeavePage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setPendingCancelConfirm(null)}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+                disabled={cancel.isPending}
+                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Keep it
               </button>
@@ -793,8 +1035,9 @@ export default function LeavePage() {
                   setPendingCancelConfirm(null)
                 }}
                 disabled={cancel.isPending}
-                className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-50"
               >
+                {cancel.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {cancel.isPending ? 'Cancelling…' : 'Yes, cancel it'}
               </button>
             </div>
@@ -804,8 +1047,15 @@ export default function LeavePage() {
 
       {/* ── Cancellation Request Modal ──────────────────────────────── */}
       {cancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !cancel.isPending && setCancelModal(null)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-xl bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SubmitOverlay show={cancel.isPending} label="Submitting…" />
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h3 className="font-semibold">Request cancellation</h3>
@@ -816,7 +1066,8 @@ export default function LeavePage() {
               </div>
               <button
                 onClick={() => setCancelModal(null)}
-                className="text-muted-foreground hover:text-foreground"
+                disabled={cancel.isPending}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -835,21 +1086,24 @@ export default function LeavePage() {
                 rows={3}
                 placeholder="Why do you need to cancel this leave?"
                 autoFocus
-                className={cn(inputCls, 'resize-none')}
+                disabled={cancel.isPending}
+                className={cn(inputCls, 'resize-none disabled:opacity-50')}
               />
             </div>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => setCancelModal(null)}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+                disabled={cancel.isPending}
+                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Go back
               </button>
               <button
                 onClick={submitCancelRequest}
                 disabled={!cancelReason.trim() || cancel.isPending}
-                className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-50"
               >
+                {cancel.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {cancel.isPending ? 'Submitting…' : 'Request Cancellation'}
               </button>
             </div>
@@ -858,8 +1112,15 @@ export default function LeavePage() {
       )}
       {/* ── Edit cancel reason modal ───────────────────────────────── */}
       {editReasonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !updateCancelReason.isPending && setEditReasonModal(null)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-xl bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SubmitOverlay show={updateCancelReason.isPending} label="Saving…" />
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h3 className="font-semibold">Update cancel reason</h3>
@@ -869,7 +1130,8 @@ export default function LeavePage() {
               </div>
               <button
                 onClick={() => setEditReasonModal(null)}
-                className="rounded-lg p-1.5 hover:bg-muted"
+                disabled={updateCancelReason.isPending}
+                className="rounded-lg p-1.5 hover:bg-muted disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -882,13 +1144,15 @@ export default function LeavePage() {
               value={editReasonText}
               onChange={(e) => setEditReasonText(e.target.value)}
               maxLength={500}
-              className={cn(inputCls, 'resize-none')}
+              disabled={updateCancelReason.isPending}
+              className={cn(inputCls, 'resize-none disabled:opacity-50')}
               placeholder="Update your cancellation reason…"
             />
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => setEditReasonModal(null)}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+                disabled={updateCancelReason.isPending}
+                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Discard
               </button>
@@ -902,8 +1166,9 @@ export default function LeavePage() {
                   setEditReasonModal(null)
                 }}
                 disabled={!editReasonText.trim() || updateCancelReason.isPending}
-                className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-50"
               >
+                {updateCancelReason.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {updateCancelReason.isPending ? 'Saving…' : 'Save reason'}
               </button>
             </div>

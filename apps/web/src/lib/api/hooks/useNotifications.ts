@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { apiClient } from '../client'
 import { useNotificationStore } from '@/store/notification.store'
 import type { Notification, PaginationMeta } from '@hr-system/types'
@@ -17,6 +17,10 @@ export function useNotifications(page = 1, limit = 20) {
       if (page === 1) setNotifications(items)
       return { items, meta: data.meta as PaginationMeta }
     },
+    // "Load more" grows `limit` on the same page — keep showing the
+    // previous (smaller) list while the bigger one loads instead of
+    // flashing the whole page back to a loading state.
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, Spinner, EmptyState } from '@/components/ui/primitives'
+import { Card, Skeleton } from '@/components/ui/primitives'
 import { Input, Textarea } from '@/components/ui/section-card'
 import { formatDate } from '@hr-system/utils'
 import { Briefcase, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
@@ -135,9 +135,24 @@ export function WorkExperienceSection({ employeeId, canEdit }: { employeeId: str
           </div>
         </div>
       ) : isLoading ? (
-        <Spinner />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-48" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : items.length === 0 ? (
-        <EmptyState message="No work experience added yet." />
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">No work experience added yet.</p>
+        </div>
       ) : (
         <ul className="divide-y">
           {items.map(w => (

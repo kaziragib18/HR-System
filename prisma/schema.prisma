@@ -485,6 +485,11 @@ model LeaveApplication {
   cancelApprovedById  String?
   cancelApprovedAt    DateTime?
   attachmentPath    String?
+  // Set once a day-before-start reminder notification has been sent to the
+  // resolved approver — the idempotency guard for the periodic sweep in
+  // leave-scheduler.service.ts, so a leave sitting PENDING across multiple
+  // sweep runs the day before it starts only reminds once.
+  reminderSentAt    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

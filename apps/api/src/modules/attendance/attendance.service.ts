@@ -3,7 +3,7 @@ import { prisma } from '../../config/prisma'
 import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
 import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
-import { createNotification } from '../../services/notification.service'
+import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
 import { resolveTeamApprover, resolveApproverForRole, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import type { ManualEntryInput, BulkImportInput, ListAttendanceQuery, RequestAdjustmentInput, ReviewAdjustmentInput } from './attendance.schemas'
 
@@ -486,7 +486,11 @@ export async function myCalendar(employeeId: string, month: number, year: number
 export async function submitLateExcuse(attendanceId: string, employeeId: string, excuse: string) {
   const record = await prisma.attendance.findUnique({
     where: { id: attendanceId },
-    include: { employee: { select: { officeId: true, user: { select: { role: true } } } } },
+    include: {
+      employee: {
+        select: { officeId: true, firstName: true, lastName: true, user: { select: { role: true } } },
+      },
+    },
   })
   if (!record) throw new AttendanceError('Attendance record not found', 404)
   if (record.employeeId !== employeeId) throw new AttendanceError('Forbidden', 403)
@@ -502,10 +506,34 @@ export async function submitLateExcuse(attendanceId: string, employeeId: string,
     record.employee.officeId
   )
 
-  return prisma.attendance.update({
+  const updated = await prisma.attendance.update({
     where: { id: attendanceId },
     data: { lateExcuse: excuse, excuseStatus: 'PENDING', excuseApproverId: approverId },
   })
+
+  const applicantName = `${record.employee.firstName} ${record.employee.lastName}`
+  const dateLabel = record.date.toISOString().slice(0, 10)
+
+  if (approverId) {
+    const title = 'Late excuse submitted'
+    const body = `${applicantName} submitted an excuse for a late arrival on ${dateLabel}.`
+    await createNotification(approverId, NotificationType.ATTENDANCE_FLAGGED, title, body, { attendanceId })
+    await notifyOfficeAdmins(record.employee.officeId, NotificationType.ATTENDANCE_FLAGGED, title, body, { attendanceId }, approverId)
+  } else {
+    // No manager/department head resolved for this employee (shouldn't happen once
+    // every department has exactly one DEPT_HEAD) — fall back to every office admin
+    // so the excuse doesn't sit unreviewed and unnoticed, mirroring the same
+    // fallback requestAdjustment/applyLeave already use.
+    await notifyOfficeAdmins(
+      record.employee.officeId,
+      NotificationType.ATTENDANCE_FLAGGED,
+      'Late excuse submitted (no approver found)',
+      `${applicantName} submitted a late excuse, but no manager or department head could be resolved for them.`,
+      { attendanceId }
+    )
+  }
+
+  return updated
 }
 
 /** Manager reviews a late excuse and optionally changes the attendance status. */
@@ -644,31 +672,25 @@ export async function requestAdjustment(
   })
 
   if (approverId) {
-    await createNotification(
-      approverId,
+    const title = 'Attendance adjustment requested'
+    const body = `An employee has requested a correction to their attendance for ${input.date}.`
+    await createNotification(approverId, NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED, title, body, { attendanceId: record.id })
+    // HR_MANAGER can't act on this (they're read-only on team requests), but
+    // they can already see it office-wide via the GET queue — a notification
+    // is just visibility, not a claim they can approve it, so they're
+    // included here alongside SUPER_ADMIN.
+    await notifyOfficeAdmins(officeId, NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED, title, body, { attendanceId: record.id }, approverId)
+  } else {
+    // No manager/department head resolved for this employee (shouldn't happen once
+    // every department has exactly one DEPT_HEAD) — fall back to every office admin
+    // so the request never goes unnoticed.
+    await notifyOfficeAdmins(
+      officeId,
       NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED,
       'Attendance adjustment requested',
       `An employee has requested a correction to their attendance for ${input.date}.`,
       { attendanceId: record.id }
     )
-  } else {
-    // No manager/department head resolved for this employee (shouldn't happen once
-    // every department has exactly one DEPT_HEAD, but fall back to every SUPER_ADMIN
-    // in the office so the request never goes unnoticed — HR_MANAGER can't act on
-    // approvals anymore, so notifying them here would be misleading).
-    const superAdmins = await prisma.user.findMany({
-      where: { employee: { officeId }, role: UserRole.SUPER_ADMIN },
-      select: { employeeId: true },
-    })
-    for (const admin of superAdmins) {
-      await createNotification(
-        admin.employeeId,
-        NotificationType.ATTENDANCE_ADJUSTMENT_REQUESTED,
-        'Attendance adjustment requested',
-        `An employee has requested a correction to their attendance for ${input.date}.`,
-        { attendanceId: record.id }
-      )
-    }
   }
 
   return record

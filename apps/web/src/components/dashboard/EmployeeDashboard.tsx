@@ -20,6 +20,8 @@ import {
   Building2,
   Mail,
   CalendarDays,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react'
 
 const EMPLOYMENT_STATUS_STYLE: Record<string, string> = {
@@ -112,12 +114,34 @@ function EmployeeDashboardSkeleton() {
   )
 }
 
+function DashboardErrorState({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <Card className="flex flex-col items-center gap-3 py-10 text-center">
+      <AlertTriangle className="h-8 w-8 text-amber-500" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Couldn't load your dashboard</p>
+        <p className="text-xs text-muted-foreground">
+          The server took too long to respond. Check your connection and try again.
+        </p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={retrying}
+        className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-60"
+      >
+        <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
+        {retrying ? 'Retrying…' : 'Retry'}
+      </button>
+    </Card>
+  )
+}
+
 export function EmployeeDashboard() {
   const { user } = useAuthStore()
-  const { data, isLoading } = useMyDashboard()
+  const { data, isLoading, isError, refetch, isRefetching } = useMyDashboard()
 
   if (isLoading) return <EmployeeDashboardSkeleton />
-  if (!data) return null
+  if (isError || !data) return <DashboardErrorState onRetry={() => refetch()} retrying={isRefetching} />
 
   // DEPT_MANAGER/DEPT_HEAD get this same employee-style dashboard (see
   // (dashboard)/page.tsx), but with their team's approval queue and

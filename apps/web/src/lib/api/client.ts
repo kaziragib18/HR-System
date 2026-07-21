@@ -6,6 +6,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 export const apiClient = axios.create({
   baseURL: `${API_URL}/api/v1`,
   withCredentials: true, // send httpOnly refresh token cookie
+  // Without a timeout, a request that stalls mid-flight (this environment's
+  // Supabase pooler drops connections often — see CLAUDE.md) hangs forever:
+  // no error, no retry, React Query's isLoading never flips, so the UI is
+  // stuck on its loading skeleton indefinitely instead of surfacing a
+  // retryable error.
+  timeout: 20000,
 })
 
 // Attach access token to every request

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, Spinner, EmptyState } from '@/components/ui/primitives'
-import { Plus, X } from 'lucide-react'
+import { Card, Skeleton } from '@/components/ui/primitives'
+import { Plus, X, Sparkles } from 'lucide-react'
 import { SkillLevel } from '@hr-system/types'
 import { useSkills, useCreateSkill, useDeleteSkill } from '@/lib/api/hooks/useEmployeeProfile'
 
@@ -95,9 +95,18 @@ export function SkillsSection({ employeeId, canEdit }: { employeeId: string; can
       )}
 
       {isLoading ? (
-        <Spinner />
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-6 w-20 rounded-full" />
+          ))}
+        </div>
       ) : items.length === 0 && !adding ? (
-        <EmptyState message="No skills added yet." />
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Sparkles className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">No skills added yet.</p>
+        </div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {items.map(s => (

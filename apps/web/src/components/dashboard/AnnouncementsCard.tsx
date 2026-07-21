@@ -77,7 +77,7 @@ export function AnnouncementRow({ item }: { item: AnnouncementFeedItem }) {
     // Deep-link to the full page, scrolling to + highlighting this exact item.
     <Link
       href={`/announcements?highlight=${encodeURIComponent(item.id)}`}
-      className="-mx-1 flex items-start gap-2.5 rounded-md border-b px-1 py-2.5 last:border-0 hover:bg-muted/50"
+      className="-mx-1 flex items-start gap-2.5 rounded-md border-b px-2.5 py-2.5 last:border-0 hover:bg-muted/50"
     >
       {item.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -140,7 +140,8 @@ export function AnnouncementsCard() {
         // at 3 or fewer it renders at natural height with no scrollbar.
         <div
           className={cn(
-            items.length > 3 && 'max-h-[215px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
+            items.length > 3 &&
+              'max-h-[215px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
           )}
         >
           {items.map((item) => (

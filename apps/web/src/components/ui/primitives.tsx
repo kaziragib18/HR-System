@@ -268,6 +268,28 @@ export function Spinner() {
   )
 }
 
+/**
+ * Full-cover veil for a form/modal while its submit mutation is in flight —
+ * blurs and dims the content beneath it and shows a spinning icon, so it's
+ * obvious at a glance that a submission is in progress. Place inside a
+ * `relative`-positioned modal/card container, as the first child, alongside
+ * a `<fieldset disabled={isPending} className="contents">` wrapping the rest
+ * of that container's form fields — the overlay is the visual signal, the
+ * fieldset is what actually blocks interaction with every field/button at
+ * once (native browser behavior, no per-control `disabled` prop needed).
+ * Also guard the modal's own close paths (backdrop click, X button, Escape)
+ * with the same `isPending` check so it can't be dismissed mid-submit.
+ */
+export function SubmitOverlay({ show, label }: { show: boolean; label?: string }) {
+  if (!show) return null
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-[inherit] bg-card/80 backdrop-blur-[1px]">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+    </div>
+  )
+}
+
 export function EmptyState({ message }: { message: string }) {
   return (
     <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">

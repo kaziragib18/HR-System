@@ -5,7 +5,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { requireRole } from '../../middleware/rbac.middleware'
 import { officeScope, type OfficeScopedRequest } from '../../middleware/office.middleware'
 import { validate } from '../../middleware/validate.middleware'
-import { sendSuccess, sendCreated, sendError } from '../../utils/response'
+import { sendSuccess, sendCreated, sendError, sendNotFound } from '../../utils/response'
 import { UserRole } from '@hr-system/types'
 
 const router: RouterType = Router()
@@ -15,6 +15,13 @@ const createSchema = z.object({
   officeId: z.string().min(1),
   name: z.string().min(1),
   date: z.string().datetime(),
+  isRecurring: z.boolean().optional(),
+})
+
+const updateSchema = z.object({
+  officeId: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  date: z.string().datetime().optional(),
   isRecurring: z.boolean().optional(),
 })
 
@@ -50,6 +57,34 @@ router.post('/', requireRole(UserRole.HR_MANAGER), validate(createSchema), async
       data: { officeId, name, date: d, year: d.getFullYear(), isRecurring: isRecurring ?? false },
     })
     sendCreated(res, holiday)
+  } catch {
+    sendError(res, 'A holiday already exists on that date for this office', 409)
+  }
+})
+
+router.patch('/:id', requireRole(UserRole.HR_MANAGER), validate(updateSchema), async (req: Request, res: Response) => {
+  const existing = await prisma.publicHoliday.findUnique({ where: { id: req.params.id } })
+  if (!existing) return sendNotFound(res, 'Holiday')
+
+  const scope = (req as OfficeScopedRequest).officeScope
+  if (scope && existing.officeId !== scope) return sendNotFound(res, 'Holiday')
+
+  const { name, date, isRecurring } = req.body
+  const officeId = scope ?? req.body.officeId ?? existing.officeId
+  const d = date ? new Date(date) : existing.date
+
+  try {
+    const holiday = await prisma.publicHoliday.update({
+      where: { id: req.params.id },
+      data: {
+        officeId,
+        name: name ?? existing.name,
+        date: d,
+        year: d.getFullYear(),
+        isRecurring: isRecurring ?? existing.isRecurring,
+      },
+    })
+    sendSuccess(res, holiday)
   } catch {
     sendError(res, 'A holiday already exists on that date for this office', 409)
   }

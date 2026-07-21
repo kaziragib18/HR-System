@@ -10,11 +10,54 @@ import {
 } from '@/lib/api/hooks/useAttendance'
 import { useHolidays, type Holiday } from '@/lib/api/hooks/useHolidays'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
-import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
+import { Card, StatusBadge, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
 import { BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
-import { LogIn, LogOut, Clock, AlertCircle, CalendarDays, AlertTriangle } from 'lucide-react'
+import {
+  LogIn,
+  LogOut,
+  Clock,
+  AlertCircle,
+  CalendarDays,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Timer,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
+
+const TONES: Record<string, string> = {
+  emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+}
+
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Clock
+  label: string
+  value: string | number
+  tone: keyof typeof TONES
+}) {
+  return (
+    <Card className="flex items-center gap-4">
+      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-lg', TONES[tone])}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-2xl font-semibold leading-none">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+      </div>
+    </Card>
+  )
+}
 
 function shiftForOfficeCode(code?: string): ShiftConfig {
   return code === 'BD' ? BD_SHIFT : UK_SHIFT
@@ -104,7 +147,28 @@ function TodayCard() {
       <p className="mt-0.5 text-xs text-muted-foreground">{dateLabel}</p>
 
       {isLoading ? (
-        <Spinner />
+        <div className="mt-3 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-2.5 w-12" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+            </div>
+            <div className="flex-1 border-t-2 border-dashed border-muted-foreground/15" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-2.5 w-12" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+            </div>
+          </div>
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+        </div>
       ) : (
         <>
           {today?.checkIn ? (
@@ -172,9 +236,11 @@ function TodayCard() {
               )}
             </div>
           ) : (
-            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <LogIn className="h-4 w-4" />
-              <span>Not checked in yet</span>
+            <div className="mt-3 flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                <LogIn className="h-4 w-4" />
+              </div>
+              <span>You haven&apos;t checked in yet today.</span>
             </div>
           )}
 
@@ -321,12 +387,12 @@ function CheckInOutHistory() {
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Check-in / Check-out
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 rounded-lg border bg-card p-0.5">
           <button
             onClick={prevMonth}
-            className="rounded p-1 text-xs hover:bg-muted transition-colors"
+            className="rounded p-1 hover:bg-muted transition-colors"
           >
-            ‹
+            <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <span className="min-w-[80px] text-center text-xs font-semibold">
             {MONTHS_SHORT[month - 1]} {year}
@@ -334,19 +400,39 @@ function CheckInOutHistory() {
           <button
             onClick={nextMonth}
             disabled={isCurrentMonth}
-            className="rounded p-1 text-xs hover:bg-muted transition-colors disabled:opacity-30"
+            className="rounded p-1 hover:bg-muted transition-colors disabled:opacity-30"
           >
-            ›
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
       {isLoading ? (
-        <Spinner />
+        <div className="space-y-4 py-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-4 w-14 rounded-full" />
+              </div>
+              <div className="flex items-center gap-6">
+                <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+                <Skeleton className="h-8 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : entries.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No check-ins this month.</p>
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">No check-ins this month.</p>
+        </div>
       ) : (
-        <div className="max-h-[240px] overflow-y-auto -mx-4 px-4 divide-y">
+        <div className="max-h-[240px] overflow-y-auto scrollbar-thin -mx-4 px-4 divide-y">
           {entries.map((r: AttendanceRecord) => {
             const dow = new Date(r.date.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', {
               weekday: 'short',
@@ -465,9 +551,24 @@ function HolidaySchedule() {
       </div>
 
       {isLoading ? (
-        <Spinner />
+        <div className="space-y-3 py-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-5 shrink-0" />
+              <Skeleton className="h-4 w-28 shrink-0" />
+              <Skeleton className="h-4 w-16 shrink-0" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-5 w-9 shrink-0 rounded-md" />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No holidays found.</p>
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">No holidays found.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -482,20 +583,29 @@ function HolidaySchedule() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((h: Holiday, idx: number) => {
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
+              {(() => {
+                const todayMid = new Date()
+                todayMid.setHours(0, 0, 0, 0)
+                const nextUpcoming = filtered.find((h: Holiday) => {
+                  const d = new Date(h.date)
+                  d.setHours(0, 0, 0, 0)
+                  return d.getTime() > todayMid.getTime()
+                })
+                return filtered.map((h: Holiday, idx: number) => {
+                const today = todayMid
                 const hDate = new Date(h.date)
                 hDate.setHours(0, 0, 0, 0)
                 const isPast = hDate < today
                 const isToday = hDate.getTime() === today.getTime()
+                const isNext = h.id === nextUpcoming?.id
                 return (
                   <tr
                     key={h.id}
                     className={cn(
                       'border-b last:border-0 transition-colors hover:bg-muted/40',
                       isPast && 'opacity-50',
-                      isToday && 'bg-violet-50/60 dark:bg-violet-500/10'
+                      isToday && 'bg-violet-50/60 dark:bg-violet-500/10',
+                      isNext && 'bg-primary/5'
                     )}
                   >
                     <td className="py-2.5 pr-4 text-muted-foreground">{idx + 1}</td>
@@ -513,6 +623,11 @@ function HolidaySchedule() {
                       {isToday && (
                         <span className="ml-2 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
                           today
+                        </span>
+                      )}
+                      {isNext && !isToday && (
+                        <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                          next up
                         </span>
                       )}
                       {h.isRecurring && (
@@ -533,7 +648,8 @@ function HolidaySchedule() {
                     </td>
                   </tr>
                 )
-              })}
+              })
+              })()}
             </tbody>
           </table>
         </div>
@@ -578,17 +694,10 @@ export default function AttendancePage() {
 
       {/* Row 2: Month stats strip */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          { label: 'Present', value: present, cls: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Late', value: late, cls: 'text-amber-600 dark:text-amber-400' },
-          { label: 'Absent', value: absent, cls: 'text-red-600 dark:text-red-400' },
-          { label: 'Total hours', value: fmtMinutes(totalHrs), cls: 'text-primary' },
-        ].map((s) => (
-          <Card key={s.label} className="flex flex-col items-center justify-center py-4">
-            <p className={cn('text-2xl font-bold', s.cls)}>{s.value}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
-          </Card>
-        ))}
+        <Stat icon={CheckCircle2} label="Present" value={present} tone="emerald" />
+        <Stat icon={Clock} label="Late" value={late} tone="amber" />
+        <Stat icon={XCircle} label="Absent" value={absent} tone="rose" />
+        <Stat icon={Timer} label="Total hours" value={fmtMinutes(totalHrs)} tone="blue" />
       </div>
 
       {/* Row 3: Attendance calendar with hover popups */}

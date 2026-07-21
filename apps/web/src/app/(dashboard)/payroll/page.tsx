@@ -10,11 +10,11 @@ import {
   useMarkPaidPayrollRun,
   type PayrollRun,
 } from '@/lib/api/hooks/usePayroll'
-import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
+import { Card, StatusBadge, Spinner, SubmitOverlay } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 import { cn } from '@/lib/utils'
-import { Plus, Play, CheckCircle2, Banknote, ChevronRight, X, ShieldOff } from 'lucide-react'
+import { Plus, Play, CheckCircle2, Banknote, ChevronRight, X, ShieldOff, Loader2 } from 'lucide-react'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -92,56 +92,66 @@ function CreateRunModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !create.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={create.isPending} label="Creating…" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold">New Payroll Run</h3>
-          <button onClick={onClose} className="rounded p-1 hover:bg-muted">
+          <button onClick={onClose} disabled={create.isPending} className="rounded p-1 hover:bg-muted disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Month</label>
-            <select
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        <fieldset disabled={create.isPending} className="contents">
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Month</label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Year</label>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                min={2020}
+                max={2099}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+          <div className="mt-5 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
             >
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </select>
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={create.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+            >
+              {create.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {create.isPending ? 'Creating…' : 'Create'}
+            </button>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Year</label>
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              min={2020}
-              max={2099}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-        </div>
-        <div className="mt-5 flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={create.isPending}
-            className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-          >
-            {create.isPending ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+        </fieldset>
         {create.isError && (
           <p className="mt-2 text-xs text-destructive">
             {(create.error as { response?: { data?: { error?: string } } })?.response?.data

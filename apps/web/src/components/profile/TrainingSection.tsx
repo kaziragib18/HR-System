@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, Spinner, EmptyState, StatusBadge } from '@/components/ui/primitives'
+import { Card, Skeleton, StatusBadge } from '@/components/ui/primitives'
 import { Input } from '@/components/ui/section-card'
 import { AttachedFileRow, FileInputButton } from '@/components/ui/file-attachment'
 import { formatDate } from '@hr-system/utils'
@@ -146,9 +146,24 @@ export function TrainingSection({ employeeId, canEdit }: { employeeId: string; c
           </div>
         </div>
       ) : isLoading ? (
-        <Spinner />
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-48" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : items.length === 0 ? (
-        <EmptyState message="No training or certifications added yet." />
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Award className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">No training or certifications added yet.</p>
+        </div>
       ) : (
         <ul className="divide-y">
           {items.map(c => (

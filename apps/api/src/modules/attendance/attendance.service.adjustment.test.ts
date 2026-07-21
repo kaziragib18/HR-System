@@ -52,6 +52,7 @@ vi.mock('../../services/approver-resolution.service', () => ({
 
 vi.mock('../../services/notification.service', () => ({
   createNotification: vi.fn(async () => {}),
+  notifyOfficeAdmins: vi.fn(async () => {}),
 }))
 
 import {
@@ -62,7 +63,7 @@ import {
 } from './attendance.service'
 import { prisma } from '../../config/prisma'
 import { resolveTeamApprover, resolveApproverForRole, canActOnTeamRequest } from '../../services/approver-resolution.service'
-import { createNotification } from '../../services/notification.service'
+import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
 
 const attendanceFindUnique = prisma.attendance.findUnique as ReturnType<typeof vi.fn>
 const attendanceUpsert = prisma.attendance.upsert as ReturnType<typeof vi.fn>
@@ -120,6 +121,11 @@ describe('requestAdjustment', () => {
       expect.any(String),
       { attendanceId: 'att-1' }
     )
+    // Additive, not a replacement — and excludes the resolved approver so they
+    // don't get the same request twice if they also happen to be an admin.
+    expect(notifyOfficeAdmins).toHaveBeenCalledWith(
+      'office-bd', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }, 'emp-manager'
+    )
   })
 
   it('rejects a new request while one is already pending', async () => {
@@ -129,10 +135,9 @@ describe('requestAdjustment', () => {
     ).rejects.toThrow('An adjustment request is already pending for this record')
   })
 
-  it('notifies every SUPER_ADMIN in the office when no specific approver resolves at all', async () => {
+  it('notifies office admins when no specific approver resolves at all', async () => {
     attendanceFindUnique.mockResolvedValue(null)
     ;(resolveTeamApprover as ReturnType<typeof vi.fn>).mockResolvedValue(null)
-    userFindMany.mockResolvedValue([{ employeeId: 'emp-admin-1' }, { employeeId: 'emp-admin-2' }])
 
     await requestAdjustment('emp-1', 'office-bd', UserRole.EMPLOYEE, {
       date: '2020-01-02',
@@ -140,16 +145,8 @@ describe('requestAdjustment', () => {
       reason: 'Forgot to check in',
     })
 
-    expect(userFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ employee: { officeId: 'office-bd' }, role: UserRole.SUPER_ADMIN }),
-      })
-    )
-    expect(createNotification).toHaveBeenCalledWith(
-      'emp-admin-1', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
-    )
-    expect(createNotification).toHaveBeenCalledWith(
-      'emp-admin-2', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
+    expect(notifyOfficeAdmins).toHaveBeenCalledWith(
+      'office-bd', 'ATTENDANCE_ADJUSTMENT_REQUESTED', expect.any(String), expect.any(String), { attendanceId: 'att-1' }
     )
   })
 

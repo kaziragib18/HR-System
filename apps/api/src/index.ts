@@ -3,6 +3,7 @@ import { createApp } from './app'
 import { prisma } from './config/prisma'
 import { logger } from './config/logger'
 import { env } from './config/env'
+import { runLeaveLifecycleSweep } from './services/leave-scheduler.service'
 
 const app = createApp()
 
@@ -40,9 +41,19 @@ async function start() {
       try { await prisma.$queryRaw`SELECT 1` } catch { /* reconnect on next request */ }
     }, 4 * 60 * 1000) // every 4 minutes
 
+    // Leave lifecycle sweep (auto-reject overdue-pending leaves, day-before
+    // approver reminders) — this app has no cron/scheduled-job infrastructure,
+    // so it's piggybacked onto a second interval here rather than a real cron
+    // dependency. Runs once at boot (so a restart doesn't wait 15 min for the
+    // first pass), then every 15 minutes; see leave-scheduler.service.ts for
+    // why repeated/overlapping runs are safe.
+    void runLeaveLifecycleSweep()
+    const leaveSweep = setInterval(() => { void runLeaveLifecycleSweep() }, 15 * 60 * 1000)
+
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       clearInterval(keepAlive)
+      clearInterval(leaveSweep)
       logger.info(`${signal} received — shutting down`)
       server.close(async () => {
         await prisma.$disconnect()

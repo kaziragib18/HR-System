@@ -319,6 +319,22 @@ export function AttendanceCalendar({ className }: { className?: string }) {
     }
   }, [pinned])
 
+  // The popup is `position: fixed` at coordinates captured once, from the cell's
+  // getBoundingClientRect() at open time — it never re-tracks the cell, so
+  // scrolling the page (the dashboard layout's scroll container is `<main>`,
+  // not `window`) leaves it floating disconnected from the calendar underneath.
+  // Close immediately on the first scroll instead of repositioning on every
+  // frame. `<main>`'s scroll doesn't bubble to window, but a capture-phase
+  // listener on window still sees it on the way down to the target.
+  useEffect(() => {
+    if (!tooltip) return
+    function onScroll() {
+      closeTooltip()
+    }
+    window.addEventListener('scroll', onScroll, true)
+    return () => window.removeEventListener('scroll', onScroll, true)
+  }, [tooltip])
+
   const { data: calData, isLoading } = useAttendanceCalendar(month, year)
 
   const recordByDate: Record<string, CalendarRecord> = {}

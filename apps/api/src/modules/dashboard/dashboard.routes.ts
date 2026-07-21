@@ -25,14 +25,6 @@ function monthRange() {
 }
 
 const TEAM_ROLE_RANK: Record<string, number> = { DEPT_HEAD: 0, DEPT_MANAGER: 1, HR_MANAGER: 1, EMPLOYEE: 2 }
-const teamMemberSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  avatarUrl: true,
-  jobTitle: { select: { name: true } },
-  user: { select: { role: true } },
-} as const
 
 // ─── Employee self-service dashboard ──────────────────────────────────────────
 router.get('/me', async (req: Request, res: Response) => {
@@ -41,113 +33,104 @@ router.get('/me', async (req: Request, res: Response) => {
   const { start: monthStart, end: monthEnd } = monthRange()
   const year = new Date().getFullYear()
 
-  const me = await prisma.employee.findUnique({
-    where: { id: employeeId },
-    select: {
-      id: true,
-      departmentId: true,
-      firstName: true,
-      lastName: true,
-      avatarUrl: true,
-      email: true,
-      employmentStatus: true,
-      joiningDate: true,
-      department: {
-        select: {
-          name: true,
-          // The authoritative department head (Department.managerId, enforced
-          // one-per-department) — not assumed via a second reportingTo hop,
-          // which doesn't always land on the actual head.
-          manager: {
-            select: { id: true, firstName: true, lastName: true, avatarUrl: true, jobTitle: { select: { name: true } } },
+  // All five queries run in one parallel batch (a single DB round-trip). The
+  // department roster, headcount, per-teammate today-status, and direct-report
+  // count are folded into the `me` query via nested relations rather than fired
+  // as follow-up queries — the previous shape did three *sequential* round-trips
+  // (me -> Promise.all -> team attendance), which on the remote pooler cost ~4s.
+  const [me, today, leaveBalances, myApplications, attendanceMonth] = await Promise.all([
+    prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: {
+        id: true,
+        departmentId: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        email: true,
+        employmentStatus: true,
+        joiningDate: true,
+        department: {
+          select: {
+            name: true,
+            // The authoritative department head (Department.managerId, enforced
+            // one-per-department) — not assumed via a second reportingTo hop,
+            // which doesn't always land on the actual head.
+            manager: {
+              select: { id: true, firstName: true, lastName: true, avatarUrl: true, jobTitle: { select: { name: true } } },
+            },
+            // "My Team" is the caller's whole department for every role — a plain
+            // EMPLOYEE sees all their department colleagues, not just the sub-team
+            // sharing their manager. (Approval power still stays scoped to a
+            // DEPT_MANAGER's own reports; this is a visibility-only card.) Each
+            // teammate carries today's attendance status inline so no separate
+            // team-attendance query is needed.
+            employees: {
+              where: { employmentStatus: { not: 'TERMINATED' } },
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+                reportingToId: true,
+                jobTitle: { select: { name: true } },
+                user: { select: { role: true } },
+                attendance: {
+                  where: { date: { gte: todayStart, lte: todayEnd } },
+                  select: { status: true },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+        reportingTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            jobTitle: { select: { name: true } },
+            user: { select: { role: true } },
           },
         },
       },
-      reportingTo: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          avatarUrl: true,
-          jobTitle: { select: { name: true } },
-          user: { select: { role: true } },
-        },
-      },
-    },
+    }),
+    prisma.attendance.findFirst({
+      where: { employeeId, date: { gte: todayStart, lte: todayEnd } },
+    }),
+    prisma.leaveBalance.findMany({
+      where: { employeeId, year },
+      include: { leaveType: { select: { name: true, code: true } } },
+    }),
+    prisma.leaveApplication.findMany({
+      where: { employeeId },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: { leaveType: { select: { name: true, code: true } } },
+    }),
+    prisma.attendance.findMany({
+      where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
+      select: { date: true, status: true, checkIn: true, checkOut: true },
+      orderBy: { date: 'asc' },
+    }),
+  ])
+
+  // Whole department, sorted DEPT_HEAD -> DEPT_MANAGER -> EMPLOYEE, then name.
+  const roster = me?.department?.employees ?? []
+  const teamRaw = [...roster].sort((a, b) => {
+    const ra = TEAM_ROLE_RANK[a.user?.role ?? ''] ?? 3
+    const rb = TEAM_ROLE_RANK[b.user?.role ?? ''] ?? 3
+    return ra !== rb ? ra - rb : a.firstName.localeCompare(b.firstName)
   })
-
-  const [today, leaveBalances, myApplications, attendanceMonth, directReports, departmentHeadcount, departmentRoster] =
-    await Promise.all([
-      prisma.attendance.findFirst({
-        where: { employeeId, date: { gte: todayStart, lte: todayEnd } },
-      }),
-      prisma.leaveBalance.findMany({
-        where: { employeeId, year },
-        include: { leaveType: { select: { name: true, code: true } } },
-      }),
-      prisma.leaveApplication.findMany({
-        where: { employeeId },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-        include: { leaveType: { select: { name: true, code: true } } },
-      }),
-      prisma.attendance.findMany({
-        where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
-        select: { date: true, status: true, checkIn: true, checkOut: true },
-        orderBy: { date: 'asc' },
-      }),
-      // Real direct reports (DEPT_MANAGER's actual team) — falls back to
-      // department siblings below only if empty (plain individual contributor).
-      prisma.employee.findMany({
-        where: { reportingToId: employeeId, employmentStatus: { not: 'TERMINATED' } },
-        select: teamMemberSelect,
-        orderBy: { firstName: 'asc' },
-      }),
-      me?.departmentId
-        ? prisma.employee.count({
-            where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
-          })
-        : Promise.resolve(0),
-      // "My Team" is the caller's whole department for every role — a plain
-      // EMPLOYEE sees all their department colleagues, not just the sub-team
-      // sharing their manager. (Approval power still stays scoped to a
-      // DEPT_MANAGER's own reports; this is a visibility-only card.)
-      me?.departmentId
-        ? prisma.employee.findMany({
-            where: { departmentId: me.departmentId, employmentStatus: { not: 'TERMINATED' } },
-            select: teamMemberSelect,
-          })
-        : Promise.resolve([]),
-    ])
-
-  let teamRaw: typeof directReports
-  if (departmentRoster.length > 0) {
-    // Whole department, sorted DEPT_HEAD -> DEPT_MANAGER -> EMPLOYEE, then name.
-    teamRaw = [...departmentRoster].sort((a, b) => {
-      const ra = TEAM_ROLE_RANK[a.user?.role ?? ''] ?? 3
-      const rb = TEAM_ROLE_RANK[b.user?.role ?? ''] ?? 3
-      return ra !== rb ? ra - rb : a.firstName.localeCompare(b.firstName)
-    })
-  } else if (directReports.length > 0) {
-    // No department on record (shouldn't happen) — fall back to direct reports.
-    teamRaw = directReports
-  } else {
-    teamRaw = []
-  }
-
-  // Resolve today's status for each teammate
-  const teamIds = teamRaw.map((t) => t.id)
-  const teamAttendance = await prisma.attendance.findMany({
-    where: { employeeId: { in: teamIds }, date: { gte: todayStart, lte: todayEnd } },
-    select: { employeeId: true, status: true },
-  })
-  const statusByEmp = Object.fromEntries(teamAttendance.map((a) => [a.employeeId, a.status]))
+  const departmentHeadcount = roster.length
+  const directReportsCount = roster.filter((e) => e.reportingToId === employeeId).length
   const team = teamRaw.map((t) => ({
     id: t.id,
     firstName: t.firstName,
     lastName: t.lastName,
     avatarUrl: t.avatarUrl,
-    todayStatus: statusByEmp[t.id] ?? 'ABSENT',
+    todayStatus: t.attendance[0]?.status ?? 'ABSENT',
     isSelf: t.id === employeeId,
     designation: t.jobTitle?.name ?? null,
     role: t.user?.role ?? null,
@@ -231,7 +214,7 @@ router.get('/me', async (req: Request, res: Response) => {
     })),
     attendanceMonth,
     team,
-    directReportsCount: directReports.length,
+    directReportsCount,
     departmentHeadcount,
   })
 })

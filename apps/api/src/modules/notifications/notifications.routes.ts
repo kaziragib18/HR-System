@@ -1,7 +1,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { prisma } from '../../config/prisma'
-import { sendSuccess, sendError } from '../../utils/response'
+import { sendSuccess, sendError, sendUnexpectedError } from '../../utils/response'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { Request, Response } from 'express'
 
@@ -18,7 +18,7 @@ notificationsRouter.get('/', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100)
     const skip = (page - 1) * limit
 
-    const [items, total, unread] = await Promise.all([
+    const [items, total] = await Promise.all([
       prisma.notification.findMany({
         where: { employeeId },
         skip,
@@ -26,11 +26,10 @@ notificationsRouter.get('/', async (req, res) => {
         orderBy: { createdAt: 'desc' },
       }),
       prisma.notification.count({ where: { employeeId } }),
-      prisma.notification.count({ where: { employeeId, isRead: false } }),
     ])
 
     sendSuccess(res, items, { total, page, limit, totalPages: Math.ceil(total / limit) })
-  } catch (err) { throw err }
+  } catch (err) { sendUnexpectedError(res, err) }
 })
 
 notificationsRouter.get('/unread-count', async (req: Request, res: Response) => {
@@ -39,7 +38,7 @@ notificationsRouter.get('/unread-count', async (req: Request, res: Response) => 
       where: { employeeId: user(req).employeeId, isRead: false },
     })
     sendSuccess(res, { count })
-  } catch (err) { throw err }
+  } catch (err) { sendUnexpectedError(res, err) }
 })
 
 notificationsRouter.patch('/read-all', async (req: Request, res: Response) => {
@@ -49,7 +48,7 @@ notificationsRouter.patch('/read-all', async (req: Request, res: Response) => {
       data: { isRead: true },
     })
     sendSuccess(res, { message: 'All notifications marked as read' })
-  } catch (err) { throw err }
+  } catch (err) { sendUnexpectedError(res, err) }
 })
 
 notificationsRouter.patch('/:id/read', async (req: Request, res: Response) => {
@@ -65,5 +64,5 @@ notificationsRouter.patch('/:id/read', async (req: Request, res: Response) => {
       data: { isRead: true },
     })
     sendSuccess(res, updated)
-  } catch (err) { throw err }
+  } catch (err) { sendUnexpectedError(res, err) }
 })

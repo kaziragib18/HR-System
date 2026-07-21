@@ -20,13 +20,20 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
+function fmtMinutes(mins: number): string {
+  if (mins < 60) return `${mins}m`
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`
+}
+
 export function RecentApprovalsCard() {
   const { data: leaveApps = [], isLoading: leaveLoading } = usePendingApprovals()
   const { data: excuses = [], isLoading: excusesLoading } = usePendingExcuses()
   const { data: adjustments = [], isLoading: adjustmentsLoading } = usePendingAdjustments()
 
   const isLoading = leaveLoading || excusesLoading || adjustmentsLoading
-  const pendingLeave = leaveApps.filter((a) => a.status === 'PENDING' || a.status === 'CANCEL_REQUESTED')
+  const pendingLeave = leaveApps.filter(
+    (a) => a.status === 'PENDING' || a.status === 'CANCEL_REQUESTED'
+  )
   const totalPending = pendingLeave.length + excuses.length + adjustments.length
 
   const items: RecentItem[] = [
@@ -34,7 +41,10 @@ export function RecentApprovalsCard() {
       key: `leave-${a.id}`,
       tab: 'leave' as const,
       icon: a.status === 'CANCEL_REQUESTED' ? Undo2 : CalendarDays,
-      title: a.status === 'CANCEL_REQUESTED' ? 'Leave cancellation request' : `${a.leaveType?.name ?? 'Leave'} request`,
+      title:
+        a.status === 'CANCEL_REQUESTED'
+          ? 'Leave cancellation request'
+          : `${a.leaveType?.name ?? 'Leave'} request`,
       meta: a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : 'Employee',
       when: a.createdAt,
     })),
@@ -43,7 +53,7 @@ export function RecentApprovalsCard() {
       tab: 'excuses' as const,
       icon: Clock,
       title: 'Late arrival excuse',
-      meta: `${e.employee.firstName} ${e.employee.lastName} · ${e.lateMinutes}m late`,
+      meta: `${e.employee.firstName} ${e.employee.lastName} · ${fmtMinutes(e.lateMinutes)} late`,
       when: e.updatedAt ?? e.date,
     })),
     ...adjustments.map((a) => ({
@@ -54,8 +64,7 @@ export function RecentApprovalsCard() {
       meta: `${a.employee.firstName} ${a.employee.lastName} · ${fmtDate(a.date)}`,
       when: a.updatedAt ?? a.date,
     })),
-  ]
-    .sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime())
+  ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime())
 
   return (
     <Card>
@@ -76,7 +85,8 @@ export function RecentApprovalsCard() {
         // renders at natural height with no scrollbar.
         <div
           className={cn(
-            items.length > 3 && 'max-h-[168px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
+            items.length > 3 &&
+              'max-h-[168px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-1'
           )}
         >
           {items.map((item) => {
@@ -85,14 +95,16 @@ export function RecentApprovalsCard() {
               <Link
                 key={item.key}
                 href={`/approvals?tab=${item.tab}`}
-                className="-mx-1 flex items-start gap-2.5 rounded px-1 py-2.5 border-b last:border-0 hover:bg-muted/40"
+                className="-mx-1 flex items-start gap-2.5 rounded px-2.5 py-2.5 rounded-md border-b last:border-0 hover:bg-muted/40"
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium leading-tight">{item.title}</p>
                   <p className="truncate text-[11px] text-muted-foreground">{item.meta}</p>
                 </div>
-                <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(item.when)}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {fmtDate(item.when)}
+                </span>
               </Link>
             )
           })}

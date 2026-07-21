@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api/client'
-import { Card, Spinner } from '@/components/ui/primitives'
-import { Building2, Check, Upload, Trash2, FileText, ExternalLink, ImagePlus } from 'lucide-react'
+import { Card, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
+import { Building2, Check, Upload, Trash2, FileText, ExternalLink, ImagePlus, AlertTriangle, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
@@ -125,7 +125,7 @@ function OfficeForm({ office }: { office: Office }) {
           )}
           {logoUploading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/70">
-              <Spinner />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
             </div>
           )}
         </div>
@@ -203,6 +203,68 @@ function OfficeForm({ office }: { office: Office }) {
   )
 }
 
+// ─── Delete confirm modal ─────────────────────────────────────────────────────
+
+function DeleteDocConfirmModal({ doc, onClose }: { doc: ComplianceDoc; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [error, setError] = useState('')
+  const del = useMutation({
+    mutationFn: async () => { await apiClient.delete(`/company/compliance-docs/${doc.id}`) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['compliance-docs'] })
+      onClose()
+    },
+    onError: (err: unknown) => {
+      setError(
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          'Failed to delete document'
+      )
+    },
+  })
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !del.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={del.isPending} label="Deleting…" />
+        <div className="p-4">
+          <div className="mb-3 flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Delete document?</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This will permanently remove <span className="font-medium text-foreground">&ldquo;{doc.title}&rdquo;</span>.
+                This can&apos;t be undone.
+              </p>
+            </div>
+          </div>
+          {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={onClose} disabled={del.isPending} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+              Cancel
+            </button>
+            <button
+              onClick={() => del.mutate()}
+              disabled={del.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {del.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {del.isPending ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Compliance Docs Section ──────────────────────────────────────────────────
 
 function ComplianceDocs() {
@@ -213,11 +275,7 @@ function ComplianceDocs() {
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => { await apiClient.delete(`/company/compliance-docs/${id}`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['compliance-docs'] }),
-  })
+  const [deleteTarget, setDeleteTarget] = useState<ComplianceDoc | null>(null)
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
@@ -309,13 +367,29 @@ function ComplianceDocs() {
       <Card>
         <p className="mb-3 text-sm font-medium">Compliance Documents ({docs.length})</p>
         {isLoading ? (
-          <Spinner />
+          <div className="divide-y">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 py-3">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-40" />
+                  <Skeleton className="h-3 w-56 max-w-full" />
+                </div>
+                <Skeleton className="h-6 w-14 shrink-0" />
+              </div>
+            ))}
+          </div>
         ) : docs.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No compliance documents uploaded yet.</p>
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">No compliance documents uploaded yet.</p>
+          </div>
         ) : (
           <div className="divide-y">
             {docs.map(doc => (
-              <div key={doc.id} className="flex items-start gap-3 py-3">
+              <div key={doc.id} className="-mx-1 flex items-start gap-3 rounded-lg px-1 py-3 transition-colors hover:bg-muted/40">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <FileText className="h-4 w-4" />
                 </div>
@@ -339,10 +413,7 @@ function ComplianceDocs() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete "${doc.title}"?`)) deleteMut.mutate(doc.id)
-                    }}
-                    disabled={deleteMut.isPending}
+                    onClick={() => setDeleteTarget(doc)}
                     className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     title="Delete"
                   >
@@ -354,17 +425,54 @@ function ComplianceDocs() {
           </div>
         )}
       </Card>
+
+      {deleteTarget && <DeleteDocConfirmModal doc={deleteTarget} onClose={() => setDeleteTarget(null)} />}
     </div>
   )
 }
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
+function CompanyPanelSkeleton() {
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <div className="mb-4 flex items-center gap-3">
+          <Skeleton className="h-5 w-5 rounded" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <Card className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-20 w-20 shrink-0 rounded-xl" />
+            <Skeleton className="h-9 w-32 rounded-md" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-9 w-full rounded-md" />
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+          <Skeleton className="h-16 w-full rounded-md" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-9 w-full rounded-md" />
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+        </Card>
+      </div>
+      <div>
+        <div className="mb-4 flex items-center gap-3">
+          <Skeleton className="h-5 w-5 rounded" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Card><Skeleton className="h-24 w-full rounded-md" /></Card>
+      </div>
+    </div>
+  )
+}
+
 export function CompanyPanel() {
   const { data: offices, isLoading } = useOffices()
   const [activeOffice, setActiveOffice] = useState(0)
 
-  if (isLoading) return <Spinner />
+  if (isLoading) return <CompanyPanelSkeleton />
 
   return (
     <div className="space-y-6 max-w-2xl">

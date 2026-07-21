@@ -3,7 +3,7 @@ import { prisma } from '../../config/prisma'
 import { calculateTotalLeaveDays } from '@hr-system/utils'
 import { LeaveStatus, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
-import { createNotification } from '../../services/notification.service'
+import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
 import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import { markLeaveDates, clearLeaveDates } from '../attendance/attendance.service'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery } from './leave.schemas'
@@ -188,25 +188,31 @@ export async function applyLeave(employeeId: string, officeId: string, requester
       `${applicantName} has requested ${totalDays} day(s) of ${application.leaveType.name}.`,
       { applicationId: application.id }
     )
+    // Every new team request additionally notifies office admins, on top of
+    // the resolved approver — so SUPER_ADMIN/HR_MANAGER always have visibility
+    // even though only the resolved approver (or that requester's own
+    // department head) can actually act on it.
+    await notifyOfficeAdmins(
+      officeId,
+      NotificationType.LEAVE_REQUESTED,
+      'New leave request',
+      `${applicantName} has requested ${totalDays} day(s) of ${application.leaveType.name}.`,
+      { applicationId: application.id },
+      currentApproverId
+    )
   } else if (autoApproved) {
     // No manager/department head resolved for this employee (shouldn't happen
     // once every department has exactly one DEPT_HEAD, but the leave still
-    // auto-approved silently — fall back to every SUPER_ADMIN in the office so
-    // this doesn't go completely unnoticed, mirroring the same fallback
+    // auto-approved silently — fall back to every office admin so this
+    // doesn't go completely unnoticed, mirroring the same fallback
     // requestAdjustment already uses in attendance.service.ts).
-    const superAdmins = await prisma.user.findMany({
-      where: { employee: { officeId }, role: UserRole.SUPER_ADMIN },
-      select: { employeeId: true },
-    })
-    for (const admin of superAdmins) {
-      await createNotification(
-        admin.employeeId,
-        NotificationType.LEAVE_REQUESTED,
-        'Leave auto-approved (no approver found)',
-        `${applicantName}'s ${totalDays} day(s) of ${application.leaveType.name} was auto-approved because no manager or department head could be resolved for them.`,
-        { applicationId: application.id }
-      )
-    }
+    await notifyOfficeAdmins(
+      officeId,
+      NotificationType.LEAVE_REQUESTED,
+      'Leave auto-approved (no approver found)',
+      `${applicantName}'s ${totalDays} day(s) of ${application.leaveType.name} was auto-approved because no manager or department head could be resolved for them.`,
+      { applicationId: application.id }
+    )
   }
 
   return application
@@ -409,12 +415,16 @@ export async function cancelLeave(applicationId: string, employeeId: string, can
 
   if (managerId) {
     const name = `${app.employee.firstName} ${app.employee.lastName}`
-    await createNotification(
-      managerId,
+    const title = 'Leave cancellation requested'
+    const body = `${name} has requested to cancel their approved ${app.leaveType.name} leave. Reason: ${cancelReason.trim()}`
+    await createNotification(managerId, NotificationType.LEAVE_CANCEL_REQUESTED, title, body, { applicationId })
+    await notifyOfficeAdmins(
+      app.employee.officeId,
       NotificationType.LEAVE_CANCEL_REQUESTED,
-      'Leave cancellation requested',
-      `${name} has requested to cancel their approved ${app.leaveType.name} leave. Reason: ${cancelReason.trim()}`,
-      { applicationId }
+      title,
+      body,
+      { applicationId },
+      managerId
     )
   }
 

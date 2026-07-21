@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { PageHeader, Card, EmptyState, Skeleton } from '@/components/ui/primitives'
+import { PageHeader, Card, EmptyState, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
 import { CATEGORY_META } from '@/components/dashboard/AnnouncementsCard'
 import {
   useAnnouncementFeed,
@@ -15,7 +15,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { AnnouncementCategory, MANUAL_ANNOUNCEMENT_CATEGORIES, UserRole } from '@hr-system/types'
 import type { AnnouncementFeedItem } from '@hr-system/types'
 import { cn } from '@/lib/utils'
-import { Plus, X, Pencil, Trash2, AlertCircle, Clock, Megaphone } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, AlertCircle, Clock, Megaphone, Loader2 } from 'lucide-react'
 
 function fmtCategory(c: string) {
   return c.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase())
@@ -112,93 +112,103 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !create.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={create.isPending} label="Posting…" />
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-medium">New Announcement</p>
-          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+          <button onClick={onClose} disabled={create.isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3 p-4">
-          {error && <ErrorBanner message={error} />}
-          <div>
-            <div className="flex items-baseline justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Title</label>
-              <span
-                className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
-              >
-                {title.length}/{MAX_TITLE_LENGTH}
-              </span>
-            </div>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What's the update?"
-              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Body</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={3}
-              placeholder="Share the details…"
-              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        <fieldset disabled={create.isPending} className="contents">
+          <div className="space-y-3 p-4">
+            {error && <ErrorBanner message={error} />}
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
-                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {MANUAL_ANNOUNCEMENT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{fmtCategory(c)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Expires (optional)</label>
+              <div className="flex items-baseline justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Title</label>
+                <span
+                  className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+                >
+                  {title.length}/{MAX_TITLE_LENGTH}
+                </span>
+              </div>
               <input
-                type="date"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What's the update?"
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-          </div>
-          {isSuperAdmin && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Office</label>
-              <select
-                value={officeId}
-                onChange={(e) => setOfficeId(e.target.value)}
+              <label className="text-xs font-medium text-muted-foreground">Body</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={3}
+                placeholder="Share the details…"
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">All Offices</option>
-                {offices.map((o) => (
-                  <option key={o.id} value={o.id}>{o.code}</option>
-                ))}
-              </select>
+              />
             </div>
-          )}
-        </div>
-        <div className="flex gap-2 border-t px-4 py-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={create.isPending}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {create.isPending ? 'Posting…' : 'Post'}
-          </button>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {MANUAL_ANNOUNCEMENT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{fmtCategory(c)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Expires (optional)</label>
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Office</label>
+                <select
+                  value={officeId}
+                  onChange={(e) => setOfficeId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">All Offices</option>
+                  {offices.map((o) => (
+                    <option key={o.id} value={o.id}>{o.code}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 border-t px-4 py-3">
+            <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={create.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {create.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {create.isPending ? 'Posting…' : 'Post'}
+            </button>
+          </div>
+        </fieldset>
       </div>
     </div>
   )
@@ -255,91 +265,101 @@ function EditAnnouncementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !update.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={update.isPending} label="Saving…" />
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-medium">Edit Announcement</p>
-          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+          <button onClick={onClose} disabled={update.isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3 p-4">
-          {error && <ErrorBanner message={error} />}
-          <div>
-            <div className="flex items-baseline justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Title</label>
-              <span
-                className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
-              >
-                {title.length}/{MAX_TITLE_LENGTH}
-              </span>
-            </div>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Body</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={3}
-              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        <fieldset disabled={update.isPending} className="contents">
+          <div className="space-y-3 p-4">
+            {error && <ErrorBanner message={error} />}
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
-                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {MANUAL_ANNOUNCEMENT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{fmtCategory(c)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Expires (optional)</label>
+              <div className="flex items-baseline justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Title</label>
+                <span
+                  className={`text-[10px] ${title.length > MAX_TITLE_LENGTH ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+                >
+                  {title.length}/{MAX_TITLE_LENGTH}
+                </span>
+              </div>
               <input
-                type="date"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-          </div>
-          {isSuperAdmin && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Office</label>
-              <select
-                value={officeId}
-                onChange={(e) => setOfficeId(e.target.value)}
+              <label className="text-xs font-medium text-muted-foreground">Body</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={3}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">All Offices</option>
-                {offices.map((o) => (
-                  <option key={o.id} value={o.id}>{o.code}</option>
-                ))}
-              </select>
+              />
             </div>
-          )}
-        </div>
-        <div className="flex gap-2 border-t px-4 py-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={update.isPending}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {update.isPending ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {MANUAL_ANNOUNCEMENT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{fmtCategory(c)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Expires (optional)</label>
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Office</label>
+                <select
+                  value={officeId}
+                  onChange={(e) => setOfficeId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">All Offices</option>
+                  {offices.map((o) => (
+                    <option key={o.id} value={o.id}>{o.code}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 border-t px-4 py-3">
+            <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={update.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {update.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {update.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </fieldset>
       </div>
     </div>
   )
@@ -366,11 +386,18 @@ function DeleteConfirmModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl border bg-card shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !del.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={del.isPending} label="Deleting…" />
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-medium">Delete announcement?</p>
-          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+          <button onClick={onClose} disabled={del.isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -382,14 +409,15 @@ function DeleteConfirmModal({
           </p>
         </div>
         <div className="flex gap-2 border-t px-4 py-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+          <button onClick={onClose} disabled={del.isPending} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
             Cancel
           </button>
           <button
             onClick={handleDelete}
             disabled={del.isPending}
-            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
+            {del.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {del.isPending ? 'Deleting…' : 'Delete'}
           </button>
         </div>

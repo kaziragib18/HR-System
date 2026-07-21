@@ -24,8 +24,28 @@ export function useHolidays(year: number) {
 export function useCreateHoliday() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { officeId: string; name: string; date: string }) => {
+    mutationFn: async (payload: { officeId: string; name: string; date: string; isRecurring?: boolean }) => {
       const { data } = await apiClient.post('/holidays', payload)
+      return data.data as Holiday
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['holidays'] }),
+  })
+}
+
+export function useUpdateHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: {
+      id: string
+      officeId?: string
+      name?: string
+      date?: string
+      isRecurring?: boolean
+    }) => {
+      const { data } = await apiClient.patch(`/holidays/${id}`, payload)
       return data.data as Holiday
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['holidays'] }),

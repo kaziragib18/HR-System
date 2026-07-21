@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/auth.store'
 import { useEmployees, useUpdateEmployeeRole } from '@/lib/api/hooks/useEmployees'
 import { useOffices } from '@/lib/api/hooks/useReference'
-import { Card, Avatar, ListSkeleton, EmptyState, RolePill, fmtRole } from '@/components/ui/primitives'
+import { Card, Avatar, ListSkeleton, EmptyState, RolePill, fmtRole, SubmitOverlay } from '@/components/ui/primitives'
 import { UserRole } from '@hr-system/types'
-import { ShieldOff, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react'
+import { ShieldOff, ChevronLeft, ChevronRight, X, AlertCircle, Loader2 } from 'lucide-react'
 
 const ALL_ROLES = [
   UserRole.SUPER_ADMIN,
@@ -101,49 +101,59 @@ function ChangeRoleModal({ target, onClose }: { target: RoleChangeTarget; onClos
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl border bg-card shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !updateRole.isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={updateRole.isPending} label="Saving…" />
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <p className="text-sm font-medium">Change Role</p>
             <p className="text-xs text-muted-foreground">{target.firstName} {target.lastName}</p>
           </div>
-          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+          <button onClick={onClose} disabled={updateRole.isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3 p-4">
-          {error && (
-            <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {error}
-            </p>
-          )}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">New role</label>
-            <select
-              value={role}
-              onChange={e => setRole(e.target.value)}
-              className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {ALL_ROLES.map(r => (
-                <option key={r} value={r}>{fmtRole(r)}</option>
-              ))}
-            </select>
+        <fieldset disabled={updateRole.isPending} className="contents">
+          <div className="space-y-3 p-4">
+            {error && (
+              <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {error}
+              </p>
+            )}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">New role</label>
+              <select
+                value={role}
+                onChange={e => setRole(e.target.value)}
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {ALL_ROLES.map(r => (
+                  <option key={r} value={r}>{fmtRole(r)}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2 border-t px-4 py-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={updateRole.isPending || role === target.currentRole}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {updateRole.isPending ? 'Saving…' : 'Confirm'}
-          </button>
-        </div>
+          <div className="flex gap-2 border-t px-4 py-3">
+            <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={updateRole.isPending || role === target.currentRole}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {updateRole.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {updateRole.isPending ? 'Saving…' : 'Confirm'}
+            </button>
+          </div>
+        </fieldset>
       </div>
     </div>
   )

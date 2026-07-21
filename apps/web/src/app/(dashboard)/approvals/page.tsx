@@ -15,12 +15,12 @@ import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdj
 import type { AttendanceRecord } from '@/lib/api/hooks/useAttendance'
 import { useApprovalHistory } from '@/lib/api/hooks/useApprovalHistory'
 import type { ApprovalHistoryItem } from '@/lib/api/hooks/useApprovalHistory'
-import { Avatar, PageHeader, RolePill } from '@/components/ui/primitives'
+import { Avatar, PageHeader, RolePill, SubmitOverlay } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
   AlertCircle, Building2, History, ArrowRight, Quote, UserCheck,
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,7 +40,12 @@ function fmtDate(iso: string) {
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+}
+
+function fmtMinutes(mins: number): string {
+  if (mins < 60) return `${mins}m`
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
@@ -237,32 +242,38 @@ function ReasonModal({ title, description, placeholder, submitting, onSubmit, on
 }) {
   const [val, setVal] = useState('')
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !submitting) onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, submitting])
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={() => !submitting && onClose()}
+    >
       <div
-        className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl ring-1 ring-border"
+        className="relative w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl ring-1 ring-border"
         onClick={e => e.stopPropagation()}
       >
+        <SubmitOverlay show={submitting} label="Submitting…" />
         <h3 className="mb-1 font-semibold text-base">{title}</h3>
         <p className="mb-4 text-sm text-muted-foreground">{description}</p>
         <textarea
           autoFocus value={val} onChange={e => setVal(e.target.value)} rows={3}
+          disabled={submitting}
           placeholder={placeholder}
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
         />
         <div className="mt-4 flex gap-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted">
+          <button onClick={onClose} disabled={submitting} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50">
             Cancel
           </button>
           <button
             onClick={() => onSubmit(val)}
             disabled={!val.trim() || submitting}
-            className="flex-1 rounded-lg bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
           >
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitting ? 'Submitting…' : 'Confirm'}
           </button>
         </div>
@@ -276,16 +287,20 @@ function ConfirmModal({ title, description, confirmLabel, confirmCls, submitting
   submitting: boolean; onConfirm: () => void; onClose: () => void
 }) {
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !submitting) onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, submitting])
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={() => !submitting && onClose()}
+    >
       <div
-        className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-2xl ring-1 ring-border"
+        className="relative w-full max-w-sm rounded-2xl bg-card p-6 shadow-2xl ring-1 ring-border"
         onClick={e => e.stopPropagation()}
       >
+        <SubmitOverlay show={submitting} label="Saving…" />
         <div className="mb-3 flex items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
             <AlertCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -294,13 +309,14 @@ function ConfirmModal({ title, description, confirmLabel, confirmCls, submitting
         </div>
         <p className="mb-5 text-sm text-muted-foreground">{description}</p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted">
+          <button onClick={onClose} disabled={submitting} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50">
             Cancel
           </button>
           <button
             onClick={onConfirm} disabled={submitting}
-            className={cn('flex-1 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50', confirmCls)}
+            className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50', confirmCls)}
           >
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitting ? 'Saving…' : confirmLabel}
           </button>
         </div>
@@ -508,7 +524,7 @@ function ExcuseCard({ rec, onApprove, onReject, reviewing }: {
           department={rec.employee.department} role={rec.employee.user?.role}
         />
         <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-          {(rec.lateMinutes ?? 0)}m late
+          {fmtMinutes(rec.lateMinutes ?? 0)} late
         </span>
       </div>
 
@@ -707,7 +723,7 @@ function HistoryCard({ item }: { item: ApprovalHistoryItem }) {
       return { primary: fmtDate(a.date), secondary: 'Attendance correction' }
     }
     const e = item as Extract<ApprovalHistoryItem, { type: 'EXCUSE' }>
-    return { primary: fmtDate(e.date), secondary: `${e.lateMinutes}m late` }
+    return { primary: fmtDate(e.date), secondary: `${fmtMinutes(e.lateMinutes)} late` }
   })()
 
   const extraText = (() => {

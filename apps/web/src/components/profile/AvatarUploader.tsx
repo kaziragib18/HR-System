@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Avatar, Spinner } from '@/components/ui/primitives'
+import { Avatar } from '@/components/ui/primitives'
 import { Camera } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { useUploadAvatar } from '@/lib/api/hooks/useEmployeeProfile'
@@ -47,7 +47,7 @@ export function AvatarUploader({
       <Avatar firstName={firstName} lastName={lastName} url={displayUrl} size={size} />
       {upload.isPending && (
         <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
-          <Spinner />
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
         </div>
       )}
       {canEdit && !upload.isPending && (

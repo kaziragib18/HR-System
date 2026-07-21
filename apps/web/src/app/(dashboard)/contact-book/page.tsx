@@ -4,11 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useContactBook } from '@/lib/api/hooks/useEmployees'
 import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { useAuthStore } from '@/store/auth.store'
 import { PageHeader, Card, Avatar, ListSkeleton } from '@/components/ui/primitives'
-import { BloodGroup } from '@hr-system/types'
+import { BloodGroup, UserRole } from '@hr-system/types'
 import type { ContactBookEntry } from '@hr-system/types'
 import { cn } from '@/lib/utils'
 import { Search, X, Droplet, Mail, Phone, BookUser } from 'lucide-react'
+
+const MANAGER_TIER = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
 
 function BloodChip({ group }: { group?: BloodGroup | null }) {
   if (!group) return <span className="text-xs text-muted-foreground">—</span>
@@ -34,6 +37,11 @@ function pageWindow(current: number, total: number): (number | '…')[] {
 }
 
 export default function ContactBookPage() {
+  const { user } = useAuthStore()
+  // Contact Book is visible to everyone, but only a manager-tier viewer can
+  // drill into the full employee profile — a plain employee sees the same
+  // row info and nothing more, so their card isn't a link at all.
+  const canViewProfile = !!user && MANAGER_TIER.includes(user.role as UserRole)
   const [search, setSearch] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [bloodGroup, setBloodGroup] = useState('')
@@ -125,10 +133,17 @@ export default function ContactBookPage() {
                   {rows.map((emp: ContactBookEntry) => (
                     <tr key={emp.id} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="px-4 py-2.5">
-                        <Link href={`/employees/${emp.id}`} className="flex items-center gap-3">
-                          <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={36} />
-                          <p className="truncate font-medium">{emp.firstName} {emp.lastName}</p>
-                        </Link>
+                        {canViewProfile ? (
+                          <Link href={`/employees/${emp.id}`} className="flex items-center gap-3">
+                            <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={36} />
+                            <p className="truncate font-medium">{emp.firstName} {emp.lastName}</p>
+                          </Link>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={36} />
+                            <p className="truncate font-medium">{emp.firstName} {emp.lastName}</p>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{emp.employeeId}</td>
                       <td className="px-4 py-2.5">{emp.department?.name ?? '—'}</td>
@@ -148,21 +163,32 @@ export default function ContactBookPage() {
 
             {/* Mobile cards */}
             <div className="md:hidden">
-              {rows.map((emp: ContactBookEntry) => (
-                <Link key={emp.id} href={`/employees/${emp.id}`} className="flex items-center gap-3 border-b p-3 last:border-0 hover:bg-muted/40">
-                  <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{emp.firstName} {emp.lastName}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {emp.jobTitle?.name ?? '—'} · {emp.department?.name ?? '—'}
-                    </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                      <Mail className="h-3 w-3 shrink-0" /> {emp.email}
-                    </p>
+              {rows.map((emp: ContactBookEntry) => {
+                const content = (
+                  <>
+                    <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{emp.firstName} {emp.lastName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {emp.jobTitle?.name ?? '—'} · {emp.department?.name ?? '—'}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3 shrink-0" /> {emp.email}
+                      </p>
+                    </div>
+                    <BloodChip group={emp.bloodGroup} />
+                  </>
+                )
+                return canViewProfile ? (
+                  <Link key={emp.id} href={`/employees/${emp.id}`} className="flex items-center gap-3 border-b p-3 last:border-0 hover:bg-muted/40">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={emp.id} className="flex items-center gap-3 border-b p-3 last:border-0">
+                    {content}
                   </div>
-                  <BloodChip group={emp.bloodGroup} />
-                </Link>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
