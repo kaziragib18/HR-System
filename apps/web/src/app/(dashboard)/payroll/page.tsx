@@ -1,22 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   usePayrollRuns,
   useCreatePayrollRun,
   useProcessPayrollRun,
   useApprovePayrollRun,
-  useMarkPaidPayrollRun,
   type PayrollRun,
 } from '@/lib/api/hooks/usePayroll'
-import { Card, StatusBadge, Spinner, SubmitOverlay } from '@/components/ui/primitives'
+import { MarkPaidModal } from '@/components/payroll/MarkPaidModal'
+import { Card, StatusBadge, EmptyState, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 import { cn } from '@/lib/utils'
-import { Plus, Play, CheckCircle2, Banknote, ChevronRight, X, ShieldOff, Loader2 } from 'lucide-react'
+import {
+  Plus, Play, CheckCircle2, Banknote, ChevronRight, X, ShieldOff, Loader2,
+  FileStack, Hourglass, FolderOpen,
+} from 'lucide-react'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const OFFICE_BADGE: Record<string, string> = {
+  BD: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  UK: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+}
+
+const STATUS_BORDER: Record<string, string> = {
+  DRAFT: 'border-l-muted-foreground/30',
+  PROCESSING: 'border-l-sky-500',
+  PROCESSED: 'border-l-blue-500',
+  APPROVED: 'border-l-amber-500',
+  PAID: 'border-l-emerald-500',
+}
 
 function fmtAmount(val: string, currency: string): string {
   const n = Number(val)
@@ -28,10 +44,9 @@ function fmtAmount(val: string, currency: string): string {
   }).format(n)
 }
 
-function RunActions({ run }: { run: PayrollRun }) {
+function RunActions({ run, onMarkPaid }: { run: PayrollRun; onMarkPaid: (run: PayrollRun) => void }) {
   const process = useProcessPayrollRun()
   const approve = useApprovePayrollRun()
-  const markPaid = useMarkPaidPayrollRun()
 
   if (run.status === 'PAID') return null
 
@@ -46,7 +61,7 @@ function RunActions({ run }: { run: PayrollRun }) {
           disabled={process.isPending}
           className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
-          <Play className="h-3.5 w-3.5" />
+          {process.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
           {process.isPending ? 'Processing…' : run.processedAt ? 'Re-process' : 'Process'}
         </button>
       )}
@@ -59,7 +74,7 @@ function RunActions({ run }: { run: PayrollRun }) {
           disabled={approve.isPending}
           className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
         >
-          <CheckCircle2 className="h-3.5 w-3.5" />
+          {approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
           {approve.isPending ? 'Approving…' : 'Approve'}
         </button>
       )}
@@ -67,13 +82,12 @@ function RunActions({ run }: { run: PayrollRun }) {
         <button
           onClick={(e) => {
             e.preventDefault()
-            if (confirm('Mark this payroll as paid?')) markPaid.mutate(run.id)
+            onMarkPaid(run)
           }}
-          disabled={markPaid.isPending}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
         >
           <Banknote className="h-3.5 w-3.5" />
-          {markPaid.isPending ? 'Marking…' : 'Mark Paid'}
+          Mark Paid
         </button>
       )}
     </div>
@@ -167,16 +181,27 @@ export default function PayrollPage() {
   const user = useAuthStore((s) => s.user)
   const { data: runs = [], isLoading } = usePayrollRuns()
   const [showCreate, setShowCreate] = useState(false)
+  const [markPaidRun, setMarkPaidRun] = useState<PayrollRun | null>(null)
+  const [yearFilter, setYearFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+
+  const years = useMemo(
+    () => [...new Set(runs.map((r) => r.year))].sort((a, b) => b - a),
+    [runs],
+  )
+  const hasActiveFilters = !!(yearFilter || statusFilter)
+  const filteredRuns = runs.filter((r) =>
+    (!yearFilter || String(r.year) === yearFilter) &&
+    (!statusFilter || r.status === statusFilter),
+  )
 
   if (user?.role !== UserRole.SUPER_ADMIN) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <ShieldOff className="mb-3 h-10 w-10 text-muted-foreground/40" />
-        <p className="font-medium">Access restricted</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Only Super Admins can manage payroll runs.
-        </p>
-      </div>
+      <EmptyState
+        icon={ShieldOff}
+        title="Access restricted"
+        message="Only Super Admins can manage payroll runs."
+      />
     )
   }
 
@@ -202,75 +227,128 @@ export default function PayrollPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total runs', value: runs.length, cls: 'text-primary' },
-          { label: 'Paid', value: paid, cls: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Pending', value: pending, cls: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Total runs', value: runs.length, icon: FileStack, cls: 'text-primary' },
+          { label: 'Paid', value: paid, icon: CheckCircle2, cls: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Pending', value: pending, icon: Hourglass, cls: 'text-amber-600 dark:text-amber-400' },
         ].map((s) => (
-          <Card key={s.label} className="flex flex-col items-center justify-center py-4">
+          <Card key={s.label} className="flex flex-col items-center justify-center gap-1 py-4">
+            <s.icon className={cn('h-4 w-4', s.cls)} />
             <p className={cn('text-2xl font-bold', s.cls)}>{s.value}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
           </Card>
         ))}
       </div>
 
       {/* Runs list */}
-      <Card>
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          All runs
-        </p>
-        {isLoading ? (
-          <Spinner />
-        ) : runs.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-10 text-center">
-            <p className="text-sm text-muted-foreground">No payroll runs yet.</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Create a run to start processing payroll for a month.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(runs as PayrollRun[]).map((run) => (
-              <Link
-                key={run.id}
-                href={`/payroll/${run.id}`}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 transition hover:bg-muted/40"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
-                    {MONTHS[run.month - 1]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {MONTHS[run.month - 1]} {run.year}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {run.employeeCount} employees · {run.office.name}
-                    </p>
-                  </div>
-                </div>
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b p-3">
+          <p className="mr-auto text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            All runs {totalGross > 0 && <span className="normal-case text-muted-foreground/70">· {new Intl.NumberFormat('en-US').format(totalGross)} total gross</span>}
+          </p>
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">All years</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">All statuses</option>
+            {['DRAFT', 'APPROVED', 'PAID'].map((s) => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+          </select>
+          {hasActiveFilters && (
+            <button
+              onClick={() => { setYearFilter(''); setStatusFilter('') }}
+              className="flex h-8 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-muted"
+            >
+              <X className="h-3 w-3" /> Clear
+            </button>
+          )}
+        </div>
 
-                <div className="flex items-center gap-6">
-                  <div className="hidden text-right sm:block">
-                    <p className="text-xs text-muted-foreground">Gross</p>
-                    <p className="text-sm font-semibold">
-                      {fmtAmount(run.totalGross, run.currency)}
-                    </p>
+        <div className="p-3">
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg border p-4">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-48" />
                   </div>
-                  <div className="hidden text-right sm:block">
-                    <p className="text-xs text-muted-foreground">Net</p>
-                    <p className="text-sm font-semibold">{fmtAmount(run.totalNet, run.currency)}</p>
-                  </div>
-                  <StatusBadge status={run.status} />
-                  <RunActions run={run} />
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <Skeleton className="h-6 w-20 shrink-0 rounded-full" />
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : runs.length === 0 ? (
+            <EmptyState
+              icon={FolderOpen}
+              title="No payroll runs yet"
+              message='Create a run to start processing payroll for a month.'
+            />
+          ) : filteredRuns.length === 0 ? (
+            <EmptyState
+              icon={FolderOpen}
+              title="No matching runs"
+              message="No payroll runs match these filters."
+            />
+          ) : (
+            <div className="space-y-2">
+              {(filteredRuns as PayrollRun[]).map((run) => (
+                <Link
+                  key={run.id}
+                  href={`/payroll/${run.id}`}
+                  className={cn(
+                    'flex flex-wrap items-center justify-between gap-3 rounded-lg border border-l-[3px] p-4 transition hover:bg-muted/40',
+                    STATUS_BORDER[run.status] ?? 'border-l-muted-foreground/30',
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                      {MONTHS[run.month - 1]}
+                    </div>
+                    <div>
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        {MONTHS[run.month - 1]} {run.year}
+                        <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', OFFICE_BADGE[run.office.code] ?? 'bg-muted text-muted-foreground')}>
+                          {run.office.code}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {run.employeeCount} employees · {run.office.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <div className="hidden text-right sm:block">
+                      <p className="text-xs text-muted-foreground">Gross</p>
+                      <p className="text-sm font-semibold">
+                        {fmtAmount(run.totalGross, run.currency)}
+                      </p>
+                    </div>
+                    <div className="hidden text-right sm:block">
+                      <p className="text-xs text-muted-foreground">Net</p>
+                      <p className="text-sm font-semibold">{fmtAmount(run.totalNet, run.currency)}</p>
+                    </div>
+                    <StatusBadge status={run.status} />
+                    <RunActions run={run} onMarkPaid={setMarkPaidRun} />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </Card>
 
       {showCreate && <CreateRunModal onClose={() => setShowCreate(false)} />}
+      {markPaidRun && <MarkPaidModal run={markPaidRun} onClose={() => setMarkPaidRun(null)} />}
     </div>
   )
 }

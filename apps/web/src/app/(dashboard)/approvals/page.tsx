@@ -164,29 +164,29 @@ function ActionRow({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ApproveBtn({ onClick, disabled, label, variant = 'green' }: {
-  onClick: () => void; disabled: boolean; label: string
+function ApproveBtn({ onClick, loading, disabled, label, variant = 'green' }: {
+  onClick: () => void; loading: boolean; disabled?: boolean; label: string
   variant?: 'green' | 'orange'
 }) {
   return (
     <button
-      onClick={onClick} disabled={disabled}
+      onClick={onClick} disabled={loading || disabled}
       className={cn(
         'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50',
         variant === 'green' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-500 hover:bg-orange-600'
       )}
     >
-      <CheckCircle2 className="h-4 w-4" />
-      {disabled ? '…' : label}
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+      {label}
     </button>
   )
 }
 
-function RejectBtn({ onClick, label = 'Reject' }: { onClick: () => void; label?: string }) {
+function RejectBtn({ onClick, disabled, label = 'Reject' }: { onClick: () => void; disabled?: boolean; label?: string }) {
   return (
     <button
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+      onClick={onClick} disabled={disabled}
+      className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive disabled:opacity-50"
     >
       <XCircle className="h-4 w-4" />
       {label}
@@ -445,8 +445,8 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
 
       {/* Footer actions */}
       <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-        <RejectBtn onClick={onReject} label={isCancel ? 'Keep Leave' : 'Reject'} />
-        <ApproveBtn onClick={onApprove} disabled={approving} label={approveLabel} variant={approveVariant} />
+        <RejectBtn onClick={onReject} disabled={approving} label={isCancel ? 'Keep Leave' : 'Reject'} />
+        <ApproveBtn onClick={onApprove} loading={approving} label={approveLabel} variant={approveVariant} />
       </div>
     </div>
   )
@@ -550,8 +550,8 @@ function ExcuseCard({ rec, onApprove, onReject, reviewing }: {
       <Divider />
 
       <div className="flex items-center justify-end gap-2 px-5 py-3">
-        <RejectBtn onClick={onReject} />
-        <ApproveBtn onClick={onApprove} disabled={reviewing} label="Approve" variant="green" />
+        <RejectBtn onClick={onReject} disabled={reviewing} />
+        <ApproveBtn onClick={onApprove} loading={false} disabled={reviewing} label="Approve" variant="green" />
       </div>
     </div>
   )
@@ -574,7 +574,7 @@ function ExcusesSection({ onModal }: { onModal: (m: ModalState) => void }) {
               <ExcuseCard rec={rec}
                 onApprove={() => onModal({ type: 'approve-excuse', id: rec.id })}
                 onReject={() => onModal({ type: 'reject-excuse', id: rec.id })}
-                reviewing={review.isPending}
+                reviewing={review.isPending && review.variables?.id === rec.id}
               />
             </AnimatedCard>
           ))}
@@ -627,8 +627,8 @@ function AdjustmentCard({ rec, onApprove, onReject, reviewing }: {
       <Divider />
 
       <div className="flex items-center justify-end gap-2 px-5 py-3">
-        <RejectBtn onClick={onReject} />
-        <ApproveBtn onClick={onApprove} disabled={reviewing} label="Approve" variant="green" />
+        <RejectBtn onClick={onReject} disabled={reviewing} />
+        <ApproveBtn onClick={onApprove} loading={false} disabled={reviewing} label="Approve" variant="green" />
       </div>
     </div>
   )
@@ -651,7 +651,7 @@ function AdjustmentsSection({ onModal }: { onModal: (m: ModalState) => void }) {
               <AdjustmentCard rec={rec}
                 onApprove={() => onModal({ type: 'approve-adjustment', id: rec.id })}
                 onReject={() => onModal({ type: 'reject-adjustment', id: rec.id })}
-                reviewing={review.isPending}
+                reviewing={review.isPending && review.variables?.id === rec.id}
               />
             </AnimatedCard>
           ))}

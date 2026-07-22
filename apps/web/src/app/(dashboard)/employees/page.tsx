@@ -7,10 +7,13 @@ import { useEmployees, useUpdateEmployeeById } from '@/lib/api/hooks/useEmployee
 import { useDepartments } from '@/lib/api/hooks/useDepartments'
 import { useOffices, useJobTitles } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
-import { PageHeader, Card, Avatar, StatusBadge, EmptyState } from '@/components/ui/primitives'
+import { PageHeader, Card, Avatar, StatusBadge, SubmitOverlay } from '@/components/ui/primitives'
 import { UserRole, EmploymentStatus } from '@hr-system/types'
 import type { EmployeeListItem } from '@hr-system/types'
-import { Plus, Search, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, X, Users, Building2, Landmark } from 'lucide-react'
+import {
+  Plus, Search, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, X, Users, Building2, Landmark,
+  AlertTriangle, Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,6 +72,198 @@ function EditableSelect({ value, options, saving, placeholder = '— Select —'
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       {saving && <span className="block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent text-muted-foreground" />}
+    </div>
+  )
+}
+
+// ─── Change-confirmation modals ──────────────────────────────────────────────
+// Department, designation, and status are meaningful org changes, not typos to
+// shrug off — every select here proposes a change rather than saving it
+// immediately; the modal is what actually commits it.
+
+interface PendingDeptChange { emp: EmployeeListItem; newDeptId: string; newDeptName: string }
+interface PendingDesignationChange { emp: EmployeeListItem; newJobTitleId: string }
+interface PendingStatusChange { emp: EmployeeListItem; newStatus: string }
+
+function DeptChangeModal({ pending, onClose, onConfirm, submitting }: {
+  pending: PendingDeptChange
+  onClose: () => void
+  onConfirm: (newJobTitleId: string) => void
+  submitting: boolean
+}) {
+  const { data: jobTitles = [], isLoading } = useJobTitles(pending.newDeptId)
+  const [jobTitleId, setJobTitleId] = useState('')
+  const empName = `${pending.emp.firstName} ${pending.emp.lastName}`
+  const oldDeptName = pending.emp.department?.name ?? '—'
+  // Designation is department-scoped — required to pick a new one when
+  // options exist, but don't block the transfer if the new department simply
+  // has none configured yet.
+  const designationRequired = !isLoading && jobTitles.length > 0
+  const canConfirm = !submitting && (!designationRequired || !!jobTitleId)
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !submitting && onClose()}
+    >
+      <div className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
+        <SubmitOverlay show={submitting} label="Saving…" />
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-medium">Change department?</p>
+          <button onClick={onClose} disabled={submitting} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <fieldset disabled={submitting} className="contents">
+          <div className="space-y-3 p-4">
+            <p className="text-sm text-muted-foreground">
+              Move <span className="font-medium text-foreground">{empName}</span> from{' '}
+              <span className="font-medium text-foreground">{oldDeptName}</span> to{' '}
+              <span className="font-medium text-foreground">{pending.newDeptName}</span>?
+            </p>
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-500/10 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Designations are specific to a department, so their current one no longer applies — pick one for {pending.newDeptName} below.</span>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                New designation {designationRequired && <span className="text-destructive">*</span>}
+              </label>
+              <select
+                value={jobTitleId}
+                onChange={e => setJobTitleId(e.target.value)}
+                disabled={isLoading || jobTitles.length === 0}
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                <option value="">
+                  {isLoading ? 'Loading…' : jobTitles.length === 0 ? 'No designations for this department yet' : 'Select designation…'}
+                </option>
+                {jobTitles.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 border-t px-4 py-3">
+            <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">
+              Cancel
+            </button>
+            <button
+              onClick={() => onConfirm(jobTitleId)}
+              disabled={!canConfirm}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {submitting ? 'Saving…' : 'Confirm change'}
+            </button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  )
+}
+
+function DesignationChangeModal({ pending, onClose, onConfirm, submitting }: {
+  pending: PendingDesignationChange
+  onClose: () => void
+  onConfirm: () => void
+  submitting: boolean
+}) {
+  const { data: jobTitles = [] } = useJobTitles(pending.emp.department?.id)
+  const newName = jobTitles.find(t => t.id === pending.newJobTitleId)?.name ?? '—'
+  const empName = `${pending.emp.firstName} ${pending.emp.lastName}`
+  const oldName = pending.emp.jobTitle?.name ?? 'No designation'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !submitting && onClose()}
+    >
+      <div className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
+        <SubmitOverlay show={submitting} label="Saving…" />
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-medium">Change designation?</p>
+          <button onClick={onClose} disabled={submitting} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 p-4">
+          <p className="text-sm text-muted-foreground">
+            Change <span className="font-medium text-foreground">{empName}</span>&apos;s designation from{' '}
+            <span className="font-medium text-foreground">{oldName}</span> to{' '}
+            <span className="font-medium text-foreground">{newName}</span>?
+          </p>
+        </div>
+        <div className="flex gap-2 border-t px-4 py-3">
+          <button onClick={onClose} disabled={submitting} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {submitting ? 'Saving…' : 'Confirm change'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatusChangeModal({ pending, onClose, onConfirm, submitting }: {
+  pending: PendingStatusChange
+  onClose: () => void
+  onConfirm: () => void
+  submitting: boolean
+}) {
+  const empName = `${pending.emp.firstName} ${pending.emp.lastName}`
+  const oldLabel = pending.emp.employmentStatus.replace(/_/g, ' ')
+  const newLabel = pending.newStatus.replace(/_/g, ' ')
+  const isTerminating = pending.newStatus === 'TERMINATED'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !submitting && onClose()}
+    >
+      <div className="relative w-full max-w-sm rounded-xl border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
+        <SubmitOverlay show={submitting} label="Saving…" />
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-medium">Change status?</p>
+          <button onClick={onClose} disabled={submitting} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 p-4">
+          <p className="text-sm text-muted-foreground">
+            Change <span className="font-medium text-foreground">{empName}</span>&apos;s status from{' '}
+            <span className="font-medium text-foreground">{oldLabel}</span> to{' '}
+            <span className="font-medium text-foreground">{newLabel}</span>?
+          </p>
+          {isTerminating && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-800/40 dark:bg-red-500/10 dark:text-red-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>This deactivates their login and immediately ends all their active sessions.</span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 border-t px-4 py-3">
+          <button onClick={onClose} disabled={submitting} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white disabled:opacity-50',
+              isTerminating ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'
+            )}
+          >
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {submitting ? 'Saving…' : 'Confirm change'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -219,6 +414,9 @@ export default function EmployeesPage() {
 
   // ── Inline edit state ──
   const [savingCell, setSavingCell] = useState<string | null>(null)
+  const [pendingDeptChange, setPendingDeptChange] = useState<PendingDeptChange | null>(null)
+  const [pendingDesignationChange, setPendingDesignationChange] = useState<PendingDesignationChange | null>(null)
+  const [pendingStatusChange, setPendingStatusChange] = useState<PendingStatusChange | null>(null)
 
   // ── Data ──
   const { data, isLoading } = useEmployees({
@@ -249,21 +447,52 @@ export default function EmployeesPage() {
     })
   }, [data, sortField, sortDir])
 
-  // ── Inline save handlers ──
-  async function saveStatus(empId: string, newStatus: string) {
-    setSavingCell(`${empId}-status`)
-    try { await updateById.mutateAsync({ id: empId, employmentStatus: newStatus as EmploymentStatus }) }
-    finally { setSavingCell(null) }
+  // ── Propose handlers — a select never saves directly, it opens a confirm
+  // modal; the modal's own confirm button is what actually mutates. ──
+  function proposeDept(empId: string, newDeptId: string) {
+    const emp = rows.find(r => r.id === empId)
+    const newDept = departments.find(d => d.id === newDeptId)
+    if (!emp || !newDept || newDeptId === emp.department?.id) return
+    setPendingDeptChange({ emp, newDeptId, newDeptName: newDept.name })
   }
-  async function saveDept(empId: string, newDeptId: string) {
-    setSavingCell(`${empId}-dept`)
-    try { await updateById.mutateAsync({ id: empId, departmentId: newDeptId }) }
-    finally { setSavingCell(null) }
+  function proposeDesignation(empId: string, newJobTitleId: string) {
+    const emp = rows.find(r => r.id === empId)
+    if (!emp || newJobTitleId === emp.jobTitle?.id) return
+    setPendingDesignationChange({ emp, newJobTitleId })
   }
-  async function saveDesignation(empId: string, newJobTitleId: string) {
-    setSavingCell(`${empId}-designation`)
-    try { await updateById.mutateAsync({ id: empId, jobTitleId: newJobTitleId }) }
-    finally { setSavingCell(null) }
+  function proposeStatus(empId: string, newStatus: string) {
+    const emp = rows.find(r => r.id === empId)
+    if (!emp || newStatus === emp.employmentStatus) return
+    setPendingStatusChange({ emp, newStatus })
+  }
+
+  // ── Confirm handlers — do the actual mutation once the modal is confirmed ──
+  async function confirmDeptChange(newJobTitleId: string) {
+    if (!pendingDeptChange) return
+    const { emp, newDeptId } = pendingDeptChange
+    setSavingCell(`${emp.id}-dept`)
+    try {
+      await updateById.mutateAsync({ id: emp.id, departmentId: newDeptId, jobTitleId: newJobTitleId || undefined })
+      setPendingDeptChange(null)
+    } finally { setSavingCell(null) }
+  }
+  async function confirmDesignationChange() {
+    if (!pendingDesignationChange) return
+    const { emp, newJobTitleId } = pendingDesignationChange
+    setSavingCell(`${emp.id}-designation`)
+    try {
+      await updateById.mutateAsync({ id: emp.id, jobTitleId: newJobTitleId })
+      setPendingDesignationChange(null)
+    } finally { setSavingCell(null) }
+  }
+  async function confirmStatusChange() {
+    if (!pendingStatusChange) return
+    const { emp, newStatus } = pendingStatusChange
+    setSavingCell(`${emp.id}-status`)
+    try {
+      await updateById.mutateAsync({ id: emp.id, employmentStatus: newStatus as EmploymentStatus })
+      setPendingStatusChange(null)
+    } finally { setSavingCell(null) }
   }
 
   const statusOptions = Object.values(EmploymentStatus).map(v => ({ value: v, label: v.replace(/_/g, ' ') }))
@@ -384,9 +613,9 @@ export default function EmployeesPage() {
                       savingCell={savingCell}
                       deptOptions={deptOptions}
                       statusOptions={statusOptions}
-                      onSaveDept={saveDept}
-                      onSaveStatus={saveStatus}
-                      onSaveDesignation={saveDesignation}
+                      onSaveDept={proposeDept}
+                      onSaveStatus={proposeStatus}
+                      onSaveDesignation={proposeDesignation}
                     />
                   ))}
                 </tbody>
@@ -436,6 +665,31 @@ export default function EmployeesPage() {
           </div>
         )}
       </Card>
+
+      {pendingDeptChange && (
+        <DeptChangeModal
+          pending={pendingDeptChange}
+          onClose={() => setPendingDeptChange(null)}
+          onConfirm={confirmDeptChange}
+          submitting={savingCell === `${pendingDeptChange.emp.id}-dept`}
+        />
+      )}
+      {pendingDesignationChange && (
+        <DesignationChangeModal
+          pending={pendingDesignationChange}
+          onClose={() => setPendingDesignationChange(null)}
+          onConfirm={confirmDesignationChange}
+          submitting={savingCell === `${pendingDesignationChange.emp.id}-designation`}
+        />
+      )}
+      {pendingStatusChange && (
+        <StatusChangeModal
+          pending={pendingStatusChange}
+          onClose={() => setPendingStatusChange(null)}
+          onConfirm={confirmStatusChange}
+          submitting={savingCell === `${pendingStatusChange.emp.id}-status`}
+        />
+      )}
     </div>
   )
 }

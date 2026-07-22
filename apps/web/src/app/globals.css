@@ -16,6 +16,14 @@
   z-index: 9999;
 }
 
+/* Edge/IE render their own built-in "reveal password" eye icon inside
+   type="password" inputs, which stacks on top of our custom show/hide
+   toggle button — suppress it so only our icon appears. */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear {
+  display: none;
+}
+
 @layer base {
   :root {
     /* Tells the browser to render native controls (date/time picker icon,

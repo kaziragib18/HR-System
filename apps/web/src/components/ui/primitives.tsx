@@ -290,10 +290,21 @@ export function SubmitOverlay({ show, label }: { show: boolean; label?: string }
   )
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({ icon: Icon, title, message }: { icon?: LucideIcon; title?: string; message: string }) {
+  if (!Icon) {
+    return (
+      <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+        {message}
+      </div>
+    )
+  }
   return (
-    <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-      {message}
+    <div className="flex flex-col items-center gap-2 py-12 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </div>
+      {title && <p className="text-sm font-medium">{title}</p>}
+      <p className={cn('text-muted-foreground', title ? 'max-w-xs text-xs' : 'text-sm')}>{message}</p>
     </div>
   )
 }

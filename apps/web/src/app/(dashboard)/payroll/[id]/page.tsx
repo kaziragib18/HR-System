@@ -1,24 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
   usePayrollRun,
   useProcessPayrollRun,
   useApprovePayrollRun,
-  useMarkPaidPayrollRun,
   type PayrollEntry,
   type TaxSlab,
 } from '@/lib/api/hooks/usePayroll'
-import { Card, StatusBadge, Spinner, Avatar } from '@/components/ui/primitives'
+import { MarkPaidModal } from '@/components/payroll/MarkPaidModal'
+import { Card, StatusBadge, EmptyState, Skeleton, Avatar } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, Play, CheckCircle2, Banknote, ChevronDown, ChevronRight, ShieldOff } from 'lucide-react'
+import {
+  ArrowLeft, Play, CheckCircle2, Banknote, ChevronDown, ChevronRight,
+  ShieldOff, Loader2, Search, X, Users2, FileQuestion,
+} from 'lucide-react'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
+
+const PAGE_SIZE = 10
+
+type AttendanceFilter = 'all' | 'full' | 'absences' | 'leave'
+type SortKey = 'name' | 'net-desc' | 'net-asc' | 'gross-desc'
+
+function pageWindow(current: number, total: number): (number | '…')[] {
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b)
+  const out: (number | '…')[] = []
+  let prev = 0
+  for (const p of sorted) {
+    if (p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
 
 function fmt(val: string | number, currency: string): string {
   const n = Number(val)
@@ -64,7 +85,7 @@ function EntryRow({ entry }: { entry: PayrollEntry }) {
         <span className="shrink-0 text-muted-foreground">
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </span>
-        <Avatar firstName={entry.employee?.firstName ?? '?'} lastName={entry.employee?.lastName ?? '?'} size={32} />
+        <Avatar firstName={entry.employee?.firstName ?? '?'} lastName={entry.employee?.lastName ?? '?'} url={entry.employee?.avatarUrl} size={32} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</p>
           <p className="text-xs text-muted-foreground">{entry.employee?.employeeId} · {entry.presentDays}/{entry.workingDays} days</p>
@@ -115,20 +136,88 @@ export default function PayrollRunPage() {
   const { data: run, isLoading } = usePayrollRun(id)
   const process = useProcessPayrollRun()
   const approve = useApprovePayrollRun()
-  const markPaid = useMarkPaidPayrollRun()
+  const [showMarkPaid, setShowMarkPaid] = useState(false)
+  const [entrySearch, setEntrySearch] = useState('')
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>('all')
+  const [sortBy, setSortBy] = useState<SortKey>('name')
+  const [page, setPage] = useState(1)
+
+  const hasActiveFilters = !!(entrySearch || attendanceFilter !== 'all' || sortBy !== 'name')
+
+  function clearEntryFilters() {
+    setEntrySearch('')
+    setAttendanceFilter('all')
+    setSortBy('name')
+    setPage(1)
+  }
+
+  const filteredEntries = useMemo(() => {
+    if (!run) return []
+    const q = entrySearch.trim().toLowerCase()
+    const list = run.entries.filter((entry: PayrollEntry) => {
+      if (q) {
+        const matches =
+          `${entry.employee?.firstName ?? ''} ${entry.employee?.lastName ?? ''}`.toLowerCase().includes(q) ||
+          (entry.employee?.employeeId ?? '').toLowerCase().includes(q)
+        if (!matches) return false
+      }
+      if (attendanceFilter === 'full' && entry.presentDays !== entry.workingDays) return false
+      if (attendanceFilter === 'absences' && entry.presentDays >= entry.workingDays) return false
+      if (attendanceFilter === 'leave' && entry.leaveDays <= 0) return false
+      return true
+    })
+    return [...list].sort((a, b) => {
+      if (sortBy === 'net-desc') return Number(b.netSalary) - Number(a.netSalary)
+      if (sortBy === 'net-asc') return Number(a.netSalary) - Number(b.netSalary)
+      if (sortBy === 'gross-desc') return Number(b.grossSalary) - Number(a.grossSalary)
+      return `${a.employee?.firstName ?? ''} ${a.employee?.lastName ?? ''}`
+        .localeCompare(`${b.employee?.firstName ?? ''} ${b.employee?.lastName ?? ''}`)
+    })
+  }, [run, entrySearch, attendanceFilter, sortBy])
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageEntries = filteredEntries.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   if (user?.role !== UserRole.SUPER_ADMIN) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <ShieldOff className="mb-3 h-10 w-10 text-muted-foreground/40" />
-        <p className="font-medium">Access restricted</p>
-        <p className="mt-1 text-sm text-muted-foreground">Only Super Admins can manage payroll runs.</p>
+      <EmptyState
+        icon={ShieldOff}
+        title="Access restricted"
+        message="Only Super Admins can manage payroll runs."
+      />
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-lg" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+        </div>
+        <Card className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+        </Card>
       </div>
     )
   }
 
-  if (isLoading) return <Spinner />
-  if (!run) return <p className="text-sm text-muted-foreground">Run not found.</p>
+  if (!run) {
+    return (
+      <EmptyState
+        icon={FileQuestion}
+        title="Run not found"
+        message="This payroll run doesn't exist, or may have been removed."
+      />
+    )
+  }
 
   const c = run.currency
 
@@ -155,7 +244,7 @@ export default function PayrollRunPage() {
               disabled={process.isPending}
               className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
             >
-              <Play className="h-4 w-4" />
+              {process.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {process.isPending ? 'Processing…' : run.processedAt ? 'Re-process' : 'Process Payroll'}
             </button>
           )}
@@ -165,18 +254,17 @@ export default function PayrollRunPage() {
               disabled={approve.isPending}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
             >
-              <CheckCircle2 className="h-4 w-4" />
+              {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {approve.isPending ? 'Approving…' : 'Approve'}
             </button>
           )}
           {run.status === 'APPROVED' && (
             <button
-              onClick={() => { if (confirm('Mark payroll as paid? This will notify all employees.')) markPaid.mutate(run.id) }}
-              disabled={markPaid.isPending}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+              onClick={() => setShowMarkPaid(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
             >
               <Banknote className="h-4 w-4" />
-              {markPaid.isPending ? 'Marking…' : 'Mark as Paid'}
+              Mark as Paid
             </button>
           )}
         </div>
@@ -198,23 +286,130 @@ export default function PayrollRunPage() {
       </div>
 
       {/* Entries */}
-      <Card>
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Employee breakdown
-        </p>
-        {run.entries.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-10 text-center">
-            <p className="text-sm text-muted-foreground">No entries yet.</p>
-            <p className="mt-1 text-xs text-muted-foreground">Click "Process Payroll" to calculate entries for all active employees.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {run.entries.map((entry: PayrollEntry) => (
-              <EntryRow key={entry.id} entry={entry} />
-            ))}
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b p-3">
+          <p className="mr-auto flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Users2 className="h-3.5 w-3.5" /> Employee breakdown
+          </p>
+          {run.entries.length > 0 && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search employee…"
+                  value={entrySearch}
+                  onChange={e => { setEntrySearch(e.target.value); setPage(1) }}
+                  className="h-8 w-44 rounded-md border bg-background py-1.5 pl-8 pr-7 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {entrySearch && (
+                  <button
+                    onClick={() => { setEntrySearch(''); setPage(1) }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={attendanceFilter}
+                onChange={e => { setAttendanceFilter(e.target.value as AttendanceFilter); setPage(1) }}
+                className="h-8 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All attendance</option>
+                <option value="full">Full attendance</option>
+                <option value="absences">Has absences</option>
+                <option value="leave">Had leave days</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={e => { setSortBy(e.target.value as SortKey); setPage(1) }}
+                className="h-8 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="name">Sort: Name (A–Z)</option>
+                <option value="net-desc">Sort: Net pay (high–low)</option>
+                <option value="net-asc">Sort: Net pay (low–high)</option>
+                <option value="gross-desc">Sort: Gross pay (high–low)</option>
+              </select>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearEntryFilters}
+                  className="flex h-8 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-3 w-3" /> Clear
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        <div className="p-3">
+          {run.entries.length === 0 ? (
+            <EmptyState
+              icon={Users2}
+              title="No entries yet"
+              message='Click "Process Payroll" to calculate entries for all active employees.'
+            />
+          ) : filteredEntries.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="No matching employees"
+              message={hasActiveFilters ? 'No entries match these filters.' : `No entries match "${entrySearch}".`}
+            />
+          ) : (
+            <div className="space-y-2">
+              {pageEntries.map((entry: PayrollEntry) => (
+                <EntryRow key={entry.id} entry={entry} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pagination footer */}
+        {filteredEntries.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2.5 text-sm">
+            <span className="text-xs text-muted-foreground">
+              {filteredEntries.length} {filteredEntries.length === 1 ? 'employee' : 'employees'}
+              {totalPages > 1 && <> · page {safePage} of {totalPages}</>}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(p => p - 1)}
+                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                {pageWindow(safePage, totalPages).map((p, i) =>
+                  p === '…' ? (
+                    <span key={`e${i}`} className="px-1 text-xs text-muted-foreground">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p as number)}
+                      className={cn(
+                        'min-w-7 rounded-md border px-2 py-1 text-xs',
+                        p === safePage ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted',
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+                <button
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </Card>
+
+      {showMarkPaid && <MarkPaidModal run={run} onClose={() => setShowMarkPaid(false)} />}
     </div>
   )
 }

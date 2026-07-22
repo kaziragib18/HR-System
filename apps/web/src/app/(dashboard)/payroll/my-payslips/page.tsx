@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMyPayslips, type PayrollEntry, type TaxSlab } from '@/lib/api/hooks/usePayroll'
-import { Card, StatusBadge, Spinner } from '@/components/ui/primitives'
+import { Card, StatusBadge, EmptyState, Skeleton } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, Wallet } from 'lucide-react'
+import { ChevronDown, ChevronRight, Wallet, TrendingUp, FileStack, X } from 'lucide-react'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
@@ -14,13 +14,11 @@ function fmt(val: string | number, currency: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n)
 }
 
-function PayslipCard({ entry }: { entry: PayrollEntry }) {
+function PayslipCard({ entry, isLatest }: { entry: PayrollEntry; isLatest?: boolean }) {
   const [open, setOpen] = useState(false)
   const c = entry.currency
   const run = entry.payrollRun!
 
-  const grossNum = Number(entry.grossSalary)
-  const netNum = Number(entry.netSalary)
   const taxNum = Number(entry.taxAmount)
   const pfNum = Number(entry.pfContribution)
   const totalDeductions = taxNum + pfNum + Number(entry.deductions)
@@ -38,7 +36,10 @@ function PayslipCard({ entry }: { entry: PayrollEntry }) {
           {MONTHS[run.month - 1].slice(0, 3)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{MONTHS[run.month - 1]} {run.year}</p>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            {MONTHS[run.month - 1]} {run.year}
+            {isLatest && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Latest</span>}
+          </p>
           <p className="text-xs text-muted-foreground">{entry.presentDays}/{entry.workingDays} days present</p>
         </div>
         <div className="flex items-center gap-4">
@@ -129,10 +130,20 @@ function PayslipCard({ entry }: { entry: PayrollEntry }) {
 
 export default function MyPayslipsPage() {
   const { data: payslips = [], isLoading } = useMyPayslips()
+  const [yearFilter, setYearFilter] = useState('')
+
+  const years = useMemo(
+    () => [...new Set(payslips.map(p => p.payrollRun!.year))].sort((a, b) => b - a),
+    [payslips],
+  )
+  const filtered = yearFilter ? payslips.filter(p => String(p.payrollRun!.year) === yearFilter) : payslips
 
   const latestNet = payslips.length > 0 ? Number(payslips[0].netSalary) : 0
   const latestCurrency = payslips.length > 0 ? payslips[0].currency : 'USD'
-  const ytdGross = payslips.reduce((s, p) => s + Number(p.grossSalary), 0)
+  const ytdYear = payslips.length > 0 ? payslips[0].payrollRun!.year : new Date().getFullYear()
+  const ytdGross = payslips
+    .filter(p => p.payrollRun!.year === ytdYear)
+    .reduce((s, p) => s + Number(p.grossSalary), 0)
 
   return (
     <div className="space-y-4">
@@ -142,47 +153,84 @@ export default function MyPayslipsPage() {
       </div>
 
       {/* Stats */}
-      {payslips.length > 0 && (
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+        </div>
+      ) : payslips.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {[
             {
               label: 'Latest net pay',
               value: new Intl.NumberFormat('en-US', { style: 'currency', currency: latestCurrency, maximumFractionDigits: 0 }).format(latestNet),
+              icon: Wallet,
               cls: 'text-emerald-600 dark:text-emerald-400',
             },
             {
-              label: 'YTD gross',
+              label: `${ytdYear} gross`,
               value: new Intl.NumberFormat('en-US', { style: 'currency', currency: latestCurrency, maximumFractionDigits: 0 }).format(ytdGross),
+              icon: TrendingUp,
               cls: 'text-primary',
             },
-            { label: 'Payslips', value: payslips.length, cls: 'text-foreground' },
+            { label: 'Payslips', value: payslips.length, icon: FileStack, cls: 'text-foreground' },
           ].map(s => (
-            <Card key={s.label} className="flex flex-col items-center justify-center py-4">
+            <Card key={s.label} className="flex flex-col items-center justify-center gap-1 py-4">
+              <s.icon className={cn('h-4 w-4', s.cls)} />
               <p className={cn('text-xl font-bold', s.cls)}>{s.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
             </Card>
           ))}
         </div>
       )}
 
       {/* Payslips list */}
-      <Card>
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
-        {isLoading ? (
-          <Spinner />
-        ) : payslips.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Wallet className="mb-3 h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No payslips available yet.</p>
-            <p className="mt-1 text-xs text-muted-foreground">Your payslips will appear here once payroll is processed and approved.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(payslips as PayrollEntry[]).map(entry => (
-              <PayslipCard key={entry.id} entry={entry} />
-            ))}
-          </div>
-        )}
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b p-3">
+          <p className="mr-auto text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
+          {years.length > 1 && (
+            <select
+              value={yearFilter}
+              onChange={e => setYearFilter(e.target.value)}
+              className="h-8 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">All years</option>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+          {yearFilter && (
+            <button
+              onClick={() => setYearFilter('')}
+              className="flex h-8 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-muted"
+            >
+              <X className="h-3 w-3" /> Clear
+            </button>
+          )}
+        </div>
+        <div className="p-3">
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+            </div>
+          ) : payslips.length === 0 ? (
+            <EmptyState
+              icon={Wallet}
+              title="No payslips available yet"
+              message="Your payslips will appear here once payroll is processed and approved."
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={Wallet}
+              title="No payslips this year"
+              message={`No payslips found for ${yearFilter}.`}
+            />
+          ) : (
+            <div className="space-y-2">
+              {(filtered as PayrollEntry[]).map((entry, i) => (
+                <PayslipCard key={entry.id} entry={entry} isLatest={i === 0 && !yearFilter} />
+              ))}
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   )
