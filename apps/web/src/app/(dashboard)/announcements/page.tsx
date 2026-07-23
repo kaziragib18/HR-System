@@ -179,7 +179,7 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
             </div>
-            {isSuperAdmin && (
+            {isSuperAdmin && offices.length > 1 && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Office</label>
                 <select
@@ -330,7 +330,7 @@ function EditAnnouncementModal({
                 />
               </div>
             </div>
-            {isSuperAdmin && (
+            {isSuperAdmin && offices.length > 1 && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Office</label>
                 <select

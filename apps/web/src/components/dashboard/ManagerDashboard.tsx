@@ -1,12 +1,16 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useDashboardStats, useHeadcountByDepartment } from '@/lib/api/hooks/useDashboard'
+import { useOffices } from '@/lib/api/hooks/useReference'
 import { Card, Avatar, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
 import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
+import { OfficeClock } from '@/components/dashboard/OfficeClock'
 import { cn } from '@/lib/utils'
+import { UserRole } from '@hr-system/types'
 import Link from 'next/link'
 import {
   Users,
@@ -32,25 +36,48 @@ export function ManagerDashboard() {
   const { user } = useAuthStore()
   const { data: stats, isLoading } = useDashboardStats()
   const { data: byDept } = useHeadcountByDepartment()
+  const { data: offices } = useOffices()
   const now = new Date()
+
+  // Only SUPER_ADMIN's headcount data ever spans more than one office (HR_MANAGER
+  // is always office-scoped server-side), and only then does a filter do anything.
+  const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
+  const showOfficeFilter = isSuperAdmin && (offices?.length ?? 0) > 1
+
+  // Always scoped to exactly one office at a time (BD or UK) — no merged "All"
+  // view, so two departments sharing a name across offices (e.g. both BD and
+  // UK have an "Accounts") never render as ambiguous identically-labeled bars.
+  const [officeFilter, setOfficeFilter] = useState('')
+  useEffect(() => {
+    if (officeFilter || !offices || offices.length === 0) return
+    const ownCode = user?.officeCode && offices.some(o => o.code === user.officeCode) ? user.officeCode : offices[0].code
+    setOfficeFilter(ownCode)
+  }, [offices, officeFilter, user?.officeCode])
+
+  const chartData = showOfficeFilter && officeFilter
+    ? (byDept ?? []).filter(d => d.officeCode === officeFilter)
+    : (byDept ?? [])
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <Card className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar firstName={user?.firstName ?? '?'} lastName={user?.lastName ?? '?'} url={user?.avatarUrl} size={48} />
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold">Welcome back, {user?.firstName}</h1>
-            <p className="truncate text-sm text-muted-foreground">
-              {user?.role.replace(/_/g, ' ')} · {user?.officeCode} office overview
-            </p>
+      <div className="flex flex-wrap items-center gap-4">
+        <Card className="flex flex-1 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar firstName={user?.firstName ?? '?'} lastName={user?.lastName ?? '?'} url={user?.avatarUrl} size={48} />
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-semibold">Welcome back, {user?.firstName}</h1>
+              <p className="truncate text-sm text-muted-foreground">
+                {user?.role.replace(/_/g, ' ')} · {user?.officeCode} office overview
+              </p>
+            </div>
           </div>
-        </div>
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {MONTHS[now.getMonth()]} {now.getFullYear()}
-        </span>
-      </Card>
+          <span className="shrink-0 text-sm text-muted-foreground">
+            {MONTHS[now.getMonth()]} {now.getFullYear()}
+          </span>
+        </Card>
+        <OfficeClock />
+      </div>
 
       {isLoading ? (
         <ManagerDashboardSkeleton />
@@ -73,11 +100,31 @@ export function ManagerDashboard() {
 
           {byDept && byDept.length > 0 && (
             <Card>
-              <p className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Headcount by department
-              </p>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Headcount by department
+                </p>
+                {showOfficeFilter && (
+                  <div className="flex items-center gap-0.5 rounded-lg border p-0.5">
+                    {offices!.map(o => (
+                      <button
+                        key={o.code}
+                        onClick={() => setOfficeFilter(o.code)}
+                        className={cn(
+                          'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                          officeFilter === o.code
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        )}
+                      >
+                        {o.code}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={byDept}>
+                <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                   <XAxis
                     dataKey="department"

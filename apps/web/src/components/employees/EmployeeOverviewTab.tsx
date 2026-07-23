@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useUpdateEmployee } from '@/lib/api/hooks/useEmployees'
-import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { useDepartments, departmentLabel } from '@/lib/api/hooks/useDepartments'
 import { useJobGrades, useJobTitles, useOffices } from '@/lib/api/hooks/useReference'
 import { SectionCard, Field, Input, Select } from '@/components/ui/section-card'
 import { ReportsToField } from '@/components/employees/ReportsToField'
@@ -347,17 +347,19 @@ export function EmployeeOverviewTab({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Office"
-              value={e.officeId}
-              onChange={v => setE(s => ({ ...s, officeId: v }))}
-              options={offices.map(o => ({ value: o.id, label: `${o.name} (${o.code})` }))}
-            />
+            {offices.length > 1 && (
+              <Select
+                label="Office"
+                value={e.officeId}
+                onChange={v => setE(s => ({ ...s, officeId: v }))}
+                options={offices.map(o => ({ value: o.id, label: `${o.name} (${o.code})` }))}
+              />
+            )}
             <Select
               label="Department"
               value={e.departmentId}
               onChange={v => setE(s => ({ ...s, departmentId: v, jobTitleId: '' }))}
-              options={departments.map(d => ({ value: d.id, label: d.name }))}
+              options={departments.map(d => ({ value: d.id, label: departmentLabel(d, departments) }))}
             />
             <Select
               label="Job title"

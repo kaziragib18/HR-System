@@ -11,7 +11,8 @@ import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { ComplianceDocsCard } from '@/components/dashboard/ComplianceDocsCard'
 import { AnnouncementsCard } from '@/components/dashboard/AnnouncementsCard'
 import { RecentApprovalsCard } from '@/components/dashboard/RecentApprovalsCard'
-import { BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
+import { OfficeClock } from '@/components/dashboard/OfficeClock'
+import { getOfficeShift, toOfficeTime } from '@hr-system/utils'
 import { UserRole } from '@hr-system/types'
 import {
   LogIn,
@@ -38,10 +39,6 @@ function fmtStatus(s: string) {
 
 function fmtJoinDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-}
-
-function shiftForOfficeCode(code?: string): ShiftConfig {
-  return code === 'BD' ? BD_SHIFT : UK_SHIFT
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -199,12 +196,16 @@ export function EmployeeDashboard() {
             </div>
           </div>
         </Card>
-        <DualClock />
+        <OfficeClock />
       </div>
 
       {/* Clock + manager side by side (non-team-leads only); leave balance + approvals + announcements — all in one row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <TodayStatusCard officeCode={user?.officeCode} />
+        <TodayStatusCard
+          officeCode={user?.officeCode}
+          workStartTime={user?.officeWorkStartTime}
+          workEndTime={user?.officeWorkEndTime}
+        />
         {!isTeamLead && data.managers.length > 0 && <ManagerCard managers={data.managers} />}
         <LeaveBalanceCard balances={data.leaveBalances} />
         {isTeamLead && <RecentApprovalsCard />}
@@ -221,7 +222,15 @@ export function EmployeeDashboard() {
   )
 }
 
-function TodayStatusCard({ officeCode }: { officeCode?: string }) {
+function TodayStatusCard({
+  officeCode,
+  workStartTime,
+  workEndTime,
+}: {
+  officeCode?: string
+  workStartTime?: string
+  workEndTime?: string
+}) {
   const { data: today } = useTodayAttendance()
   const [elapsed, setElapsed] = useState('')
 
@@ -261,7 +270,10 @@ function TodayStatusCard({ officeCode }: { officeCode?: string }) {
     day: 'numeric',
     month: 'short',
   })
-  const officeShift = shiftForOfficeCode(officeCode)
+  const officeShift = getOfficeShift({
+    workStartTime: workStartTime ?? '09:00',
+    workEndTime: workEndTime ?? '17:00',
+  })
   const officeShiftLabel = `${fmtShiftTime(officeShift.startTime)} – ${fmtShiftTime(officeShift.endTime)}`
 
   const checkInTime = fmtTime(today?.checkIn ?? null)
@@ -457,112 +469,6 @@ function MyApplicationsCard({ applications }: { applications: MyDashboard['myApp
         )}
       </div>
     </Card>
-  )
-}
-
-// ── Dual Clock ─────────────────────────────────────────────────────────────────
-
-function DualClock() {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [])
-
-  function clockParts(tz: string) {
-    const fmtTime = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    }).format(now)
-    // "1:45:30 PM" → h="1", m="45", s="30", period="PM"
-    const match = fmtTime.match(/^(\d+):(\d+):(\d+)\s*(AM|PM)$/)
-    const h = match?.[1] ?? '12'
-    const m = match?.[2] ?? '00'
-    const s = match?.[3] ?? '00'
-    const period = match?.[4] ?? 'AM'
-    const tzLabel =
-      new Intl.DateTimeFormat('en-GB', { timeZone: tz, timeZoneName: 'short' })
-        .format(now)
-        .split(', ')
-        .at(-1)
-        ?.split(' ')
-        .at(-1) ?? tz
-    const dayDate = new Intl.DateTimeFormat('en-GB', {
-      timeZone: tz,
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    }).format(now)
-    return { h, m, s, period, tzLabel, dayDate }
-  }
-
-  const bd = clockParts('Asia/Dhaka')
-  const uk = clockParts('Europe/London')
-
-  return (
-    <div className="flex items-center gap-5 rounded-xl border bg-card px-5 py-3 shadow-sm">
-      <ClockFace
-        label="BD TIME"
-        tz={bd.tzLabel}
-        h={bd.h}
-        m={bd.m}
-        s={bd.s}
-        period={bd.period}
-        dayDate={bd.dayDate}
-        accentClass="text-amber-500 dark:text-amber-400"
-      />
-      <div className="h-10 w-px bg-border" />
-      <ClockFace
-        label="UK TIME"
-        tz={uk.tzLabel}
-        h={uk.h}
-        m={uk.m}
-        s={uk.s}
-        period={uk.period}
-        dayDate={uk.dayDate}
-        accentClass="text-sky-500 dark:text-sky-400"
-      />
-    </div>
-  )
-}
-
-function ClockFace({
-  label,
-  tz,
-  h,
-  m,
-  s,
-  period,
-  dayDate,
-  accentClass,
-}: {
-  label: string
-  tz: string
-  h: string
-  m: string
-  s: string
-  period: string
-  dayDate: string
-  accentClass: string
-}) {
-  return (
-    <div className="text-center">
-      <p className="mb-1 text-[9px] font-semibold tracking-widest text-muted-foreground uppercase">
-        {label} <span className={cn('font-bold', accentClass)}>{tz}</span>
-      </p>
-      <div className="flex items-baseline font-mono font-bold text-foreground">
-        <span className="text-2xl">{h}</span>
-        <span className="mx-0.5 text-lg text-muted-foreground/50">:</span>
-        <span className="text-2xl">{m}</span>
-        <span className="mx-0.5 text-lg text-muted-foreground/50">:</span>
-        <span className={cn('text-base', accentClass)}>{s}</span>
-        <span className={cn('ml-1 text-xs font-semibold', accentClass)}>{period}</span>
-      </div>
-      <p className="mt-0.5 text-[10px] text-muted-foreground/60">{dayDate}</p>
-    </div>
   )
 }
 

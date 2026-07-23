@@ -23,6 +23,9 @@ async function main() {
       currency: 'BDT',
       timezone: 'Asia/Dhaka',
       taxRegime: 'BD_INCOME_TAX',
+      workStartTime: '13:30',
+      workEndTime: '22:00',
+      isDefault: true,
     },
   })
 
@@ -36,6 +39,8 @@ async function main() {
       currency: 'GBP',
       timezone: 'Europe/London',
       taxRegime: 'UK_PAYE',
+      workStartTime: '09:00',
+      workEndTime: '17:00',
     },
   })
 
@@ -99,17 +104,38 @@ async function main() {
     { name: 'IT (Software Development)',  code: 'IT-SW' },
     { name: 'IT (Tech Support)',          code: 'IT-TS' },
     { name: 'IT (Web Development)',       code: 'IT-WD' },
+    // These two already existed as real rows (created directly through the
+    // app, not by this script) — the upsert below just reconciles onto them
+    // by (officeId, code) rather than creating duplicates.
+    { name: 'Digital Marketing',          code: 'MKT'   },
+    { name: 'Office Management',          code: 'OM'    },
   ]
 
-  const createdDepts: Record<string, string> = {}
-  for (const dept of depts) {
-    const d = await prisma.department.upsert({
-      where:  { code: dept.code },
-      update: { name: dept.name },
-      create: { ...dept, officeId: bdOffice.id },
-    })
-    createdDepts[dept.code] = d.id
+  // UK departments deliberately reuse BD's own codes/names (e.g. "ACC" /
+  // "Accounts") — Department.code is now unique per-office, not globally, so
+  // the same code can exist independently in both offices.
+  const ukDepts = [
+    { name: 'Accounts',        code: 'ACC' },
+    { name: 'Human Resources', code: 'HR'  },
+  ]
+
+  // Upserts a set of departments under one office, keyed by the composite
+  // (officeId, code) unique constraint — returns a code -> id map for that office only.
+  async function upsertDepartments(officeId: string, list: { name: string; code: string }[]) {
+    const created: Record<string, string> = {}
+    for (const dept of list) {
+      const d = await prisma.department.upsert({
+        where:  { officeId_code: { officeId, code: dept.code } },
+        update: { name: dept.name },
+        create: { ...dept, officeId },
+      })
+      created[dept.code] = d.id
+    }
+    return created
   }
+
+  const createdDepts   = await upsertDepartments(bdOffice.id, depts)
+  const createdUkDepts = await upsertDepartments(ukOffice.id, ukDepts)
 
   console.log('✓ Departments seeded')
 
@@ -123,18 +149,36 @@ async function main() {
     'IT-SW': ['Software Engineering Manager', 'Engineering Team Lead', 'Senior PHP Developer', 'React Developer', 'QA Engineer', 'Junior Developer', 'DevOps Engineer', 'Frontend Developer'],
     'IT-TS': ['Project Manager', 'Support Team Lead', 'Infrastructure Technician', 'Cloud Engineer', 'IT Technician', 'Tech Support Specialist', 'Tech Support'],
     'IT-WD': ['Line Manager', 'Web Team Lead', 'Web Developer', 'UI/UX Designer', 'Backend Developer', 'QA Tester', 'Web Content Specialist'],
+    // MKT/OM already had a couple of job titles from being created directly
+    // through the app — these lists only add the ones missing (upsertJobTitles
+    // checks by name+departmentId first), they don't touch/duplicate those.
+    'MKT':   ['Marketing Manager', 'SEO Specialist', 'Content Strategist', 'Social Media Executive', 'Marketing Coordinator', 'Digital Marketing Executive', 'Brand Executive'],
+    'OM':    ['Head of Office Management', 'Office Manager', 'Administrative Officer', 'Facilities Coordinator', 'Office Executive', 'Records Officer', 'Procurement Assistant', 'Reception Executive'],
   }
 
-  for (const [deptCode, titles] of Object.entries(jobTitlesByDept)) {
-    const deptId = createdDepts[deptCode]
-    if (!deptId) continue
-    for (const name of titles) {
-      const existing = await prisma.jobTitle.findFirst({ where: { name, departmentId: deptId } })
-      if (!existing) {
-        await prisma.jobTitle.create({ data: { name, departmentId: deptId } })
+  // UK's Accounts/HR departments are new (distinct department rows from BD's,
+  // just sharing the same code/name) so they need their own JobTitle rows —
+  // titles are scoped by departmentId, not shared across departments.
+  const ukJobTitlesByDept: Record<string, string[]> = {
+    'ACC': ['Head of Accounts', 'Accounts Manager', 'Senior Accounts Officer', 'Accounts Officer', 'Accounts Assistant', 'Junior Accountant'],
+    'HR':  ['Head of Human Resources', 'HR Manager', 'Senior HR Officer', 'HR Officer', 'HR Assistant', 'Recruitment Coordinator'],
+  }
+
+  async function upsertJobTitles(titlesByDept: Record<string, string[]>, deptIds: Record<string, string>) {
+    for (const [deptCode, titles] of Object.entries(titlesByDept)) {
+      const deptId = deptIds[deptCode]
+      if (!deptId) continue
+      for (const name of titles) {
+        const existing = await prisma.jobTitle.findFirst({ where: { name, departmentId: deptId } })
+        if (!existing) {
+          await prisma.jobTitle.create({ data: { name, departmentId: deptId } })
+        }
       }
     }
   }
+
+  await upsertJobTitles(jobTitlesByDept, createdDepts)
+  await upsertJobTitles(ukJobTitlesByDept, createdUkDepts)
 
   console.log('✓ Job titles seeded')
 

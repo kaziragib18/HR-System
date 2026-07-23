@@ -84,6 +84,8 @@ function tokenFor(role: UserRole, officeId: string, employeeId: string) {
     role,
     officeId,
     officeCode: officeId === 'office-bd' ? 'BD' : 'UK',
+    officeWorkStartTime: '09:00',
+    officeWorkEndTime: '17:00',
     firstName: 'Test',
     lastName: 'User',
     theme: 'light',

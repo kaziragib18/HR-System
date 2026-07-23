@@ -70,6 +70,19 @@ export async function processRun(id: string) {
   if (!run) throw new PayrollError('Payroll run not found', 404)
   if (run.status !== PayrollStatus.DRAFT) throw new PayrollError('Only DRAFT runs can be processed')
 
+  // Fail fast, before mutating anything, if this office's tax regime hasn't been
+  // implemented in the tax engine (only BD/UK have real tax-law logic today —
+  // see packages/utils/src/tax.ts). A dummy amount is enough to validate the
+  // office code without affecting any real calculation below.
+  try {
+    calculateIncomeTax(0, run.office.code)
+  } catch {
+    throw new PayrollError(
+      `Payroll tax calculation isn't configured for the ${run.office.name} office yet — contact engineering`,
+      400
+    )
+  }
+
   await prisma.payrollRun.update({ where: { id }, data: { status: PayrollStatus.PROCESSING } })
 
   const employees = await prisma.employee.findMany({

@@ -26,6 +26,9 @@ interface DemoEmployee {
   joiningDate: string
   password: string
   managerKey?: string
+  /** Defaults to 'BD' when omitted — every existing roster entry is BD, only
+   * the UK Accounts/HR entries below need to say otherwise. */
+  officeCode?: 'BD' | 'UK'
 }
 
 const EMPLOYEES: DemoEmployee[] = [
@@ -124,6 +127,50 @@ const EMPLOYEES: DemoEmployee[] = [
   { key: 'aslam',   firstName: 'Aslam',   lastName: 'Bhuiyan', deptCode: 'IT-WD', jobTitleName: 'Web Developer',         gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-15', password: 'Password@123', managerKey: 'tasnim' },
   { key: 'chumki',  firstName: 'Chumki',  lastName: 'Paul',    deptCode: 'IT-WD', jobTitleName: 'Backend Developer',     gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-15', password: 'Password@123', managerKey: 'tasnim' },
   { key: 'tuhin',   firstName: 'Tuhin',   lastName: 'Ghosh',   deptCode: 'IT-WD', jobTitleName: 'UI/UX Designer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'habib' },
+
+  // ── UK Accounts ── DEPT_HEAD: oliver · DEPT_MANAGER: grace ─────────────────
+  // Core records only (no attendance/payroll seeded for UK — see the BD-only
+  // filters further down in this script).
+  { key: 'oliver',    firstName: 'Oliver',    lastName: 'Bennett',  deptCode: 'ACC', jobTitleName: 'Head of Accounts',        gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-03-01', password: 'Password@123', officeCode: 'UK' },
+  { key: 'grace',     firstName: 'Grace',     lastName: 'Taylor',   deptCode: 'ACC', jobTitleName: 'Accounts Manager',        gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-06-01', password: 'Password@123', officeCode: 'UK', managerKey: 'oliver' },
+  { key: 'harry',     firstName: 'Harry',     lastName: 'Clarke',   deptCode: 'ACC', jobTitleName: 'Senior Accounts Officer', gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-09-15', password: 'Password@123', officeCode: 'UK', managerKey: 'grace' },
+  { key: 'emily',     firstName: 'Emily',     lastName: 'Wright',   deptCode: 'ACC', jobTitleName: 'Accounts Officer',        gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-01-10', password: 'Password@123', officeCode: 'UK', managerKey: 'grace' },
+  { key: 'jack',      firstName: 'Jack',      lastName: 'Turner',   deptCode: 'ACC', jobTitleName: 'Accounts Assistant',      gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-04-01', password: 'Password@123', officeCode: 'UK', managerKey: 'grace' },
+  { key: 'sophie',    firstName: 'Sophie',    lastName: 'Hughes',   deptCode: 'ACC', jobTitleName: 'Junior Accountant',       gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-01', password: 'Password@123', officeCode: 'UK', managerKey: 'grace' },
+
+  // ── UK Human Resources ── DEPT_HEAD: william · DEPT_MANAGER: charlotte ─────
+  { key: 'william',   firstName: 'William',   lastName: 'Baker',    deptCode: 'HR',  jobTitleName: 'Head of Human Resources', gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-03-15', password: 'Password@123', officeCode: 'UK' },
+  { key: 'charlotte', firstName: 'Charlotte', lastName: 'Wood',     deptCode: 'HR',  jobTitleName: 'HR Manager',              gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-07-01', password: 'Password@123', officeCode: 'UK', managerKey: 'william' },
+  { key: 'george',    firstName: 'George',    lastName: 'Mitchell', deptCode: 'HR',  jobTitleName: 'Senior HR Officer',       gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-10-01', password: 'Password@123', officeCode: 'UK', managerKey: 'charlotte' },
+  { key: 'amelia',    firstName: 'Amelia',    lastName: 'Scott',    deptCode: 'HR',  jobTitleName: 'HR Officer',              gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-01', password: 'Password@123', officeCode: 'UK', managerKey: 'charlotte' },
+  { key: 'thomas',    firstName: 'Thomas',    lastName: 'Reed',     deptCode: 'HR',  jobTitleName: 'HR Assistant',            gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-01', password: 'Password@123', officeCode: 'UK', managerKey: 'charlotte' },
+  { key: 'isla',      firstName: 'Isla',      lastName: 'Cooper',   deptCode: 'HR',  jobTitleName: 'Recruitment Coordinator', gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-09-01', password: 'Password@123', officeCode: 'UK', managerKey: 'charlotte' },
+
+  // ── Digital Marketing ── DEPT_HEAD: Imran Khan (real, non-demo — not in this
+  // roster) · DEPT_MANAGER: rezaul ── This department already existed with a
+  // real Head appointed directly through the app, so unlike every other
+  // department here, there is deliberately no DEPT_HEAD entry — see the
+  // department-manager-assignment step below, which leaves an existing real
+  // Head alone instead of requiring exactly one roster-defined head.
+  { key: 'rezaul',    firstName: 'Rezaul',    lastName: 'Karim',    deptCode: 'MKT', jobTitleName: 'Marketing Manager',          gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-08-01', password: 'Password@123' },
+  { key: 'moutushi',  firstName: 'Moutushi',  lastName: 'Aktar',    deptCode: 'MKT', jobTitleName: 'SEO Specialist',              gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-11-01', password: 'Password@123', managerKey: 'rezaul' },
+  { key: 'shakil',    firstName: 'Shakil',    lastName: 'Ahmed',    deptCode: 'MKT', jobTitleName: 'Content Strategist',         gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-01-15', password: 'Password@123', managerKey: 'rezaul' },
+  { key: 'tabassum',  firstName: 'Tabassum',  lastName: 'Ferdous',  deptCode: 'MKT', jobTitleName: 'Social Media Executive',     gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-03-01', password: 'Password@123', managerKey: 'rezaul' },
+  { key: 'nayan',     firstName: 'Nayan',     lastName: 'Chandra',  deptCode: 'MKT', jobTitleName: 'Marketing Coordinator',      gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-06-01', password: 'Password@123', managerKey: 'rezaul' },
+  { key: 'ratri',     firstName: 'Ratri',     lastName: 'Sarkar',   deptCode: 'MKT', jobTitleName: 'Digital Marketing Executive', gradeLevel: 2, role: 'EMPLOYEE',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-08-01', password: 'Password@123', managerKey: 'rezaul' },
+  { key: 'anik',      firstName: 'Anik',      lastName: 'Das',      deptCode: 'MKT', jobTitleName: 'Brand Executive',            gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-10-01', password: 'Password@123', managerKey: 'rezaul' },
+
+  // ── Office Management ── DEPT_HEAD: moinul · DEPT_MANAGER: shathi ──────────
+  // Unlike Digital Marketing, this department had no Head/Manager at all
+  // before, so both are appointed normally from this roster.
+  { key: 'moinul',    firstName: 'Moinul',    lastName: 'Islam',    deptCode: 'OM',  jobTitleName: 'Head of Office Management', gradeLevel: 6, role: 'DEPT_HEAD',    type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-04-15', password: 'Password@123' },
+  { key: 'shathi',    firstName: 'Shathi',    lastName: 'Rani',     deptCode: 'OM',  jobTitleName: 'Office Manager',             gradeLevel: 4, role: 'DEPT_MANAGER', type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-09-01', password: 'Password@123', managerKey: 'moinul' },
+  { key: 'delwar',    firstName: 'Delwar',    lastName: 'Hossain',  deptCode: 'OM',  jobTitleName: 'Administrative Officer',    gradeLevel: 3, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2023-12-01', password: 'Password@123', managerKey: 'shathi' },
+  { key: 'nusaiba',   firstName: 'Nusaiba',   lastName: 'Tabassum', deptCode: 'OM',  jobTitleName: 'Facilities Coordinator',    gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-02-15', password: 'Password@123', managerKey: 'shathi' },
+  { key: 'rumman',    firstName: 'Rumman',    lastName: 'Chowdhury', deptCode: 'OM', jobTitleName: 'Office Executive',          gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-05-15', password: 'Password@123', managerKey: 'shathi' },
+  { key: 'jesmin',    firstName: 'Jesmin',    lastName: 'Ara',      deptCode: 'OM',  jobTitleName: 'Records Officer',            gradeLevel: 2, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-07-01', password: 'Password@123', managerKey: 'shathi' },
+  { key: 'sabbir',    firstName: 'Sabbir',    lastName: 'Ahmed',    deptCode: 'OM',  jobTitleName: 'Procurement Assistant',     gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-09-01', password: 'Password@123', managerKey: 'shathi' },
+  { key: 'lubna',     firstName: 'Lubna',     lastName: 'Khatun',   deptCode: 'OM',  jobTitleName: 'Reception Executive',       gradeLevel: 1, role: 'EMPLOYEE',     type: 'FULL_TIME', status: 'ACTIVE', joiningDate: '2024-11-01', password: 'Password@123', managerKey: 'shathi' },
 ]
 
 function empEmail(e: DemoEmployee) {
@@ -197,14 +244,23 @@ async function main() {
   const officeByCode   = Object.fromEntries(offices.map((o) => [o.code, o]))
   const bdOffice       = officeByCode['BD']
   const departments    = await prisma.department.findMany()
-  const deptByCode     = Object.fromEntries(departments.map((d) => [d.code, d]))
+  const deptByOfficeCode = Object.fromEntries(departments.map((d) => [`${d.officeId}:${d.code}`, d]))
   const grades         = await prisma.jobGrade.findMany()
   const leaveTypes     = await prisma.leaveType.findMany()
   const allTitles      = await prisma.jobTitle.findMany({ where: { isActive: true } })
 
+  // Department codes are only unique per-office now, so every dept/grade
+  // lookup below resolves the employee's real office first.
+  function officeIdFor(e: DemoEmployee) {
+    return officeByCode[e.officeCode ?? 'BD'].id
+  }
+  function deptFor(e: DemoEmployee) {
+    return deptByOfficeCode[`${officeIdFor(e)}:${e.deptCode}`]
+  }
+
   const seqByPrefix: Record<string, number> = {}
-  async function nextEmployeeId(year: number) {
-    const prefix = `BD-${year}-`
+  async function nextEmployeeId(officeCode: string, year: number) {
+    const prefix = `${officeCode}-${year}-`
     if (seqByPrefix[prefix] === undefined) {
       const last = await prisma.employee.findFirst({
         where: { employeeId: { startsWith: prefix } },
@@ -222,8 +278,8 @@ async function main() {
   // a silently under-titled employee (or a partial run) instead of a clear error.
   const missing: string[] = []
   for (const e of EMPLOYEES) {
-    const dept = deptByCode[e.deptCode]
-    if (!dept) { missing.push(`${e.key}: department "${e.deptCode}" does not exist`); continue }
+    const dept = deptFor(e)
+    if (!dept) { missing.push(`${e.key}: department "${e.deptCode}" does not exist in ${e.officeCode ?? 'BD'}`); continue }
     if (!allTitles.some((t) => t.departmentId === dept.id && t.name === e.jobTitleName)) {
       missing.push(`${e.key}: job title "${e.jobTitleName}" does not exist in ${e.deptCode}`)
     }
@@ -235,28 +291,29 @@ async function main() {
   // ── Create employees + users ─────────────────────────────────────────────
   const idByKey: Record<string, string> = {}
   for (const e of EMPLOYEES) {
-    const dept = deptByCode[e.deptCode]!
-    const grade = grades.find((g) => g.officeId === bdOffice.id && g.level === e.gradeLevel)
+    const officeId = officeIdFor(e)
+    const dept = deptFor(e)!
+    const grade = grades.find((g) => g.officeId === officeId && g.level === e.gradeLevel)
     const title = allTitles.find((t) => t.departmentId === dept.id && t.name === e.jobTitleName)
 
     const year       = new Date(e.joiningDate).getFullYear()
-    const employeeId = await nextEmployeeId(year)
+    const employeeId = await nextEmployeeId(e.officeCode ?? 'BD', year)
 
     const emp = await prisma.employee.create({
       data: {
         employeeId,
-        officeId:         bdOffice.id,
+        officeId,
         departmentId:     dept.id,
         jobGradeId:       grade?.id,
         jobTitleId:       title?.id,
         firstName:        e.firstName,
         lastName:         e.lastName,
         email:            empEmail(e),
-        phone:            '+8801712345678',
+        phone:            e.officeCode === 'UK' ? '+447911123456' : '+8801712345678',
         employmentType:   e.type,
         employmentStatus: e.status,
         joiningDate:      new Date(e.joiningDate),
-        nationality:      'Bangladeshi',
+        nationality:      e.officeCode === 'UK' ? 'British' : 'Bangladeshi',
       },
     })
     idByKey[e.key] = emp.id
@@ -287,21 +344,62 @@ async function main() {
   // is the same invariant updateEmployeeRole enforces at runtime (see
   // employees.service.ts), so the seed data must never violate it either.
   // Scoped to the departments actually referenced by EMPLOYEES — the office
-  // may also contain unrelated legacy departments (e.g. leftover "ENG"/"MKT"/
-  // "OM" rows this demo roster never touches) that shouldn't be forced to
-  // have a head just because this script ran.
-  const rosterDeptCodes = [...new Set(EMPLOYEES.map((e) => e.deptCode))]
-  const deptHeadsByDept: Record<string, string[]> = {}
+  // may also contain unrelated legacy departments (e.g. a leftover inactive
+  // "ENG" row) this demo roster never touches, which shouldn't be forced to
+  // have a head just because this script ran. Keyed by (officeId, code) pair
+  // now that BD "ACC" and UK "ACC" are two distinct departments.
+  //
+  // Digital Marketing (MKT) is a deliberate exception: it already had a real
+  // Head (Imran Khan) appointed directly through the app before this roster
+  // ever touched it, so it has zero roster-defined DEPT_HEAD entries on
+  // purpose — see the MKT roster comment above. Zero heads is only ever
+  // tolerated when the department already has a real managerId set; a
+  // department with zero heads AND no existing manager is still a real error.
+  const rosterDeptKeys = [...new Set(EMPLOYEES.map((e) => `${officeIdFor(e)}:${e.deptCode}`))]
+  const deptHeadsByKey: Record<string, string[]> = {}
   for (const e of EMPLOYEES) {
     if (e.role !== 'DEPT_HEAD' || !idByKey[e.key]) continue
-    ;(deptHeadsByDept[e.deptCode] ??= []).push(e.key)
+    const k = `${officeIdFor(e)}:${e.deptCode}`
+    ;(deptHeadsByKey[k] ??= []).push(e.key)
   }
-  for (const deptCode of rosterDeptCodes) {
-    const heads = deptHeadsByDept[deptCode] ?? []
-    if (heads.length !== 1) {
-      throw new Error(`Department "${deptCode}" must have exactly one DEPT_HEAD, found ${heads.length} (${heads.join(', ') || 'none'})`)
+  for (const deptKey of rosterDeptKeys) {
+    const [officeId, code] = deptKey.split(':')
+    const heads = deptHeadsByKey[deptKey] ?? []
+    if (heads.length === 1) {
+      await prisma.department.update({ where: { officeId_code: { officeId, code } }, data: { managerId: idByKey[heads[0]] } })
+    } else if (heads.length === 0) {
+      // No roster-defined head — fall back to a real, non-roster employee who
+      // already holds the DEPT_HEAD role in this department (e.g. Digital
+      // Marketing's Imran Khan). Checking Department.managerId alone isn't
+      // enough: a role change made via Settings → Roles (rather than the
+      // Departments page's "Appoint" action) only updates User.role and never
+      // syncs managerId, so an existing real Head can be recorded here for
+      // the first time as a side effect of this reconciliation.
+      const dept = await prisma.department.findUnique({ where: { officeId_code: { officeId, code } }, select: { id: true, managerId: true } })
+      const realHead = await prisma.employee.findFirst({
+        where: { departmentId: dept?.id, user: { role: 'DEPT_HEAD' } },
+        select: { id: true },
+      })
+      if (!realHead) {
+        throw new Error(`Department "${code}" must have exactly one DEPT_HEAD, found 0 (no roster head and no existing real Head found)`)
+      }
+      if (dept?.managerId !== realHead.id) {
+        await prisma.department.update({ where: { officeId_code: { officeId, code } }, data: { managerId: realHead.id } })
+      }
+    } else {
+      throw new Error(`Department "${code}" must have exactly one DEPT_HEAD, found ${heads.length} (${heads.join(', ')})`)
     }
-    await prisma.department.update({ where: { code: deptCode }, data: { managerId: idByKey[heads[0]] } })
+  }
+
+  // MKT's DEPT_MANAGER (rezaul) reports to the real, non-roster Head (Imran
+  // Khan) — resolved from Department.managerId rather than a roster key,
+  // since Imran isn't in EMPLOYEES.
+  if (idByKey['rezaul']) {
+    const mktOfficeId = officeByCode['BD'].id
+    const mkt = await prisma.department.findUnique({ where: { officeId_code: { officeId: mktOfficeId, code: 'MKT' } }, select: { managerId: true } })
+    if (mkt?.managerId) {
+      await prisma.employee.update({ where: { id: idByKey['rezaul'] }, data: { reportingToId: mkt.managerId } })
+    }
   }
   console.log('✓ Reporting lines + department managers set')
 
@@ -310,13 +408,19 @@ async function main() {
   // Compensatory Leave (CPL) is intentionally excluded here: it must only appear
   // in an employee's balance once they actually take it (lazily created on first
   // application in leave.service.ts), so no CPL balance row is pre-seeded.
-  const bdLeaveTypes = leaveTypes.filter((lt) => lt.officeId === bdOffice.id && lt.code !== 'CPL')
+  const nonCplLeaveTypesByOffice: Record<string, typeof leaveTypes> = {}
+  for (const lt of leaveTypes) {
+    if (lt.code === 'CPL') continue
+    ;(nonCplLeaveTypesByOffice[lt.officeId] ??= []).push(lt)
+  }
+  const bdLeaveTypes = nonCplLeaveTypesByOffice[bdOffice.id] ?? []
   function seededInt(empIdx: number, seed: number, max: number) {
     return ((empIdx * 31 + seed * 17) % (max + 1))
   }
   for (const [idx, e] of EMPLOYEES.entries()) {
     if (!idByKey[e.key]) continue
-    for (const lt of bdLeaveTypes) {
+    const leaveTypesForEmp = nonCplLeaveTypesByOffice[officeIdFor(e)] ?? []
+    for (const lt of leaveTypesForEmp) {
       const entitled = Number(lt.daysPerYear)
       const taken    = seededInt(idx, lt.code.charCodeAt(0), Math.min(4, entitled))
       await prisma.leaveBalance.upsert({
@@ -404,12 +508,16 @@ async function main() {
   console.log('✓ Leave applications created (2 on leave today, 4 pending)')
 
   // ── Attendance: last 30 days ──────────────────────────────────────────────
+  // BD-only by design (per product decision — UK demo employees get core
+  // records only, not attendance/payroll): the shift hours below are BD's,
+  // and BD_PAY further down only lists BD keys anyway.
+  const bdEmployees = EMPLOYEES.filter((e) => (e.officeCode ?? 'BD') === 'BD')
   const onLeaveToday = new Set([idByKey['karim'], idByKey['nusrat']])
   function seededRoll(empIdx: number, offset: number) {
     return ((empIdx * 31 + offset * 17) % 100) / 100
   }
 
-  const empIds = EMPLOYEES.map((e) => idByKey[e.key]).filter(Boolean)
+  const empIds = bdEmployees.map((e) => idByKey[e.key]).filter(Boolean)
   await prisma.attendance.deleteMany({ where: { employeeId: { in: empIds } } })
 
   const attendanceRows: {
@@ -418,7 +526,7 @@ async function main() {
     lateMinutes: number; workingMinutes: number; overtimeMinutes: number; source: string
   }[] = []
 
-  EMPLOYEES.forEach((e, empIdx) => {
+  bdEmployees.forEach((e, empIdx) => {
     const empId  = idByKey[e.key]
     if (!empId) return
     const joining = new Date(e.joiningDate)
@@ -537,6 +645,13 @@ async function main() {
     ['habib', 180000, 22, 0], ['tasnim', 85000, 22, 0], ['rajib', 60000, 22, 0], ['priya', 40000, 21, 0],
     ['shovon', 60000, 22, 0], ['mitu', 40000, 22, 0], ['rumi', 40000, 22, 0], ['aslam', 40000, 22, 0],
     ['chumki', 40000, 22, 0], ['tuhin', 40000, 22, 0],
+    // Digital Marketing (Imran Khan, the real DEPT_HEAD, is not part of this
+    // demo roster so isn't in this payroll either — only the new demo hires are)
+    ['rezaul', 85000, 22, 0], ['moutushi', 60000, 22, 0], ['shakil', 60000, 22, 0], ['tabassum', 40000, 22, 0],
+    ['nayan', 40000, 22, 0], ['ratri', 40000, 22, 0], ['anik', 25000, 22, 0],
+    // Office Management
+    ['moinul', 180000, 22, 0], ['shathi', 85000, 22, 0], ['delwar', 60000, 22, 0], ['nusaiba', 40000, 22, 0],
+    ['rumman', 40000, 22, 0], ['jesmin', 40000, 22, 0], ['sabbir', 25000, 22, 0], ['lubna', 25000, 22, 0],
   ]
   const WORKING_DAYS = 22
 
@@ -595,6 +710,13 @@ async function main() {
   console.log('  DEPT MANAGER  : arif.rahman@xyztech.com        / Employee@123  (Accounts)')
   console.log('  DEPT MANAGER  : farabi.anwar@xyztech.com       / Password@123  (IT-SW — reports to karim)')
   console.log('  EMPLOYEE      : mita.roy@xyztech.com           / Password@123  (Accounts)')
+  console.log('  DEPT HEAD     : oliver.bennett@xyztech.com     / Password@123  (UK Accounts)')
+  console.log('  DEPT MANAGER  : grace.taylor@xyztech.com       / Password@123  (UK Accounts)')
+  console.log('  DEPT HEAD     : william.baker@xyztech.com      / Password@123  (UK Human Resources)')
+  console.log('  DEPT MANAGER  : charlotte.wood@xyztech.com     / Password@123  (UK Human Resources)')
+  console.log('  DEPT MANAGER  : rezaul.karim@xyztech.com       / Password@123  (Digital Marketing — Head is real, non-demo)')
+  console.log('  DEPT HEAD     : moinul.islam@xyztech.com       / Password@123  (Office Management)')
+  console.log('  DEPT MANAGER  : shathi.rani@xyztech.com        / Password@123  (Office Management)')
   console.log('  (all other demo staff: Password@123)')
   console.log('──────────────────────────────────────────────────────')
   console.log('Done!')

@@ -32,7 +32,7 @@ vi.mock('../../config/prisma', () => ({
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: any }) => ({ id: where.id, ...data })),
       findMany: vi.fn(async () => []),
     },
-    office: { findUnique: vi.fn(async () => ({ code: 'BD' })) },
+    office: { findUnique: vi.fn(async () => ({ code: 'BD', workStartTime: '13:30', workEndTime: '22:00' })) },
     publicHoliday: { count: vi.fn(async () => 0) },
     leaveApplication: { count: vi.fn(async () => 0) },
     user: { findMany: vi.fn(async () => []) },
@@ -80,7 +80,7 @@ beforeEach(() => {
   attendanceFindUnique.mockResolvedValue(null)
   attendanceUpsert.mockImplementation(async ({ create }: { create: any }) => ({ id: 'att-1', ...create }))
   attendanceUpdate.mockImplementation(async ({ where, data }: { where: { id: string }; data: any }) => ({ id: where.id, ...data }))
-  officeFindUnique.mockResolvedValue({ code: 'BD' })
+  officeFindUnique.mockResolvedValue({ code: 'BD', workStartTime: '13:30', workEndTime: '22:00' })
   publicHolidayCount.mockResolvedValue(0)
   leaveApplicationCount.mockResolvedValue(0)
   ;(resolveTeamApprover as ReturnType<typeof vi.fn>).mockResolvedValue('emp-manager')

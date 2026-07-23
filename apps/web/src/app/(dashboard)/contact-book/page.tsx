@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useContactBook } from '@/lib/api/hooks/useEmployees'
-import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { useDepartments, departmentLabel } from '@/lib/api/hooks/useDepartments'
 import { useAuthStore } from '@/store/auth.store'
 import { PageHeader, Card, Avatar, ListSkeleton } from '@/components/ui/primitives'
 import { BloodGroup, UserRole } from '@hr-system/types'
@@ -85,7 +85,7 @@ export default function ContactBookPage() {
           </div>
           <select value={departmentId} onChange={e => { setDepartmentId(e.target.value); setPage(1) }} className={selectCls}>
             <option value="">All departments</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {departments.map(d => <option key={d.id} value={d.id}>{departmentLabel(d, departments)}</option>)}
           </select>
           <select value={bloodGroup} onChange={e => { setBloodGroup(e.target.value); setPage(1) }} className={selectCls}>
             <option value="">All blood groups</option>

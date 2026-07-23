@@ -12,7 +12,11 @@ vi.mock('../../config/prisma', () => ({
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => EMPLOYEES[where.id] ?? null),
     },
     office: {
-      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => (where.id === 'office-bd' ? { code: 'BD' } : { code: 'UK' })),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === 'office-bd'
+          ? { code: 'BD', workStartTime: '13:30', workEndTime: '22:00' }
+          : { code: 'UK', workStartTime: '09:00', workEndTime: '17:00' }
+      ),
     },
     publicHoliday: { count: vi.fn(async () => 0) },
     leaveApplication: { count: vi.fn(async () => 0) },

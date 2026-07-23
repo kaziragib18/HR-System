@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import {
   useHolidays,
   useCreateHoliday,
@@ -9,29 +8,10 @@ import {
   useDeleteHoliday,
   type Holiday,
 } from '@/lib/api/hooks/useHolidays'
-import { apiClient } from '@/lib/api/client'
+import { useOffices, type Office } from '@/lib/api/hooks/useReference'
 import { Card, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import { Trash2, Pencil, Plus, X, CalendarDays, AlertTriangle, Loader2 } from 'lucide-react'
-
-interface OfficeOpt {
-  id: string
-  code: string
-  name: string
-}
-
-/** All active offices, unfiltered by the caller's own office scope — unlike
- * `/departments` (used previously here), which is office-scoped for anyone
- * below SUPER_ADMIN and silently limited the picker to just their own office. */
-function useOffices() {
-  return useQuery({
-    queryKey: ['company-offices'],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/company/offices')
-      return data.data as OfficeOpt[]
-    },
-  })
-}
 
 const field =
   'w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
@@ -43,7 +23,11 @@ const OFFICE_BADGE: Record<string, string> = {
 }
 
 function fmtHolidayDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 function fmtWeekday(iso: string): string {
@@ -58,7 +42,7 @@ function EditHolidayModal({
   onClose,
 }: {
   holiday: Holiday
-  offices: OfficeOpt[]
+  offices: Office[]
   onClose: () => void
 }) {
   const update = useUpdateHoliday()
@@ -100,7 +84,11 @@ function EditHolidayModal({
         <SubmitOverlay show={update.isPending} label="Saving…" />
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-medium">Edit holiday</p>
-          <button onClick={onClose} disabled={update.isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
+          <button
+            onClick={onClose}
+            disabled={update.isPending}
+            className="rounded-md p-1 hover:bg-muted disabled:opacity-50"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -112,18 +100,29 @@ function EditHolidayModal({
             </div>
             <div>
               <label className={label}>Date</label>
-              <input type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} />
+              <input
+                type="date"
+                className={field}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
-            <div>
-              <label className={label}>Office</label>
-              <select className={field} value={officeId} onChange={(e) => setOfficeId(e.target.value)}>
-                {offices.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.code} — {o.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {offices.length > 1 && (
+              <div>
+                <label className={label}>Office</label>
+                <select
+                  className={field}
+                  value={officeId}
+                  onChange={(e) => setOfficeId(e.target.value)}
+                >
+                  {offices.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.code} — {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {error && <p className="text-xs text-destructive">{error}</p>}
 
@@ -153,7 +152,13 @@ function EditHolidayModal({
 
 // ─── Delete confirm modal ─────────────────────────────────────────────────────
 
-function DeleteHolidayConfirmModal({ holiday, onClose }: { holiday: Holiday; onClose: () => void }) {
+function DeleteHolidayConfirmModal({
+  holiday,
+  onClose,
+}: {
+  holiday: Holiday
+  onClose: () => void
+}) {
   const del = useDeleteHoliday()
   const [error, setError] = useState('')
 
@@ -188,14 +193,19 @@ function DeleteHolidayConfirmModal({ holiday, onClose }: { holiday: Holiday; onC
             <div>
               <p className="text-sm font-medium">Delete holiday?</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                This will remove <span className="font-medium text-foreground">&ldquo;{holiday.name}&rdquo;</span> (
+                This will remove{' '}
+                <span className="font-medium text-foreground">&ldquo;{holiday.name}&rdquo;</span> (
                 {fmtHolidayDate(holiday.date)}). This can&apos;t be undone.
               </p>
             </div>
           </div>
           {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
-            <button onClick={onClose} disabled={del.isPending} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+            <button
+              onClick={onClose}
+              disabled={del.isPending}
+              className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+            >
               Cancel
             </button>
             <button
@@ -229,6 +239,11 @@ export function HolidaysPanel() {
   const [editing, setEditing] = useState<Holiday | null>(null)
   const [deleting, setDeleting] = useState<Holiday | null>(null)
 
+  // Only one active office exists — skip the picker and select it automatically.
+  useEffect(() => {
+    if (offices.length === 1 && !officeId) setOfficeId(offices[0].id)
+  }, [offices, officeId])
+
   const onAdd = async () => {
     if (!name || !date || !officeId) return
     await createHoliday.mutateAsync({
@@ -256,19 +271,30 @@ export function HolidaysPanel() {
           </div>
           <div>
             <label className={label}>Date</label>
-            <input type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} />
+            <input
+              type="date"
+              className={field}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
-          <div>
-            <label className={label}>Office</label>
-            <select className={field} value={officeId} onChange={(e) => setOfficeId(e.target.value)}>
-              <option value="">Office…</option>
-              {offices.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.code}
-                </option>
-              ))}
-            </select>
-          </div>
+          {offices.length > 1 && (
+            <div>
+              <label className={label}>Office</label>
+              <select
+                className={field}
+                value={officeId}
+                onChange={(e) => setOfficeId(e.target.value)}
+              >
+                <option value="">Office</option>
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             onClick={onAdd}
             disabled={!name || !date || !officeId || createHoliday.isPending}
@@ -328,30 +354,37 @@ export function HolidaysPanel() {
                   <th className="px-4 py-2">Date</th>
                   <th className="px-4 py-2">Day</th>
                   <th className="px-4 py-2">Name</th>
-                  <th className="px-4 py-2">Office</th>
+                  {offices.length > 1 && <th className="px-4 py-2">Office</th>}
                   <th className="px-4 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {holidays.map((h) => (
-                  <tr key={h.id} className="border-b transition-colors last:border-0 hover:bg-muted/40">
+                  <tr
+                    key={h.id}
+                    className="border-b transition-colors last:border-0 hover:bg-muted/40"
+                  >
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium tabular-nums">
                       {fmtHolidayDate(h.date)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">{fmtWeekday(h.date)}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
+                      {fmtWeekday(h.date)}
+                    </td>
                     <td className="px-4 py-2.5">
                       <span className="font-medium">{h.name}</span>
                     </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={cn(
-                          'rounded-md px-2 py-0.5 text-[10px] font-semibold',
-                          OFFICE_BADGE[h.office?.code] ?? 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {h.office?.code ?? '—'}
-                      </span>
-                    </td>
+                    {offices.length > 1 && (
+                      <td className="px-4 py-2.5">
+                        <span
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[10px] font-semibold',
+                            OFFICE_BADGE[h.office?.code] ?? 'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {h.office?.code ?? '—'}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -378,8 +411,12 @@ export function HolidaysPanel() {
         )}
       </Card>
 
-      {editing && <EditHolidayModal holiday={editing} offices={offices} onClose={() => setEditing(null)} />}
-      {deleting && <DeleteHolidayConfirmModal holiday={deleting} onClose={() => setDeleting(null)} />}
+      {editing && (
+        <EditHolidayModal holiday={editing} offices={offices} onClose={() => setEditing(null)} />
+      )}
+      {deleting && (
+        <DeleteHolidayConfirmModal holiday={deleting} onClose={() => setDeleting(null)} />
+      )}
     </div>
   )
 }

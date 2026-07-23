@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   useDepartments,
@@ -16,10 +16,12 @@ import {
   useCreateJobTitle,
   useUpdateJobTitle,
   useDeleteJobTitle,
+  useOffices,
 } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
-import { Card, Spinner, Avatar } from '@/components/ui/primitives'
+import { Card, Spinner, Avatar, SubmitOverlay } from '@/components/ui/primitives'
 import { SidePanel } from '@/components/ui/side-panel'
+import { Tabs } from '@/components/ui/tabs'
 import { UserRole } from '@hr-system/types'
 import { cn } from '@/lib/utils'
 import {
@@ -38,6 +40,7 @@ import {
   UserPlus,
   ShieldCheck,
   UserCog,
+  Loader2,
 } from 'lucide-react'
 
 // ─── Head / Manager appointment slot ───────────────────────────────────────────
@@ -518,7 +521,7 @@ function DeptDetailPanel({
 
 // ─── Department Card ──────────────────────────────────────────────────────────
 
-function DeptCard({ dept, canManage, existingCodes }: { dept: Department; canManage: boolean; existingCodes: string[] }) {
+function DeptCard({ dept, canManage, existingCodes, hideOfficeBadge }: { dept: Department; canManage: boolean; existingCodes: string[]; hideOfficeBadge?: boolean }) {
   // Which tab the detail side-panel opens to (null = closed).
   const [panelTab, setPanelTab] = useState<'members' | 'designations' | null>(null)
 
@@ -652,9 +655,11 @@ function DeptCard({ dept, canManage, existingCodes }: { dept: Department; canMan
                 <span className="inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   {dept.code}
                 </span>
-                <span className="inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                  {dept.office.code}
-                </span>
+                {!hideOfficeBadge && (
+                  <span className="inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    {dept.office.code}
+                  </span>
+                )}
                 {canManage && (
                   <button
                     onClick={() => { setEditingCode(true); setCodeVal(dept.code) }}
@@ -813,66 +818,103 @@ function DeptCardSkeleton() {
   )
 }
 
-// ─── Create Department Form ───────────────────────────────────────────────────
+// ─── Create Department Modal ───────────────────────────────────────────────────
 
-function CreateDeptForm({ defaultOfficeId, onDone }: { defaultOfficeId: string; onDone: () => void }) {
+function NewDepartmentModal({ defaultOfficeId, onClose }: { defaultOfficeId: string; onClose: () => void }) {
+  const { user } = useAuthStore()
+  const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
+  const { data: offices } = useOffices()
+  const showOfficePicker = isSuperAdmin && (offices?.length ?? 0) > 1
   const create = useCreateDepartment()
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [officeId, setOfficeId] = useState(defaultOfficeId)
   const [error, setError] = useState('')
+  const isPending = create.isPending
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !code.trim()) return
     setError('')
     try {
-      await create.mutateAsync({ name: name.trim(), code: code.trim().toUpperCase(), officeId: defaultOfficeId })
-      onDone()
+      await create.mutateAsync({ name: name.trim(), code: code.trim().toUpperCase(), officeId: showOfficePicker ? officeId : defaultOfficeId })
+      onClose()
     } catch (err: unknown) {
       setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create')
     }
   }
 
   return (
-    <Card className="border-primary/40">
-      <p className="mb-4 text-sm font-semibold">New Department</p>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
-            <input
-              autoFocus
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. Marketing"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Code</label>
-            <input
-              value={code}
-              onChange={e => setCode(e.target.value.toUpperCase())}
-              placeholder="e.g. MKT"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-        </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            disabled={!name.trim() || !code.trim() || create.isPending}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {create.isPending ? 'Creating…' : 'Create Department'}
-          </button>
-          <button type="button" onClick={onDone} className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-            Cancel
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => !isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SubmitOverlay show={isPending} label="Creating department…" />
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-semibold">New Department</p>
+          <button onClick={onClose} disabled={isPending} className="rounded-md p-1 hover:bg-muted disabled:opacity-50">
+            <X className="h-4 w-4" />
           </button>
         </div>
-      </form>
-    </Card>
+        <fieldset disabled={isPending} className="contents">
+          <form onSubmit={handleSubmit} className="space-y-3 p-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="e.g. Marketing"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Code</label>
+                <input
+                  value={code}
+                  onChange={e => setCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. MKT"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            {showOfficePicker && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Office</label>
+                <select
+                  value={officeId}
+                  onChange={e => setOfficeId(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {offices?.map(o => (
+                    <option key={o.id} value={o.id}>{o.code} — {o.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            <div className="flex gap-2 border-t pt-3">
+              <button
+                type="submit"
+                disabled={!name.trim() || !code.trim() || isPending}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isPending ? 'Creating…' : 'Create Department'}
+              </button>
+              <button type="button" onClick={onClose} disabled={isPending} className="rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </fieldset>
+      </div>
+    </div>
   )
 }
 
@@ -880,19 +922,45 @@ function CreateDeptForm({ defaultOfficeId, onDone }: { defaultOfficeId: string; 
 
 export default function DepartmentsPage() {
   const { data: departments, isLoading } = useDepartments()
+  const { data: offices } = useOffices()
   const { user } = useAuthStore()
   const canManage = !!user && [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER].includes(user.role as UserRole)
+  const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
 
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch]         = useState('')
 
-  const filtered = (departments ?? []).filter(d =>
+  // Office tabs only make sense for a caller who can actually see more than one
+  // office's departments — in practice SUPER_ADMIN (HR_MANAGER's own
+  // useDepartments() call is always server-scoped to their single office, so
+  // they'd never populate a second tab regardless of which one is clicked).
+  const showOfficeTabs = isSuperAdmin && (offices?.length ?? 0) > 1
+
+  // Sourced from the real office list (useOffices()), not from which offices
+  // happen to already have departments — the same fix applied to
+  // NewEmployeeModal's office picker, so a brand-new office with zero
+  // departments still gets its own tab instead of silently having none.
+  const [activeOfficeId, setActiveOfficeId] = useState('')
+  useEffect(() => {
+    if (activeOfficeId || !offices || offices.length === 0) return
+    const ownOffice = user?.officeId && offices.some(o => o.id === user.officeId) ? user.officeId : undefined
+    setActiveOfficeId(ownOffice ?? offices[0].id)
+  }, [offices, activeOfficeId, user?.officeId])
+
+  const scopedDepartments = showOfficeTabs
+    ? (departments ?? []).filter(d => d.officeId === activeOfficeId)
+    : (departments ?? [])
+
+  const filtered = scopedDepartments.filter(d =>
     !search || d.name.toLowerCase().includes(search.toLowerCase()) || d.code.toLowerCase().includes(search.toLowerCase())
   )
 
-  const totalEmployees   = (departments ?? []).reduce((s, d) => s + d._count.employees, 0)
-  const totalDesignations = (departments ?? []).reduce((s, d) => s + d.jobTitles.length, 0)
-  const defaultOfficeId  = departments?.[0]?.officeId ?? ''
+  const totalEmployees    = scopedDepartments.reduce((s, d) => s + d._count.employees, 0)
+  const totalDesignations = scopedDepartments.reduce((s, d) => s + d.jobTitles.length, 0)
+  // New departments default to the active tab's office (SUPER_ADMIN) or the
+  // caller's own office otherwise — falls back to whatever office the first
+  // loaded department belongs to only if neither can be determined.
+  const defaultOfficeId  = (showOfficeTabs ? activeOfficeId : user?.officeId) ?? departments?.[0]?.officeId ?? ''
 
   return (
     <div className="space-y-5">
@@ -904,7 +972,7 @@ export default function DepartmentsPage() {
         </div>
         {canManage && (
           <button
-            onClick={() => setShowCreate(v => !v)}
+            onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
@@ -912,6 +980,15 @@ export default function DepartmentsPage() {
           </button>
         )}
       </div>
+
+      {/* Office tabs — SUPER_ADMIN only, when 2+ offices exist */}
+      {showOfficeTabs && offices && activeOfficeId && (
+        <Tabs
+          items={offices.map(o => ({ key: o.id, label: `${o.code} — ${o.name}` }))}
+          active={activeOfficeId}
+          onChange={setActiveOfficeId}
+        />
+      )}
 
       {/* Summary stats */}
       {isLoading ? (
@@ -926,10 +1003,10 @@ export default function DepartmentsPage() {
             </div>
           ))}
         </div>
-      ) : departments && departments.length > 0 ? (
+      ) : scopedDepartments.length > 0 ? (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: LayoutGrid, label: 'Departments', value: departments.length },
+            { icon: LayoutGrid, label: 'Departments', value: scopedDepartments.length },
             { icon: Users,       label: 'Total Employees', value: totalEmployees },
             { icon: Tag,         label: 'Total Designations', value: totalDesignations },
           ].map(({ icon: Icon, label, value }) => (
@@ -959,10 +1036,6 @@ export default function DepartmentsPage() {
         </div>
       </div>
 
-      {showCreate && canManage && defaultOfficeId && (
-        <CreateDeptForm defaultOfficeId={defaultOfficeId} onDone={() => setShowCreate(false)} />
-      )}
-
       {/* Grid */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -970,7 +1043,7 @@ export default function DepartmentsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
-          {search ? `No departments match "${search}"` : 'No departments yet.'}
+          {search ? `No departments match "${search}"` : showOfficeTabs ? 'No departments in this office yet.' : 'No departments yet.'}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -979,10 +1052,15 @@ export default function DepartmentsPage() {
               key={dept.id}
               dept={dept}
               canManage={canManage}
-              existingCodes={(departments ?? []).map(d => d.code).filter(c => c !== dept.code)}
+              hideOfficeBadge={showOfficeTabs}
+              existingCodes={scopedDepartments.map(d => d.code).filter(c => c !== dept.code)}
             />
           ))}
         </div>
+      )}
+
+      {showCreate && canManage && defaultOfficeId && (
+        <NewDepartmentModal defaultOfficeId={defaultOfficeId} onClose={() => setShowCreate(false)} />
       )}
     </div>
   )

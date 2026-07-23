@@ -1,9 +1,4 @@
-import { Currency, OfficeLocation } from '@hr-system/types'
-
-export const OFFICE_CURRENCY: Record<string, Currency> = {
-  [OfficeLocation.BD]: Currency.BDT,
-  [OfficeLocation.UK]: Currency.GBP,
-}
+import { Currency } from '@hr-system/types'
 
 const CURRENCY_LOCALES: Record<Currency, { locale: string; currency: string }> = {
   [Currency.BDT]: { locale: 'bn-BD', currency: 'BDT' },
@@ -18,8 +13,4 @@ export function formatCurrency(amount: number, currency: Currency | string): str
     currency: config.currency,
     maximumFractionDigits: 2,
   }).format(amount)
-}
-
-export function getCurrencyForOffice(officeCode: string): Currency {
-  return OFFICE_CURRENCY[officeCode] ?? Currency.BDT
 }

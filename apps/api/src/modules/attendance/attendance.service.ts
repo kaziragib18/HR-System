@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../config/prisma'
-import { computeAttendanceStatus, BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
+import { computeAttendanceStatus, getOfficeShift, toOfficeTime } from '@hr-system/utils'
 import { AttendanceStatus, AttendanceSource, NotificationType, UserRole } from '@hr-system/types'
 import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
@@ -11,9 +11,7 @@ export class AttendanceError extends Error {
   constructor(message: string, public status = 400) { super(message) }
 }
 
-function shiftForOfficeCode(code: string): ShiftConfig {
-  return code === 'BD' ? BD_SHIFT : UK_SHIFT
-}
+const DEFAULT_OFFICE_SHIFT = { workStartTime: '09:00', workEndTime: '17:00' }
 
 function toDateOnly(d: Date | string): Date {
   const dt = typeof d === 'string' ? new Date(d) : new Date(d)
@@ -103,7 +101,7 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
   // office-local digits stored in a Date's UTC slots (see dateToMinutes in
   // packages/utils/src/attendance.ts). Capturing a true UTC instant here would
   // drift by the office's real UTC offset (e.g. BST is UTC+1 in summer).
-  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true } })
+  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true, workStartTime: true, workEndTime: true } })
   const now = toOfficeTime(new Date(), office?.code ?? 'UK')
   const today = toDateOnly(now)
 
@@ -121,7 +119,7 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
   ])
   const dow = today.getUTCDay()
   const weekend = dow === 0 || dow === 6
-  const shift = shiftForOfficeCode(office?.code ?? 'UK')
+  const shift = getOfficeShift(office ?? DEFAULT_OFFICE_SHIFT)
 
   const computed = computeAttendanceStatus(now, null, holiday, weekend, onLeave, shift)
 
@@ -159,7 +157,7 @@ export async function selfCheckIn(employeeId: string, officeId: string, remarks?
 
 /** Self check-out for authenticated employee. */
 export async function selfCheckOut(employeeId: string, officeId: string, remarks?: string) {
-  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true } })
+  const office = await prisma.office.findUnique({ where: { id: officeId }, select: { code: true, workStartTime: true, workEndTime: true } })
   const now = toOfficeTime(new Date(), office?.code ?? 'UK')
   const today = toDateOnly(now)
 
@@ -176,7 +174,7 @@ export async function selfCheckOut(employeeId: string, officeId: string, remarks
   ])
   const dow = today.getUTCDay()
   const weekend = dow === 0 || dow === 6
-  const shift = shiftForOfficeCode(office?.code ?? 'UK')
+  const shift = getOfficeShift(office ?? DEFAULT_OFFICE_SHIFT)
 
   const computed = computeAttendanceStatus(existing.checkIn, now, holiday, weekend, onLeave, shift)
 
@@ -309,13 +307,13 @@ export async function manualEntry(
   const checkOut = input.checkOut ? new Date(input.checkOut) : null
 
   const [office, holiday, onLeave] = await Promise.all([
-    prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true } }),
+    prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true, workStartTime: true, workEndTime: true } }),
     isHoliday(employee.officeId, date),
     isOnApprovedLeave(input.employeeId, date),
   ])
   const dow = date.getUTCDay()
   const weekend = dow === 0 || dow === 6
-  const shift = shiftForOfficeCode(office?.code ?? 'UK')
+  const shift = getOfficeShift(office ?? DEFAULT_OFFICE_SHIFT)
 
   const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
 
@@ -366,13 +364,13 @@ export async function bulkImport(input: BulkImportInput) {
     const checkOut = rec.checkOut ? new Date(rec.checkOut) : null
 
     const [office, holiday, onLeave] = await Promise.all([
-      prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true } }),
+      prisma.office.findUnique({ where: { id: employee.officeId }, select: { code: true, workStartTime: true, workEndTime: true } }),
       isHoliday(employee.officeId, date),
       isOnApprovedLeave(rec.employeeId, date),
     ])
     const dow = date.getUTCDay()
     const weekend = dow === 0 || dow === 6
-    const shift = shiftForOfficeCode(office?.code ?? 'UK')
+    const shift = getOfficeShift(office ?? DEFAULT_OFFICE_SHIFT)
     const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
 
     const existing = await prisma.attendance.findUnique({
@@ -425,9 +423,9 @@ export async function myCalendar(employeeId: string, month: number, year: number
 
   const emp = await prisma.employee.findUnique({
     where: { id: employeeId },
-    select: { office: { select: { code: true } } },
+    select: { office: { select: { code: true, workStartTime: true, workEndTime: true } } },
   })
-  const shift = shiftForOfficeCode(emp?.office?.code ?? 'UK')
+  const shift = getOfficeShift(emp?.office ?? DEFAULT_OFFICE_SHIFT)
 
   const [records, leaves] = await Promise.all([
     prisma.attendance.findMany({
@@ -776,13 +774,13 @@ export async function reviewAdjustment(
     const checkIn = record.requestedCheckIn ?? record.checkIn
     const checkOut = record.requestedCheckOut ?? record.checkOut
     const [office, holiday, onLeave] = await Promise.all([
-      prisma.office.findUnique({ where: { id: record.employee.officeId }, select: { code: true } }),
+      prisma.office.findUnique({ where: { id: record.employee.officeId }, select: { code: true, workStartTime: true, workEndTime: true } }),
       isHoliday(record.employee.officeId, record.date),
       isOnApprovedLeave(record.employeeId, record.date),
     ])
     const dow = record.date.getUTCDay()
     const weekend = dow === 0 || dow === 6
-    const shift = shiftForOfficeCode(office?.code ?? 'UK')
+    const shift = getOfficeShift(office ?? DEFAULT_OFFICE_SHIFT)
     const computed = computeAttendanceStatus(checkIn, checkOut, holiday, weekend, onLeave, shift)
 
     data.checkIn = checkIn

@@ -72,13 +72,22 @@ export async function getDepartment(id: string, officeScope: string | undefined)
 }
 
 export async function createDepartment(data: CreateDepartmentInput) {
-  const existing = await prisma.department.findUnique({ where: { code: data.code } })
-  if (existing) throw new DepartmentError('A department with this code already exists', 409)
+  const existing = await prisma.department.findFirst({ where: { officeId: data.officeId, code: data.code } })
+  if (existing) throw new DepartmentError('A department with this code already exists in this office', 409)
   return prisma.department.create({ data })
 }
 
 export async function updateDepartment(id: string, officeScope: string | undefined, data: UpdateDepartmentInput) {
-  await getDepartment(id, officeScope)
+  const dept = await getDepartment(id, officeScope)
+
+  if (data.code) {
+    const effectiveOfficeId = data.officeId ?? dept.officeId
+    const conflict = await prisma.department.findFirst({
+      where: { officeId: effectiveOfficeId, code: data.code, id: { not: id } },
+    })
+    if (conflict) throw new DepartmentError('A department with this code already exists in this office', 409)
+  }
+
   return prisma.department.update({ where: { id }, data })
 }
 

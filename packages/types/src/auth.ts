@@ -7,6 +7,8 @@ export interface AuthUser {
   role: UserRole
   officeId: string
   officeCode: string
+  officeWorkStartTime: string
+  officeWorkEndTime: string
   firstName: string
   lastName: string
   avatarUrl?: string | null

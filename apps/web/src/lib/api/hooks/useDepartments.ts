@@ -23,6 +23,18 @@ export interface Department {
   _count: { employees: number }
 }
 
+/** A department's display label for flat, cross-office lists (filter dropdowns,
+ * reassignment selects) — appends the office code (e.g. "Accounts (UK)") only
+ * when `allDepartments` actually spans more than one office, since BD and UK
+ * can now have identically-named departments (Department.code is unique per
+ * office, not globally). Matches this app's "hide office context when there's
+ * only one office" convention elsewhere. Pass the same list you're mapping
+ * over as `allDepartments` so the office-count check reflects what's on screen. */
+export function departmentLabel(dept: Pick<Department, 'name' | 'office'>, allDepartments: Pick<Department, 'office'>[]): string {
+  const multiOffice = new Set(allDepartments.map(d => d.office.code)).size > 1
+  return multiOffice ? `${dept.name} (${dept.office.code})` : dept.name
+}
+
 export interface DepartmentMember {
   id: string
   employeeId: string

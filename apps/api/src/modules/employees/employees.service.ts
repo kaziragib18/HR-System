@@ -20,7 +20,7 @@ const listInclude = {
   jobTitle: { select: { id: true, name: true } },
   jobGrade: { select: { id: true, name: true } },
   reportingTo: { select: { id: true, firstName: true, lastName: true } },
-  office: { select: { id: true, code: true, name: true } },
+  office: { select: { id: true, code: true, name: true, currency: true } },
   user: { select: { role: true, isActive: true } },
 } satisfies Prisma.EmployeeInclude
 

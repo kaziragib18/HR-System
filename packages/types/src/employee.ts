@@ -16,7 +16,7 @@ export interface EmployeeListItem {
   jobTitle?: { id: string; name: string } | null
   jobGrade?: { id: string; name: string } | null
   reportingTo?: { id: string; firstName: string; lastName: string } | null
-  office: { id: string; code: string; name: string }
+  office: { id: string; code: string; name: string; currency: string }
   user?: { role: string; isActive: boolean } | null
 }
 

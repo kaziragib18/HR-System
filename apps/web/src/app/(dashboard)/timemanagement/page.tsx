@@ -11,11 +11,11 @@ import {
   type AttendanceRecord,
 } from '@/lib/api/hooks/useAttendance'
 import { useEmployees } from '@/lib/api/hooks/useEmployees'
-import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { useDepartments, departmentLabel } from '@/lib/api/hooks/useDepartments'
 import { useAuthStore } from '@/store/auth.store'
 import { Card, Avatar, ListSkeleton, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
 import { UserRole } from '@hr-system/types'
-import { BD_SHIFT, UK_SHIFT } from '@hr-system/utils'
+import { getOfficeShift } from '@hr-system/utils'
 import { apiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import {
@@ -584,6 +584,8 @@ function RequestAdjustmentModal({
   target,
   isEdit,
   officeCode,
+  workStartTime,
+  workEndTime,
   onClose,
   onSubmit,
   submitting,
@@ -591,11 +593,16 @@ function RequestAdjustmentModal({
   target: EditTarget
   isEdit: boolean
   officeCode?: string
+  workStartTime?: string
+  workEndTime?: string
   onClose: () => void
   onSubmit: (input: { requestedCheckIn: string; requestedCheckOut: string; reason: string }) => Promise<void>
   submitting: boolean
 }) {
-  const officeShift = officeCode === 'BD' ? BD_SHIFT : UK_SHIFT
+  const officeShift = getOfficeShift({
+    workStartTime: workStartTime ?? '09:00',
+    workEndTime: workEndTime ?? '17:00',
+  })
   const [checkIn, setCheckIn] = useState(
     target.record?.requestedCheckIn
       ? new Date(target.record.requestedCheckIn).toISOString().slice(11, 16)
@@ -1011,7 +1018,7 @@ export default function TimeManagementPage() {
               >
                 <option value="">All Departments</option>
                 {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>{departmentLabel(d, departments)}</option>
                 ))}
               </select>
             )}
@@ -1155,6 +1162,8 @@ export default function TimeManagementPage() {
           target={requestTarget}
           isEdit={requestTarget.record?.adjustmentStatus === 'PENDING'}
           officeCode={user?.officeCode}
+          workStartTime={user?.officeWorkStartTime}
+          workEndTime={user?.officeWorkEndTime}
           onClose={() => setRequestTarget(null)}
           onSubmit={handleRequestSubmit}
           submitting={requestAdjustment.isPending || updateAdjustmentRequest.isPending}

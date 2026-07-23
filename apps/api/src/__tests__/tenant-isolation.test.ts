@@ -57,6 +57,8 @@ function tokenFor(overrides: { role: UserRole; officeId: string }) {
     role: overrides.role,
     officeId: overrides.officeId,
     officeCode: overrides.officeId === 'office-bd' ? 'BD' : 'UK',
+    officeWorkStartTime: '09:00',
+    officeWorkEndTime: '17:00',
     firstName: 'Test',
     lastName: 'User',
     theme: 'light',

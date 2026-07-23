@@ -23,6 +23,22 @@ export const BD_SHIFT: ShiftConfig = {
 
 const DEFAULT_SHIFT: ShiftConfig = UK_SHIFT
 
+/**
+ * Builds a ShiftConfig from an office's own workStartTime/workEndTime rather
+ * than a hardcoded BD/UK lookup — this is the office-agnostic replacement for
+ * the `code === 'BD' ? BD_SHIFT : UK_SHIFT` ternary previously duplicated
+ * across attendance.service.ts and three frontend pages. Grace-minute values
+ * stay fixed (not yet a per-office setting).
+ */
+export function getOfficeShift(office: { workStartTime: string; workEndTime: string }): ShiftConfig {
+  return {
+    startTime: office.workStartTime,
+    endTime: office.workEndTime,
+    lateGraceMinutes: DEFAULT_SHIFT.lateGraceMinutes,
+    earlyDepartureGraceMinutes: DEFAULT_SHIFT.earlyDepartureGraceMinutes,
+  }
+}
+
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m

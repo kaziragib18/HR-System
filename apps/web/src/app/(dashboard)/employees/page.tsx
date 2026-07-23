@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEmployees, useUpdateEmployeeById } from '@/lib/api/hooks/useEmployees'
-import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { NewEmployeeModal } from '@/components/employees/NewEmployeeModal'
+import { useDepartments, departmentLabel } from '@/lib/api/hooks/useDepartments'
 import { useOffices, useJobTitles } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
 import { PageHeader, Card, Avatar, StatusBadge, SubmitOverlay } from '@/components/ui/primitives'
@@ -270,9 +271,10 @@ function StatusChangeModal({ pending, onClose, onConfirm, submitting }: {
 
 // ─── Employee row (desktop table) ───────────────────────────────────────────
 
-function EmployeeRow({ emp, canEdit, savingCell, deptOptions, statusOptions, onSaveDept, onSaveStatus, onSaveDesignation }: {
+function EmployeeRow({ emp, canEdit, showOffice, savingCell, deptOptions, statusOptions, onSaveDept, onSaveStatus, onSaveDesignation }: {
   emp: EmployeeListItem
   canEdit: boolean
+  showOffice: boolean
   savingCell: string | null
   deptOptions: { value: string; label: string }[]
   statusOptions: { value: string; label: string }[]
@@ -325,9 +327,11 @@ function EmployeeRow({ emp, canEdit, savingCell, deptOptions, statusOptions, onS
       </td>
 
       {/* Office */}
-      <td className="px-4 py-2.5">
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{emp.office?.code}</span>
-      </td>
+      {showOffice && (
+        <td className="px-4 py-2.5">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{emp.office?.code}</span>
+        </td>
+      )}
 
       {/* Status */}
       <td className="px-4 py-2.5">
@@ -350,7 +354,7 @@ function EmployeeRow({ emp, canEdit, savingCell, deptOptions, statusOptions, onS
 
 // ─── Employee card (mobile) — read-only; inline editing is desktop-only ───────
 
-function EmployeeCard({ emp }: { emp: EmployeeListItem }) {
+function EmployeeCard({ emp, showOffice }: { emp: EmployeeListItem; showOffice: boolean }) {
   return (
     <Link href={`/employees/${emp.id}`} className="flex items-center gap-3 border-b p-3 last:border-0 hover:bg-muted/40">
       <Avatar firstName={emp.firstName} lastName={emp.lastName} url={emp.avatarUrl} size={40} />
@@ -360,7 +364,7 @@ function EmployeeCard({ emp }: { emp: EmployeeListItem }) {
           <RoleBadge role={emp.user?.role} />
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {emp.jobTitle?.name ?? '—'} · {emp.department?.name ?? '—'} · {emp.office?.code}
+          {emp.jobTitle?.name ?? '—'} · {emp.department?.name ?? '—'}{showOffice ? ` · ${emp.office?.code}` : ''}
         </p>
       </div>
       <StatusBadge status={emp.employmentStatus} />
@@ -387,6 +391,7 @@ function SummaryTile({ icon: Icon, label, value }: { icon: typeof Users; label: 
 export default function EmployeesPage() {
   const { user } = useAuthStore()
   const canEdit  = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.HR_MANAGER
+  const [showNewEmployee, setShowNewEmployee] = useState(false)
 
   // ── Filters ──
   const searchParams = useSearchParams()
@@ -496,7 +501,7 @@ export default function EmployeesPage() {
   }
 
   const statusOptions = Object.values(EmploymentStatus).map(v => ({ value: v, label: v.replace(/_/g, ' ') }))
-  const deptOptions = departments.map(d => ({ value: d.id, label: d.name }))
+  const deptOptions = departments.map(d => ({ value: d.id, label: departmentLabel(d, departments) }))
   const total = data?.meta.total ?? 0
   const totalPages = data?.meta.totalPages ?? 1
 
@@ -509,12 +514,12 @@ export default function EmployeesPage() {
         description="Manage your organisation's people"
         action={
           canEdit && (
-            <Link
-              href="/employees/new"
+            <button
+              onClick={() => setShowNewEmployee(true)}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" /> Add employee
-            </Link>
+            </button>
           )
         }
       />
@@ -540,12 +545,14 @@ export default function EmployeesPage() {
           </div>
           <select value={deptFilter} onChange={e => { setDeptFilter(e.target.value); setPage(1) }} className={selectCls}>
             <option value="">All departments</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {departments.map(d => <option key={d.id} value={d.id}>{departmentLabel(d, departments)}</option>)}
           </select>
-          <select value={officeFilter} onChange={e => { setOfficeFilter(e.target.value); setPage(1) }} className={selectCls}>
-            <option value="">All offices</option>
-            {offices.map(o => <option key={o.id} value={o.id}>{o.name} ({o.code})</option>)}
-          </select>
+          {offices.length > 1 && (
+            <select value={officeFilter} onChange={e => { setOfficeFilter(e.target.value); setPage(1) }} className={selectCls}>
+              <option value="">All offices</option>
+              {offices.map(o => <option key={o.id} value={o.id}>{o.name} ({o.code})</option>)}
+            </select>
+          )}
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
             <option value="">All statuses</option>
             {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -583,9 +590,12 @@ export default function EmployeesPage() {
             {hasFilters ? (
               <button onClick={clearFilters} className="mt-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">Clear filters</button>
             ) : canEdit ? (
-              <Link href="/employees/new" className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              <button
+                onClick={() => setShowNewEmployee(true)}
+                className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
                 <Plus className="h-4 w-4" /> Add employee
-              </Link>
+              </button>
             ) : null}
           </div>
         ) : (
@@ -599,7 +609,9 @@ export default function EmployeesPage() {
                     <th className="px-4 py-2.5 font-medium">ID</th>
                     <SortTh label="Department" field="department" active={sortField === 'department'} dir={sortDir} onSort={toggleSort} />
                     <th className="px-4 py-2.5 font-medium">Designation</th>
-                    <SortTh label="Office" field="office" active={sortField === 'office'} dir={sortDir} onSort={toggleSort} />
+                    {offices.length > 1 && (
+                      <SortTh label="Office" field="office" active={sortField === 'office'} dir={sortDir} onSort={toggleSort} />
+                    )}
                     <SortTh label="Status" field="status" active={sortField === 'status'} dir={sortDir} onSort={toggleSort} />
                     <th className="px-2 py-2.5" />
                   </tr>
@@ -610,6 +622,7 @@ export default function EmployeesPage() {
                       key={emp.id}
                       emp={emp}
                       canEdit={canEdit}
+                      showOffice={offices.length > 1}
                       savingCell={savingCell}
                       deptOptions={deptOptions}
                       statusOptions={statusOptions}
@@ -624,7 +637,7 @@ export default function EmployeesPage() {
 
             {/* Mobile cards */}
             <div className="md:hidden">
-              {rows.map(emp => <EmployeeCard key={emp.id} emp={emp} />)}
+              {rows.map(emp => <EmployeeCard key={emp.id} emp={emp} showOffice={offices.length > 1} />)}
             </div>
           </>
         )}
@@ -690,6 +703,7 @@ export default function EmployeesPage() {
           submitting={savingCell === `${pendingStatusChange.emp.id}-status`}
         />
       )}
+      {showNewEmployee && <NewEmployeeModal onClose={() => setShowNewEmployee(false)} />}
     </div>
   )
 }

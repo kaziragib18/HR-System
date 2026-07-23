@@ -50,6 +50,8 @@ function tokenFor(role: UserRole) {
     role,
     officeId: 'office-bd',
     officeCode: 'BD',
+    officeWorkStartTime: '13:30',
+    officeWorkEndTime: '22:00',
     firstName: 'Riya',
     lastName: 'Reviewer',
     theme: 'light',

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEmployees, useEmployee } from '@/lib/api/hooks/useEmployees'
-import { useDepartments } from '@/lib/api/hooks/useDepartments'
+import { useDepartments, departmentLabel } from '@/lib/api/hooks/useDepartments'
 import { useOffices } from '@/lib/api/hooks/useReference'
 import {
   useEmployeeSalary,
@@ -26,8 +26,6 @@ import {
   ArrowUp, ArrowDown, SlidersHorizontal, Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-
-const OFFICE_CURRENCY: Record<string, string> = { BD: 'BDT', UK: 'GBP' }
 
 function fmt(n: number, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n)
@@ -218,19 +216,21 @@ const emptyRow = (): ComponentRow => ({ name: '', type: 'ALLOWANCE', amount: '',
 function SalaryFormModal({
   employeeId,
   officeCurrency,
+  officeName,
   duplicateFrom,
   onClose,
   onSuccess,
 }: {
   employeeId: string
   officeCurrency: string
+  officeName: string
   duplicateFrom?: SalaryStructure | null
   onClose: () => void
   onSuccess: () => void
 }) {
   const today = new Date().toISOString().split('T')[0]
   const [basicSalary, setBasicSalary] = useState(duplicateFrom ? String(Number(duplicateFrom.basicSalary)) : '')
-  const currency = officeCurrency  // locked to employee's office — BD→BDT, UK→GBP
+  const currency = officeCurrency  // locked to the employee's office currency
   const [effectiveFrom, setEffectiveFrom] = useState(today)
   const [effectiveTo, setEffectiveTo] = useState('')
   const [components, setComponents] = useState<ComponentRow[]>(
@@ -305,7 +305,7 @@ function SalaryFormModal({
                 <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                   <span className="font-semibold text-foreground">{currency}</span>
                   <span>·</span>
-                  <span>{currency === 'BDT' ? 'Bangladeshi Taka (BD office)' : 'British Pound (UK office)'}</span>
+                  <span>{officeName} office</span>
                 </div>
               </div>
               <div>
@@ -529,7 +529,7 @@ export default function SalaryPage() {
     )
   }
 
-  const officeCurrency = selectedEmp ? (OFFICE_CURRENCY[selectedEmp.office.code] ?? 'BDT') : 'BDT'
+  const officeCurrency = selectedEmp?.office.currency ?? 'BDT'
 
   return (
     <div>
@@ -585,16 +585,18 @@ export default function SalaryPage() {
                     className="h-9 w-full rounded-lg border bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">All departments</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {departments.map(d => <option key={d.id} value={d.id}>{departmentLabel(d, departments)}</option>)}
                   </select>
-                  <select
-                    value={officeFilter}
-                    onChange={e => setOfficeFilter(e.target.value)}
-                    className="h-9 w-full rounded-lg border bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">All offices</option>
-                    {offices.map(o => <option key={o.id} value={o.id}>{o.name} ({o.code})</option>)}
-                  </select>
+                  {offices.length > 1 && (
+                    <select
+                      value={officeFilter}
+                      onChange={e => setOfficeFilter(e.target.value)}
+                      className="h-9 w-full rounded-lg border bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">All offices</option>
+                      {offices.map(o => <option key={o.id} value={o.id}>{o.name} ({o.code})</option>)}
+                    </select>
+                  )}
                 </div>
               )}
 
@@ -794,6 +796,7 @@ export default function SalaryPage() {
         <SalaryFormModal
           employeeId={selectedEmp.id}
           officeCurrency={officeCurrency}
+          officeName={selectedEmp.office.name}
           duplicateFrom={modal.mode === 'duplicate' ? modal.structure : null}
           onClose={() => setModal(null)}
           onSuccess={() => { setModal(null); setTab('overview') }}

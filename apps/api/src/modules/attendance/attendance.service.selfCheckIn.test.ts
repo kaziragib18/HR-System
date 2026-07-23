@@ -4,7 +4,9 @@ vi.mock('../../config/prisma', () => ({
   prisma: {
     office: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
-        where.id === 'office-bd' ? { code: 'BD' } : { code: 'UK' }
+        where.id === 'office-bd'
+          ? { code: 'BD', workStartTime: '13:30', workEndTime: '22:00' }
+          : { code: 'UK', workStartTime: '09:00', workEndTime: '17:00' }
       ),
     },
     attendance: {

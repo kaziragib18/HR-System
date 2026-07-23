@@ -53,6 +53,8 @@ function toAuthUser(user: UserWithEmployee): AuthUser {
     role: user.role as UserRole,
     officeId: user.employee.officeId,
     officeCode: user.employee.office.code,
+    officeWorkStartTime: user.employee.office.workStartTime,
+    officeWorkEndTime: user.employee.office.workEndTime,
     firstName: user.employee.firstName,
     lastName: user.employee.lastName,
     avatarUrl: user.employee.avatarUrl,

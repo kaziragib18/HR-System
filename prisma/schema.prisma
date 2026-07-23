@@ -13,21 +13,25 @@ datasource db {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Office {
-  id         String   @id @default(cuid())
-  code       String   @unique // "BD" | "UK"
-  name       String
-  country    String
-  currency   String   // "BDT" | "GBP"
-  timezone   String   // "Asia/Dhaka" | "Europe/London"
-  taxRegime  String   // "BD_INCOME_TAX" | "UK_PAYE"
-  address    String?
-  phone      String?
-  email      String?
-  website    String?
-  logoUrl    String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(cuid())
+  code          String   @unique // "BD" | "UK"
+  name          String
+  country       String
+  currency      String   // "BDT" | "GBP"
+  timezone      String   // "Asia/Dhaka" | "Europe/London"
+  taxRegime     String   // "BD_INCOME_TAX" | "UK_PAYE"
+  workStartTime String   @default("09:00") // "HH:mm", office-local
+  workEndTime   String   @default("17:00") // "HH:mm", office-local
+  address       String?
+  phone         String?
+  email         String?
+  website       String?
+  logoUrl       String?
+  isActive      Boolean  @default(true)
+  isDefault     Boolean  @default(false) // the one permanent office that can never be deactivated
+  showOnClock   Boolean  @default(true) // whether this office's real-time clock appears on dashboards
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   departments    Department[]
   employees      Employee[]
@@ -45,7 +49,7 @@ model Office {
 model Department {
   id          String    @id @default(cuid())
   name        String
-  code        String    @unique
+  code        String
   description String?
   officeId    String
   managerId   String?
@@ -61,7 +65,7 @@ model Department {
   employees Employee[]
   jobTitles JobTitle[]
 
-  @@index([officeId])
+  @@unique([officeId, code])
 }
 
 model JobGrade {

@@ -9,11 +9,12 @@ import {
   type AttendanceRecord,
 } from '@/lib/api/hooks/useAttendance'
 import { useHolidays, type Holiday } from '@/lib/api/hooks/useHolidays'
+import { useOffices } from '@/lib/api/hooks/useReference'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
 import { Card, StatusBadge, Skeleton } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
-import { BD_SHIFT, UK_SHIFT, toOfficeTime, type ShiftConfig } from '@hr-system/utils'
+import { getOfficeShift, toOfficeTime } from '@hr-system/utils'
 import {
   LogIn,
   LogOut,
@@ -57,10 +58,6 @@ function Stat({
       </div>
     </Card>
   )
-}
-
-function shiftForOfficeCode(code?: string): ShiftConfig {
-  return code === 'BD' ? BD_SHIFT : UK_SHIFT
 }
 
 function fmtTime(iso: string | null): string {
@@ -133,7 +130,10 @@ function TodayCard() {
     day: 'numeric',
     month: 'long',
   })
-  const shift = shiftForOfficeCode(user?.officeCode)
+  const shift = getOfficeShift({
+    workStartTime: user?.officeWorkStartTime ?? '09:00',
+    workEndTime: user?.officeWorkEndTime ?? '17:00',
+  })
   const officeShiftLabel = `${fmtShiftTime(shift.startTime)} – ${fmtShiftTime(shift.endTime)}`
   const checkInTime = fmtTime(today?.checkIn ?? null)
   const checkOutTime = today?.checkOut ? fmtTime(today.checkOut) : null
@@ -503,14 +503,6 @@ function CheckInOutHistory() {
 
 // ── Holiday schedule table ─────────────────────────────────────────────────────
 
-type OfficeFilter = 'ALL' | 'BD' | 'UK'
-
-const OFFICE_FILTER_OPTS: { value: OfficeFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: 'BD', label: 'BD' },
-  { value: 'UK', label: 'UK' },
-]
-
 const OFFICE_BADGE: Record<string, string> = {
   BD: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
   UK: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
@@ -518,8 +510,10 @@ const OFFICE_BADGE: Record<string, string> = {
 
 function HolidaySchedule() {
   const year = new Date().getFullYear()
-  const [filter, setFilter] = useState<OfficeFilter>('ALL')
+  const [filter, setFilter] = useState('ALL')
   const { data: holidays = [], isLoading } = useHolidays(year)
+  const { data: offices = [] } = useOffices()
+  const showOfficeFilter = offices.length > 1
 
   const filtered =
     filter === 'ALL' ? holidays : holidays.filter((h: Holiday) => h.office?.code === filter)
@@ -531,23 +525,25 @@ function HolidaySchedule() {
           <CalendarDays className="h-4 w-4 text-primary" />
           <p className="text-sm font-semibold">Holiday Schedule {year}</p>
         </div>
-        {/* BD / UK / All filter */}
-        <div className="flex items-center rounded-lg border p-0.5 gap-0.5">
-          {OFFICE_FILTER_OPTS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFilter(opt.value)}
-              className={cn(
-                'rounded-md px-3 py-1 text-xs font-medium transition-colors',
-                filter === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        {/* Per-office filter — only meaningful with 2+ active offices */}
+        {showOfficeFilter && (
+          <div className="flex items-center rounded-lg border p-0.5 gap-0.5">
+            {[{ value: 'ALL', label: 'All' }, ...offices.map(o => ({ value: o.code, label: o.code }))].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setFilter(opt.value)}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                  filter === opt.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -579,7 +575,7 @@ function HolidaySchedule() {
                 <th className="pb-2 pr-4">Day</th>
                 <th className="pb-2 pr-4 text-center">Days</th>
                 <th className="pb-2 pr-4">Name of Holiday</th>
-                <th className="pb-2">Office</th>
+                {showOfficeFilter && <th className="pb-2">Office</th>}
               </tr>
             </thead>
             <tbody>
@@ -636,16 +632,18 @@ function HolidaySchedule() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5">
-                      <span
-                        className={cn(
-                          'rounded-md px-2 py-0.5 text-[10px] font-semibold',
-                          OFFICE_BADGE[h.office?.code] ?? 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {h.office?.code ?? '—'}
-                      </span>
-                    </td>
+                    {showOfficeFilter && (
+                      <td className="py-2.5">
+                        <span
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[10px] font-semibold',
+                            OFFICE_BADGE[h.office?.code] ?? 'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {h.office?.code ?? '—'}
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 )
               })

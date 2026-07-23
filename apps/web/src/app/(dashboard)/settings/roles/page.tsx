@@ -180,16 +180,18 @@ function PeopleList() {
           placeholder="Search by name, email or ID…"
           className="min-w-[220px] flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <select
-          value={officeId}
-          onChange={e => { setOfficeId(e.target.value); setPage(1) }}
-          className="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="">All Offices</option>
-          {offices.map(o => (
-            <option key={o.id} value={o.id}>{o.code}</option>
-          ))}
-        </select>
+        {offices.length > 1 && (
+          <select
+            value={officeId}
+            onChange={e => { setOfficeId(e.target.value); setPage(1) }}
+            className="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">All Offices</option>
+            {offices.map(o => (
+              <option key={o.id} value={o.id}>{o.code}</option>
+            ))}
+          </select>
+        )}
         <select
           value={roleFilter}
           onChange={e => setRoleFilter(e.target.value)}
@@ -212,7 +214,7 @@ function PeopleList() {
             <thead>
               <tr className="border-b text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 <th className="py-2 pl-1 text-left">Employee</th>
-                <th className="py-2 text-left">Office</th>
+                {offices.length > 1 && <th className="py-2 text-left">Office</th>}
                 <th className="py-2 text-left">Department</th>
                 <th className="py-2 text-left">Role</th>
                 <th className="py-2 text-left">Action</th>
@@ -230,7 +232,7 @@ function PeopleList() {
                       </div>
                     </div>
                   </td>
-                  <td className="py-2.5 text-xs text-muted-foreground">{emp.office.code}</td>
+                  {offices.length > 1 && <td className="py-2.5 text-xs text-muted-foreground">{emp.office.code}</td>}
                   <td className="py-2.5 text-xs text-muted-foreground">{emp.department?.name ?? '—'}</td>
                   <td className="py-2.5">
                     {emp.user?.role ? <RolePill role={emp.user.role} /> : <span className="text-xs text-muted-foreground">—</span>}

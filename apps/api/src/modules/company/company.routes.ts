@@ -1,5 +1,4 @@
 import { Router, type Request, type Response, type Router as RouterType } from 'express'
-import { z } from 'zod'
 import multer from 'multer'
 import { prisma } from '../../config/prisma'
 import { supabase } from '../../config/supabase'
@@ -9,6 +8,8 @@ import { validate } from '../../middleware/validate.middleware'
 import { sendSuccess, sendCreated, sendNotFound } from '../../utils/response'
 import { isAllowedImage, isAllowedImageOrPdf, ALLOWED_IMAGE_MESSAGE, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import { UserRole } from '@hr-system/types'
+import * as controller from './company.controller'
+import { createOfficeSchema, updateOfficeSchema } from './company.schemas'
 
 const router: RouterType = Router()
 router.use(authenticate)
@@ -18,28 +19,13 @@ const SA = requireRole(UserRole.SUPER_ADMIN)
 // multer: hold file in memory, max 20 MB
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
-const updateOfficeSchema = z.object({
-  name:    z.string().min(1).optional(),
-  address: z.string().optional(),
-  phone:   z.string().optional(),
-  email:   z.string().email().optional().or(z.literal('')),
-  website: z.string().optional(),
-  logoUrl: z.string().optional(),
-})
-
 // ─── Offices ──────────────────────────────────────────────────────────────────
 
-router.get('/offices', async (_req: Request, res: Response) => {
-  const offices = await prisma.office.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } })
-  sendSuccess(res, offices)
-})
-
-router.patch('/offices/:id', SA, validate(updateOfficeSchema), async (req: Request, res: Response) => {
-  const office = await prisma.office.findUnique({ where: { id: req.params.id } })
-  if (!office) return sendNotFound(res, 'Office not found')
-  const updated = await prisma.office.update({ where: { id: req.params.id }, data: req.body })
-  sendSuccess(res, updated)
-})
+router.get('/offices', controller.list)
+router.post('/offices', SA, validate(createOfficeSchema), controller.create)
+router.patch('/offices/:id', SA, validate(updateOfficeSchema), controller.update)
+router.patch('/offices/:id/deactivate', SA, controller.deactivate)
+router.patch('/offices/:id/reactivate', SA, controller.reactivate)
 
 // Upload logo image for an office (Super Admin only)
 router.post(
