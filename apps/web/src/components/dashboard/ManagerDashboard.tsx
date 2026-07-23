@@ -12,23 +12,8 @@ import { OfficeClock } from '@/components/dashboard/OfficeClock'
 import { cn } from '@/lib/utils'
 import { UserRole } from '@hr-system/types'
 import Link from 'next/link'
-import {
-  Users,
-  CalendarOff,
-  Clock,
-  Inbox,
-  ChevronRight,
-  type LucideIcon,
-} from 'lucide-react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts'
+import { Users, CalendarOff, Clock, Inbox, ChevronRight, type LucideIcon } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -50,13 +35,17 @@ export function ManagerDashboard() {
   const [officeFilter, setOfficeFilter] = useState('')
   useEffect(() => {
     if (officeFilter || !offices || offices.length === 0) return
-    const ownCode = user?.officeCode && offices.some(o => o.code === user.officeCode) ? user.officeCode : offices[0].code
+    const ownCode =
+      user?.officeCode && offices.some((o) => o.code === user.officeCode)
+        ? user.officeCode
+        : offices[0].code
     setOfficeFilter(ownCode)
   }, [offices, officeFilter, user?.officeCode])
 
-  const chartData = showOfficeFilter && officeFilter
-    ? (byDept ?? []).filter(d => d.officeCode === officeFilter)
-    : (byDept ?? [])
+  const chartData =
+    showOfficeFilter && officeFilter
+      ? (byDept ?? []).filter((d) => d.officeCode === officeFilter)
+      : (byDept ?? [])
 
   return (
     <div className="space-y-4">
@@ -64,7 +53,12 @@ export function ManagerDashboard() {
       <div className="flex flex-wrap items-center gap-4">
         <Card className="flex flex-1 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar firstName={user?.firstName ?? '?'} lastName={user?.lastName ?? '?'} url={user?.avatarUrl} size={48} />
+            <Avatar
+              firstName={user?.firstName ?? '?'}
+              lastName={user?.lastName ?? '?'}
+              url={user?.avatarUrl}
+              size={48}
+            />
             <div className="min-w-0">
               <h1 className="truncate text-xl font-semibold">Welcome back, {user?.firstName}</h1>
               <p className="truncate text-sm text-muted-foreground">
@@ -72,9 +66,9 @@ export function ManagerDashboard() {
               </p>
             </div>
           </div>
-          <span className="shrink-0 text-sm text-muted-foreground">
+          {/* <span className="shrink-0 text-sm text-muted-foreground">
             {MONTHS[now.getMonth()]} {now.getFullYear()}
-          </span>
+          </span> */}
         </Card>
         <OfficeClock />
       </div>
@@ -85,10 +79,27 @@ export function ManagerDashboard() {
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="grid grid-cols-2 gap-4">
-              <Stat icon={Users} label="Headcount" value={stats?.headcount ?? 0} tone="blue" href="/employees" />
-              <Stat icon={CalendarOff} label="On leave today" value={stats?.onLeaveToday ?? 0} tone="violet" />
+              <Stat
+                icon={Users}
+                label="Headcount"
+                value={stats?.headcount ?? 0}
+                tone="blue"
+                href="/employees"
+              />
+              <Stat
+                icon={CalendarOff}
+                label="On leave today"
+                value={stats?.onLeaveToday ?? 0}
+                tone="violet"
+              />
               <Stat icon={Clock} label="Late today" value={stats?.lateToday ?? 0} tone="rose" />
-              <Stat icon={Inbox} label="Pending leave" value={stats?.pendingLeaves ?? 0} tone="emerald" href="/approvals?tab=leave" />
+              <Stat
+                icon={Inbox}
+                label="Pending leave"
+                value={stats?.pendingLeaves ?? 0}
+                tone="emerald"
+                href="/approvals?tab=leave"
+              />
             </div>
             <RecentApprovalsCard />
           </div>
@@ -106,7 +117,7 @@ export function ManagerDashboard() {
                 </p>
                 {showOfficeFilter && (
                   <div className="flex items-center gap-0.5 rounded-lg border p-0.5">
-                    {offices!.map(o => (
+                    {offices!.map((o) => (
                       <button
                         key={o.code}
                         onClick={() => setOfficeFilter(o.code)}
@@ -150,7 +161,12 @@ export function ManagerDashboard() {
                       color: 'hsl(var(--popover-foreground))',
                     }}
                   />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                  <Bar
+                    dataKey="count"
+                    fill="hsl(var(--primary))"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={56}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -169,22 +185,31 @@ function ManagerDashboardSkeleton() {
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="flex items-center gap-4">
               <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
-              <div className="space-y-2"><Skeleton className="h-7 w-12" /><Skeleton className="h-3 w-20" /></div>
+              <div className="space-y-2">
+                <Skeleton className="h-7 w-12" />
+                <Skeleton className="h-3 w-20" />
+              </div>
             </Card>
           ))}
         </div>
         <Card className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
         </Card>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (
           <Card key={i} className="space-y-3">
-            {Array.from({ length: 3 }).map((_, j) => <Skeleton key={j} className="h-10 w-full" />)}
+            {Array.from({ length: 3 }).map((_, j) => (
+              <Skeleton key={j} className="h-10 w-full" />
+            ))}
           </Card>
         ))}
       </div>
-      <Card><Skeleton className="h-64 w-full" /></Card>
+      <Card>
+        <Skeleton className="h-64 w-full" />
+      </Card>
     </>
   )
 }
@@ -213,7 +238,12 @@ function Stat({
 }) {
   const inner = (
     <>
-      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-lg', TONES[tone])}>
+      <div
+        className={cn(
+          'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg',
+          TONES[tone]
+        )}
+      >
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">

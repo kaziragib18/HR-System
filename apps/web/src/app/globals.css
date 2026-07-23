@@ -185,6 +185,38 @@ input[type='password']::-ms-clear {
     --accent: 0 0% 15%; --accent-foreground: 0 0% 92%;
     --border: 0 0% 20%; --input: 0 0% 20%; --ring: 0 0% 75%;
   }
+
+  /* Auth routes (login, 2FA, forgot/reset password) render before there's a
+     session to read a saved theme from, and must look the same for every
+     visitor regardless of whatever variant was last active in this browser.
+     Re-declaring every variable here always wins over the inherited value
+     from :root/.dark/[data-theme] on <html>, no matter which of those is set,
+     because a property declared directly on this element is never inherited
+     in the first place — so it fully pins the subtree to the default light
+     palette. */
+  .auth-theme-lock {
+    color-scheme: light;
+    --background: 210 40% 98%;
+    --foreground: 222.2 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47% 11%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.65rem;
+  }
 }
 
 @layer base {

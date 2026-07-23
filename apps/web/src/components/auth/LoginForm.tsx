@@ -7,7 +7,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2, LogIn, Mail, Lock } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import { useAuthStore } from '@/store/auth.store'
 import type { LoginResponse } from '@hr-system/types'
@@ -75,37 +75,43 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <label className="text-sm font-medium" htmlFor="email">
           Email
         </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          {...register('email')}
-        />
+        <div className="relative">
+          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@company.com"
+            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-3 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-ring"
+            {...register('email')}
+          />
+        </div>
         {errors.email && (
           <p className="text-xs text-destructive">{errors.email.message}</p>
         )}
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium" htmlFor="password">
             Password
           </label>
-          <Link href="/forgot-password" className="text-xs text-muted-foreground underline underline-offset-2">
+          <Link href="/forgot-password" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
             Forgot password?
           </Link>
         </div>
         <div className="relative">
+          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
-            className="w-full rounded-md border bg-background px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="••••••••"
+            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-10 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-ring"
             {...register('password')}
           />
           <button
@@ -124,7 +130,7 @@ export function LoginForm() {
       </div>
 
       {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -132,9 +138,17 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
+        {isSubmitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
+          </>
+        ) : (
+          <>
+            <LogIn className="h-4 w-4" /> Sign in
+          </>
+        )}
       </button>
     </form>
   )
