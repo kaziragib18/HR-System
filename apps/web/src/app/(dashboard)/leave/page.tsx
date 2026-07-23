@@ -15,7 +15,7 @@ import {
 } from '@/lib/api/hooks/useLeave'
 import { useHolidays } from '@/lib/api/hooks/useHolidays'
 import { useAuthStore } from '@/store/auth.store'
-import { Card, StatusBadge, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
+import { Card, StatusBadge, Skeleton, SubmitOverlay, PageHeader } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import {
   Plus,
@@ -349,19 +349,18 @@ export default function LeavePage() {
   return (
     <>
       <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">My Leave</h1>
-          <p className="text-sm text-muted-foreground">Balances, applications and history</p>
-        </div>
-        <button
-          onClick={openApply}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> Apply for Leave
-        </button>
-      </div>
+      <PageHeader
+        title="My Leave"
+        description="Balances, applications and history"
+        action={
+          <button
+            onClick={openApply}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> Apply for Leave
+          </button>
+        }
+      />
 
       {/* Leave Balances */}
       <Card>

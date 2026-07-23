@@ -10,7 +10,7 @@ import {
   type PayrollRun,
 } from '@/lib/api/hooks/usePayroll'
 import { MarkPaidModal } from '@/components/payroll/MarkPaidModal'
-import { Card, StatusBadge, EmptyState, Skeleton, SubmitOverlay } from '@/components/ui/primitives'
+import { Card, StatusBadge, EmptyState, Skeleton, SubmitOverlay, PageHeader } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { UserRole } from '@hr-system/types'
 import { cn } from '@/lib/utils'
@@ -211,18 +211,18 @@ export default function PayrollPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Payroll</h1>
-          <p className="text-sm text-muted-foreground">Manage monthly payroll runs and approvals</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> New Run
-        </button>
-      </div>
+      <PageHeader
+        title="Payroll"
+        description="Manage monthly payroll runs and approvals"
+        action={
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> New Run
+          </button>
+        }
+      />
 
       {/* Summary stats */}
       <div className="grid grid-cols-3 gap-3">

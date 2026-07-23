@@ -11,7 +11,7 @@ import {
 import { useHolidays, type Holiday } from '@/lib/api/hooks/useHolidays'
 import { useOffices } from '@/lib/api/hooks/useReference'
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar'
-import { Card, StatusBadge, Skeleton } from '@/components/ui/primitives'
+import { Card, StatusBadge, Skeleton, PageHeader } from '@/components/ui/primitives'
 import { useAuthStore } from '@/store/auth.store'
 import { cn } from '@/lib/utils'
 import { getOfficeShift, toOfficeTime } from '@hr-system/utils'
@@ -676,33 +676,30 @@ export default function AttendancePage() {
   const totalHrs = records.reduce((s: number, r: AttendanceRecord) => s + r.workingMinutes, 0)
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Attendance</h1>
-        <p className="text-sm text-muted-foreground">
-          Your monthly overview, daily check-in/out and holiday schedule
-        </p>
+    <div>
+      <PageHeader title="Attendance" description="Your monthly overview, daily check-in/out and holiday schedule" />
+
+      <div className="space-y-4">
+        {/* Row 1: Today card + Check-in/out history — equal height via CSS grid stretch */}
+        <div className="grid gap-4 md:grid-cols-2 items-stretch">
+          <TodayCard />
+          <CheckInOutHistory />
+        </div>
+
+        {/* Row 2: Month stats strip */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat icon={CheckCircle2} label="Present" value={present} tone="emerald" />
+          <Stat icon={Clock} label="Late" value={late} tone="amber" />
+          <Stat icon={XCircle} label="Absent" value={absent} tone="rose" />
+          <Stat icon={Timer} label="Total hours" value={fmtMinutes(totalHrs)} tone="blue" />
+        </div>
+
+        {/* Row 3: Attendance calendar with hover popups */}
+        <AttendanceCalendar />
+
+        {/* Row 4: Holiday schedule */}
+        <HolidaySchedule />
       </div>
-
-      {/* Row 1: Today card + Check-in/out history — equal height via CSS grid stretch */}
-      <div className="grid gap-4 md:grid-cols-2 items-stretch">
-        <TodayCard />
-        <CheckInOutHistory />
-      </div>
-
-      {/* Row 2: Month stats strip */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat icon={CheckCircle2} label="Present" value={present} tone="emerald" />
-        <Stat icon={Clock} label="Late" value={late} tone="amber" />
-        <Stat icon={XCircle} label="Absent" value={absent} tone="rose" />
-        <Stat icon={Timer} label="Total hours" value={fmtMinutes(totalHrs)} tone="blue" />
-      </div>
-
-      {/* Row 3: Attendance calendar with hover popups */}
-      <AttendanceCalendar />
-
-      {/* Row 4: Holiday schedule */}
-      <HolidaySchedule />
     </div>
   )
 }

@@ -144,13 +144,13 @@ export function NewEmployeeModal({ onClose }: { onClose: () => void }) {
             <div className="mt-6 flex gap-2">
               <button
                 onClick={onClose}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Back to employees
               </button>
               <button
                 onClick={addAnother}
-                className="rounded-md border px-4 py-2 text-sm hover:bg-muted"
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-muted"
               >
                 Add another
               </button>
@@ -306,7 +306,7 @@ export function NewEmployeeModal({ onClose }: { onClose: () => void }) {
                         type="button"
                         onClick={handleAddTitle}
                         disabled={!newTitleName.trim() || createJobTitle.isPending}
-                        className="shrink-0 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        className="shrink-0 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                       >
                         {createJobTitle.isPending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -392,7 +392,7 @@ export function NewEmployeeModal({ onClose }: { onClose: () => void }) {
                 type="submit"
                 form="new-employee-form"
                 disabled={isPending}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isPending ? 'Creating…' : 'Create employee'}
@@ -401,7 +401,7 @@ export function NewEmployeeModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={onClose}
                 disabled={isPending}
-                className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
               >
                 Cancel
               </button>

@@ -19,7 +19,7 @@ import {
   useOffices,
 } from '@/lib/api/hooks/useReference'
 import { useAuthStore } from '@/store/auth.store'
-import { Card, Spinner, Avatar, SubmitOverlay } from '@/components/ui/primitives'
+import { Card, Spinner, Avatar, SubmitOverlay, PageHeader } from '@/components/ui/primitives'
 import { SidePanel } from '@/components/ui/side-panel'
 import { Tabs } from '@/components/ui/tabs'
 import { UserRole } from '@hr-system/types'
@@ -480,7 +480,7 @@ function DeptDetailPanel({
                   <button
                     type="submit"
                     disabled={!newTitleName.trim() || createTitle.isPending}
-                    className="flex min-w-[52px] items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="flex min-w-[52px] items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {createTitle.isPending ? (
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -902,12 +902,12 @@ function NewDepartmentModal({ defaultOfficeId, onClose }: { defaultOfficeId: str
               <button
                 type="submit"
                 disabled={!name.trim() || !code.trim() || isPending}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isPending ? 'Creating…' : 'Create Department'}
               </button>
-              <button type="button" onClick={onClose} disabled={isPending} className="rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+              <button type="button" onClick={onClose} disabled={isPending} className="rounded-lg border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
                 Cancel
               </button>
             </div>
@@ -964,22 +964,21 @@ export default function DepartmentsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Departments</h1>
-          <p className="text-sm text-muted-foreground">Organisational structure and designations</p>
-        </div>
-        {canManage && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            New Department
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Departments"
+        description="Organisational structure and designations"
+        action={
+          canManage && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              New Department
+            </button>
+          )
+        }
+      />
 
       {/* Office tabs — SUPER_ADMIN only, when 2+ offices exist */}
       {showOfficeTabs && offices && activeOfficeId && (

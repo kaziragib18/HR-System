@@ -41,6 +41,7 @@ import {
   FileSpreadsheet,
   Presentation,
   UploadCloud,
+  Lock,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -122,12 +123,13 @@ function docTypeMeta(mimeType?: string | null): { icon: typeof FileText; classNa
 /** A text input with a small leading icon, for fields that benefit from a quick visual scan. */
 function IconInput({
   icon: Icon,
+  className,
   ...props
 }: { icon: typeof Globe } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="relative">
       <Icon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-      <input {...props} className={iconFieldCls} />
+      <input {...props} className={cn(iconFieldCls, className)} />
     </div>
   )
 }
@@ -301,21 +303,21 @@ function OfficeForm({ office }: { office: Office }) {
           <div>
             <label className={labelCls}>Currency</label>
             <IconInput
-              icon={Banknote}
-              list="currency-options"
+              icon={Lock}
               value={form.currency}
-              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))}
-              placeholder="e.g. USD"
+              readOnly
+              title="Currency can't be changed after the office is created — it's already tied to existing payroll and salary records."
+              className="bg-muted/40 text-muted-foreground"
             />
           </div>
           <div>
             <label className={labelCls}>Timezone</label>
             <IconInput
-              icon={Globe}
-              list="timezone-options"
+              icon={Lock}
               value={form.timezone}
-              onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-              placeholder="e.g. America/New_York"
+              readOnly
+              title="Timezone can't be changed after the office is created — it's already tied to existing attendance records."
+              className="bg-muted/40 text-muted-foreground"
             />
           </div>
         </div>
@@ -457,7 +459,7 @@ function OfficeForm({ office }: { office: Office }) {
         <button
           type="submit"
           disabled={update.isPending || !isDirty}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {saved ? (
             <>
@@ -1155,9 +1157,9 @@ export function CompanyPanel() {
           </div>
           <button
             onClick={() => setShowAddOffice(true)}
-            className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
             Add Office
           </button>
         </div>

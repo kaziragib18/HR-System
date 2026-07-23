@@ -516,7 +516,7 @@ export default function EmployeesPage() {
           canEdit && (
             <button
               onClick={() => setShowNewEmployee(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" /> Add employee
             </button>
@@ -592,7 +592,7 @@ export default function EmployeesPage() {
             ) : canEdit ? (
               <button
                 onClick={() => setShowNewEmployee(true)}
-                className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4" /> Add employee
               </button>

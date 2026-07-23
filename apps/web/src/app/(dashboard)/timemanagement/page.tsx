@@ -879,7 +879,7 @@ export default function TimeManagementPage() {
               <ArrowLeft className="h-3 w-3" /> All employees
             </button>
           )}
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-2xl font-semibold">
             Time Management
             {effectiveSelectedEmp && !showMine && (
               <span className="ml-2 font-normal text-muted-foreground">
@@ -887,7 +887,7 @@ export default function TimeManagementPage() {
               </span>
             )}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {showMine
               ? 'Your monthly attendance records'
               : showDetail

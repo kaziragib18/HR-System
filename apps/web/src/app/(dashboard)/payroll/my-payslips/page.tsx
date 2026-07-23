@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useMyPayslips, type PayrollEntry, type TaxSlab } from '@/lib/api/hooks/usePayroll'
-import { Card, StatusBadge, EmptyState, Skeleton } from '@/components/ui/primitives'
+import { Card, StatusBadge, EmptyState, Skeleton, PageHeader } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight, Wallet, TrendingUp, FileStack, X } from 'lucide-react'
 
@@ -147,10 +147,7 @@ export default function MyPayslipsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">My Payslips</h1>
-        <p className="text-sm text-muted-foreground">Your salary history and tax breakdowns</p>
-      </div>
+      <PageHeader title="My Payslips" description="Your salary history and tax breakdowns" />
 
       {/* Stats */}
       {isLoading ? (

@@ -231,10 +231,10 @@ export default function PayrollRunPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{MONTHS[run.month - 1]} {run.year}</h1>
+              <h1 className="text-2xl font-semibold">{MONTHS[run.month - 1]} {run.year}</h1>
               <StatusBadge status={run.status} />
             </div>
-            <p className="text-sm text-muted-foreground">{run.office.name} · {run.employeeCount} employees</p>
+            <p className="mt-1 text-sm text-muted-foreground">{run.office.name} · {run.employeeCount} employees</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

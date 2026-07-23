@@ -220,7 +220,7 @@ function ChangePasswordCard() {
               <button
                 type="submit"
                 disabled={isPending || !requirementsMet}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isPending ? 'Saving…' : 'Update password'}
@@ -345,7 +345,7 @@ function TwoFactorCard() {
             <button
               onClick={startSetup}
               disabled={setup.isPending}
-              className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {setup.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {setup.isPending ? 'Loading…' : 'Set up'}
@@ -394,7 +394,7 @@ function TwoFactorCard() {
                   <button
                     onClick={confirmEnable}
                     disabled={code.length !== 6 || enable.isPending}
-                    className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {enable.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {enable.isPending ? 'Verifying…' : 'Enable'}

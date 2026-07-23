@@ -216,7 +216,7 @@ function DayDetailPanel({
                     <button
                       onClick={handleSubmitExcuse}
                       disabled={!excuse.trim() || submitExcuse.isPending}
-                      className="flex-1 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                      className="flex-1 rounded-lg bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
                     >
                       {submitExcuse.isPending ? 'Sending…' : 'Send'}
                     </button>
