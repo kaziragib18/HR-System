@@ -9,6 +9,7 @@ import {
   useRejectLeave,
   useApproveCancelLeave,
   useRejectCancelLeave,
+  useLeaveAttachmentUrl,
 } from '@/lib/api/hooks/useLeave'
 import type { LeaveApplication, LeaveApprovalHistory } from '@/lib/api/hooks/useLeave'
 import { usePendingExcuses, useReviewExcuse, usePendingAdjustments, useReviewAdjustment } from '@/lib/api/hooks/useAttendance'
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils'
 import {
   CalendarDays, CheckCircle2, XCircle, Clock, Undo2,
   AlertCircle, Building2, History, ArrowRight, Quote, UserCheck,
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Paperclip,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -360,6 +361,23 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
     : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
   const typeChip = LEAVE_TYPE_CHIP[app.leaveType?.code ?? ''] ?? 'bg-primary/10 text-primary'
 
+  const attachmentUrl = useLeaveAttachmentUrl()
+  const [viewingAttachment, setViewingAttachment] = useState(false)
+  const [attachmentError, setAttachmentError] = useState('')
+
+  async function handleViewAttachment() {
+    setAttachmentError('')
+    setViewingAttachment(true)
+    try {
+      const url = await attachmentUrl.mutateAsync(app.id)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setAttachmentError('Could not open attachment. Please try again.')
+    } finally {
+      setViewingAttachment(false)
+    }
+  }
+
   return (
     <div className={cn(
       'overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md',
@@ -426,6 +444,25 @@ function LeaveCard({ app, onApprove, onReject, approveLabel, approveVariant, app
             <p className="text-sm text-muted-foreground">{app.reason}</p>
           </div>
         )}
+
+        {/* Attachment */}
+        {app.attachmentPath && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate text-sm text-muted-foreground">Attachment</span>
+            </div>
+            <button
+              onClick={handleViewAttachment}
+              disabled={viewingAttachment}
+              className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              {viewingAttachment ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              View
+            </button>
+          </div>
+        )}
+        {attachmentError && <p className="text-xs text-destructive">{attachmentError}</p>}
 
         {/* Cancel note */}
         {cancelNote && (

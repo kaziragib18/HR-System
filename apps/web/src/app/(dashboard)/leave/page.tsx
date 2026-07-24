@@ -7,6 +7,7 @@ import {
   useMyLeaveApplications,
   useApplyLeave,
   useUploadLeaveAttachment,
+  useLeaveAttachmentUrl,
   useCancelLeave,
   useUpdateCancelReason,
   type LeaveType,
@@ -33,6 +34,8 @@ import {
   Undo2,
   Inbox,
   Loader2,
+  Paperclip,
+  XCircle,
 } from 'lucide-react'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -71,8 +74,16 @@ function pageWindow(current: number, total: number): (number | '…')[] {
   return out
 }
 
-function StatusChip({ label, count, active, onClick }: {
-  label: string; count: number; active: boolean; onClick: () => void
+function StatusChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
 }) {
   return (
     <button
@@ -85,7 +96,9 @@ function StatusChip({ label, count, active, onClick }: {
       )}
     >
       {label}
-      <span className={cn(active ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>{count}</span>
+      <span className={cn(active ? 'text-primary-foreground/80' : 'text-muted-foreground/70')}>
+        {count}
+      </span>
     </button>
   )
 }
@@ -156,13 +169,38 @@ export default function LeavePage() {
   const { data: holidays = [] } = useHolidays(year)
   const apply = useApplyLeave()
   const uploadFile = useUploadLeaveAttachment()
+  const attachmentUrl = useLeaveAttachmentUrl()
   const cancel = useCancelLeave()
   const updateCancelReason = useUpdateCancelReason()
+
+  // ── Applications list: view attachment ──────────────────────────────
+  const [viewingAttachmentId, setViewingAttachmentId] = useState<string | null>(null)
+  const [attachmentError, setAttachmentError] = useState<{ id: string; message: string } | null>(
+    null
+  )
+
+  async function handleViewAttachment(applicationId: string) {
+    setAttachmentError(null)
+    setViewingAttachmentId(applicationId)
+    try {
+      const url = await attachmentUrl.mutateAsync(applicationId)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setAttachmentError({
+        id: applicationId,
+        message: 'Could not open attachment. Please try again.',
+      })
+    } finally {
+      setViewingAttachmentId(null)
+    }
+  }
 
   // ── Applications list: status filter + pagination ──────────────────
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [appPage, setAppPage] = useState(1)
-  useEffect(() => { setAppPage(1) }, [statusFilter])
+  useEffect(() => {
+    setAppPage(1)
+  }, [statusFilter])
 
   // ── Apply modal state ──────────────────────────────────────────────
   const [showApply, setShowApply] = useState(false)
@@ -192,10 +230,16 @@ export default function LeavePage() {
 
   // Public holidays for the caller's own office, as a date -> name map.
   const holidayByDate = new Map(
-    holidays.filter((h) => h.office?.code === user?.officeCode).map((h) => [h.date.slice(0, 10), h.name])
+    holidays
+      .filter((h) => h.office?.code === user?.officeCode)
+      .map((h) => [h.date.slice(0, 10), h.name])
   )
   const holidaySet = new Set(holidayByDate.keys())
-  const days = isHalfDay ? (startDate ? 0.5 : 0) : workingDaysBetween(startDate, effectiveEnd, holidaySet)
+  const days = isHalfDay
+    ? startDate
+      ? 0.5
+      : 0
+    : workingDaysBetween(startDate, effectiveEnd, holidaySet)
 
   // Warn (not block) when a chosen date lands on a weekend or public holiday —
   // those days aren't counted, so it's usually an accidental pick.
@@ -206,7 +250,8 @@ export default function LeavePage() {
     return null
   }
   const startNote = startDate ? dayNote(startDate) : null
-  const endNote = !isHalfDay && effectiveEnd && effectiveEnd !== startDate ? dayNote(effectiveEnd) : null
+  const endNote =
+    !isHalfDay && effectiveEnd && effectiveEnd !== startDate ? dayNote(effectiveEnd) : null
 
   // Only sick leave (code SL) allows selecting past dates for emergency applications
   const allowPastDates = selectedType?.code === 'SL'
@@ -342,350 +387,413 @@ export default function LeavePage() {
     (s) => s === 'ALL' || (statusCounts[s] ?? 0) > 0
   )
   const filteredApps =
-    statusFilter === 'ALL' ? applications : applications.filter((a: LeaveApplication) => a.status === statusFilter)
+    statusFilter === 'ALL'
+      ? applications
+      : applications.filter((a: LeaveApplication) => a.status === statusFilter)
   const appTotalPages = Math.max(1, Math.ceil(filteredApps.length / APP_PAGE_SIZE))
   const pagedApps = filteredApps.slice((appPage - 1) * APP_PAGE_SIZE, appPage * APP_PAGE_SIZE)
 
   return (
     <>
       <div className="space-y-4">
-      <PageHeader
-        title="My Leave"
-        description="Balances, applications and history"
-        action={
-          <button
-            onClick={openApply}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" /> Apply for Leave
-          </button>
-        }
-      />
+        <PageHeader
+          title="My Leave"
+          description="Balances, applications and history"
+          action={
+            <button
+              onClick={openApply}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" /> Apply for Leave
+            </button>
+          }
+        />
 
-      {/* Leave Balances */}
-      <Card>
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Leave balance · {year}
-        </p>
-        {balLoading ? (
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <div className="flex items-baseline justify-between">
-                  <Skeleton className="h-3 w-20" />
-                  <Skeleton className="h-3 w-10" />
+        {/* Leave Balances */}
+        <Card>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Leave balance · {year}
+          </p>
+          {balLoading ? (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-3 w-10" />
+                  </div>
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                  <Skeleton className="h-2.5 w-16" />
                 </div>
-                <Skeleton className="h-1.5 w-full rounded-full" />
-                <Skeleton className="h-2.5 w-16" />
-              </div>
-            ))}
-          </div>
-        ) : balances.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-              <Coins className="h-4 w-4 text-muted-foreground" />
+              ))}
             </div>
-            <p className="text-sm text-muted-foreground">No leave balances configured.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
-            {balances.map((b: LeaveBalance) => {
-              const entitled = Number(b.entitled)
-              const taken = Number(b.taken)
-              const pending = Number(b.pending)
-              const color = LEAVE_COLORS[b.leaveType.code] ?? 'bg-primary'
-              // A leave type with no fixed allowance (e.g. Compensatory Leave)
-              // isn't a quota — show the running count of days taken instead of
-              // a remaining-vs-entitled bar (which would read as negative).
-              const trackingOnly = entitled === 0
-              if (trackingOnly) {
+          ) : balances.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-6 text-center">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+                <Coins className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">No leave balances configured.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-3">
+              {balances.map((b: LeaveBalance) => {
+                const entitled = Number(b.entitled)
+                const taken = Number(b.taken)
+                const pending = Number(b.pending)
+                const color = LEAVE_COLORS[b.leaveType.code] ?? 'bg-primary'
+                // A leave type with no fixed allowance (e.g. Compensatory Leave)
+                // isn't a quota — show the running count of days taken instead of
+                // a remaining-vs-entitled bar (which would read as negative).
+                const trackingOnly = entitled === 0
+                if (trackingOnly) {
+                  return (
+                    <div key={b.id}>
+                      <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                        <span className="truncate font-medium">{b.leaveType.name}</span>
+                        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                          {taken} taken
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn('h-full rounded-full transition-all', color)}
+                          style={{ width: taken + pending > 0 ? '100%' : '0%' }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                        <span>No fixed allowance</span>
+                        {pending > 0 && (
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {pending} pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+                const remaining = entitled - taken - pending
+                const pct = entitled > 0 ? Math.min(100, ((taken + pending) / entitled) * 100) : 0
                 return (
                   <div key={b.id}>
                     <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                       <span className="truncate font-medium">{b.leaveType.name}</span>
                       <span className="shrink-0 whitespace-nowrap text-muted-foreground">
-                        {taken} taken
+                        {taken + pending} / {entitled}
                       </span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn('h-full rounded-full transition-all', color)}
-                        style={{ width: taken + pending > 0 ? '100%' : '0%' }}
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                     <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-                      <span>No fixed allowance</span>
+                      <span>{remaining} remaining</span>
                       {pending > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400">{pending} pending</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              }
-              const remaining = entitled - taken - pending
-              const pct = entitled > 0 ? Math.min(100, ((taken + pending) / entitled) * 100) : 0
-              return (
-                <div key={b.id}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                    <span className="truncate font-medium">{b.leaveType.name}</span>
-                    <span className="shrink-0 whitespace-nowrap text-muted-foreground">
-                      {taken + pending} / {entitled}
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn('h-full rounded-full transition-all', color)}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-                    <span>{remaining} remaining</span>
-                    {pending > 0 && (
-                      <span className="text-amber-600 dark:text-amber-400">{pending} pending</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-        <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Coins className="h-3.5 w-3.5" />
-          Annual leave encashment available — contact HR for details
-        </div>
-      </Card>
-
-      {/* Applications List */}
-      <Card>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            My applications
-          </p>
-          <button
-            onClick={openApply}
-            className="flex items-center gap-1 text-xs font-medium text-primary"
-          >
-            <Plus className="h-3 w-3" /> New
-          </button>
-        </div>
-
-        {!appLoading && applications.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {presentStatuses.map((s) => (
-              <StatusChip
-                key={s}
-                label={STATUS_LABEL[s]}
-                count={s === 'ALL' ? applications.length : statusCounts[s] ?? 0}
-                active={statusFilter === s}
-                onClick={() => setStatusFilter(s)}
-              />
-            ))}
-          </div>
-        )}
-
-        {appLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="space-y-2 rounded-xl border p-4">
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-5 w-14 rounded-full" />
-                </div>
-                <Skeleton className="h-8 w-full rounded-lg" />
-              </div>
-            ))}
-          </div>
-        ) : applications.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-              <Inbox className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-sm text-muted-foreground">No leave applications yet.</p>
-          </div>
-        ) : filteredApps.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No {STATUS_LABEL[statusFilter].toLowerCase()} applications.
-          </p>
-        ) : (
-          <>
-            <div className="space-y-3">
-              {pagedApps.map((app: LeaveApplication) => {
-                const days = Number(app.totalDays)
-                const sameDay = app.startDate.slice(0, 10) === app.endDate.slice(0, 10)
-                const isCancelFlow = app.status === 'CANCEL_REQUESTED' || app.status === 'CANCELLED'
-                const typeChip = LEAVE_TYPE_CHIP[app.leaveType?.code ?? ''] ?? 'bg-primary/10 text-primary'
-                return (
-                  <div
-                    key={app.id}
-                    className={cn(
-                      'overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md',
-                      isCancelFlow ? 'border-l-orange-500' : 'border-l-blue-500'
-                    )}
-                  >
-                    {/* Header: type chip + day-count hero */}
-                    <div className="flex items-start justify-between gap-3 px-4 pt-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold',
-                            typeChip
-                          )}
-                        >
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          {app.leaveType?.name}
+                        <span className="text-amber-600 dark:text-amber-400">
+                          {pending} pending
                         </span>
-                        <span className="text-xs text-muted-foreground">Applied {fmtDate(app.createdAt)}</span>
-                      </div>
-                      <div className="shrink-0 rounded-lg bg-muted/60 px-3 py-1.5 text-center">
-                        <p className="text-xl font-bold leading-none tabular-nums">{days}</p>
-                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {days === 1 ? 'day' : 'days'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    <div className="space-y-2.5 px-4 py-4">
-                      {/* Date range timeline */}
-                      {sameDay ? (
-                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-                          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          <span className="font-medium">{fmtDate(app.startDate)}</span>
-                          <span className="text-xs text-muted-foreground">· single day</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From</p>
-                            <p className="truncate text-sm font-medium">{fmtDate(app.startDate)}</p>
-                          </div>
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">To</p>
-                            <p className="truncate text-sm font-medium">{fmtDate(app.endDate)}</p>
-                          </div>
-                        </div>
                       )}
-
-                      {/* Reason */}
-                      {app.reason && (
-                        <div className="rounded-lg bg-muted/50 px-3 py-2">
-                          <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            <Quote className="h-3 w-3" /> Reason
-                          </p>
-                          <p className="text-sm text-muted-foreground">{app.reason}</p>
-                        </div>
-                      )}
-
-                      {/* Cancel reason (with edit while still awaiting approval) */}
-                      {app.status === 'CANCEL_REQUESTED' && app.cancelReason && (
-                        <div className="flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/30 dark:bg-orange-500/10">
-                          <Undo2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
-                          <p className="flex-1 text-sm text-orange-700 dark:text-orange-300">
-                            <span className="font-medium">Cancel reason: </span>
-                            {app.cancelReason}
-                          </p>
-                          <button
-                            onClick={() => {
-                              setEditReasonModal({ id: app.id, currentReason: app.cancelReason! })
-                              setEditReasonText(app.cancelReason!)
-                            }}
-                            className="shrink-0 rounded p-0.5 text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-900/30"
-                            title="Edit cancel reason"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Footer: status + actions */}
-                      <div className="flex items-center justify-between gap-2 border-t pt-2.5">
-                        <StatusBadge status={app.status} />
-                        <div className="flex items-center gap-3">
-                          {app.status === 'PENDING' && (
-                            <button
-                              onClick={() =>
-                                setPendingCancelConfirm({
-                                  id: app.id,
-                                  leaveName: app.leaveType?.name ?? 'leave',
-                                })
-                              }
-                              disabled={cancel.isPending}
-                              className="text-xs font-medium text-muted-foreground hover:text-destructive disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                          {app.status === 'APPROVED' && app.startDate.slice(0, 10) > today && (
-                            <button
-                              onClick={() => {
-                                setCancelModal({ id: app.id, leaveName: app.leaveType?.name ?? 'leave' })
-                                setCancelReason('')
-                              }}
-                              disabled={cancel.isPending}
-                              className="text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 disabled:opacity-50"
-                            >
-                              Request Cancellation
-                            </button>
-                          )}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )
               })}
             </div>
+          )}
+          <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Coins className="h-3.5 w-3.5" />
+            Annual leave encashment available — contact HR for details
+          </div>
+        </Card>
 
-            {/* Pagination */}
-            {appTotalPages > 1 && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">
-                  {filteredApps.length} application{filteredApps.length !== 1 ? 's' : ''} · page {appPage} of {appTotalPages}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    disabled={appPage <= 1}
-                    onClick={() => setAppPage((p) => p - 1)}
-                    className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  {pageWindow(appPage, appTotalPages).map((p, i) =>
-                    p === '…' ? (
-                      <span key={`e${i}`} className="px-1 text-muted-foreground">…</span>
-                    ) : (
-                      <button
-                        key={p}
-                        onClick={() => setAppPage(p as number)}
-                        className={cn(
-                          'min-w-8 rounded-md border px-2.5 py-1',
-                          p === appPage ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted'
-                        )}
-                      >
-                        {p}
-                      </button>
-                    )
-                  )}
-                  <button
-                    disabled={appPage >= appTotalPages}
-                    onClick={() => setAppPage((p) => p + 1)}
-                    className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
-                  >
-                    Next
-                  </button>
+        {/* Applications List */}
+        <Card>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              My applications
+            </p>
+            <button
+              onClick={openApply}
+              className="flex items-center gap-1 text-xs font-medium text-primary"
+            >
+              <Plus className="h-3 w-3" /> New
+            </button>
+          </div>
+
+          {!appLoading && applications.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {presentStatuses.map((s) => (
+                <StatusChip
+                  key={s}
+                  label={STATUS_LABEL[s]}
+                  count={s === 'ALL' ? applications.length : (statusCounts[s] ?? 0)}
+                  active={statusFilter === s}
+                  onClick={() => setStatusFilter(s)}
+                />
+              ))}
+            </div>
+          )}
+
+          {appLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2 rounded-xl border p-4">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </div>
+                  <Skeleton className="h-8 w-full rounded-lg" />
                 </div>
+              ))}
+            </div>
+          ) : applications.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+                <Inbox className="h-4 w-4 text-muted-foreground" />
               </div>
-            )}
-          </>
-        )}
-      </Card>
+              <p className="text-sm text-muted-foreground">No leave applications yet.</p>
+            </div>
+          ) : filteredApps.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No {STATUS_LABEL[statusFilter].toLowerCase()} applications.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {pagedApps.map((app: LeaveApplication) => {
+                  const days = Number(app.totalDays)
+                  const sameDay = app.startDate.slice(0, 10) === app.endDate.slice(0, 10)
+                  const isCancelFlow =
+                    app.status === 'CANCEL_REQUESTED' || app.status === 'CANCELLED'
+                  const typeChip =
+                    LEAVE_TYPE_CHIP[app.leaveType?.code ?? ''] ?? 'bg-primary/10 text-primary'
+                  return (
+                    <div
+                      key={app.id}
+                      className={cn(
+                        'overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md',
+                        isCancelFlow ? 'border-l-orange-500' : 'border-l-blue-500'
+                      )}
+                    >
+                      {/* Header: type chip + day-count hero */}
+                      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold',
+                              typeChip
+                            )}
+                          >
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            {app.leaveType?.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Applied {fmtDate(app.createdAt)}
+                          </span>
+                        </div>
+                        <div className="shrink-0 rounded-lg bg-muted/60 px-3 py-1.5 text-center">
+                          <p className="text-xl font-bold leading-none tabular-nums">{days}</p>
+                          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {days === 1 ? 'day' : 'days'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div className="space-y-2.5 px-4 py-4">
+                        {/* Date range timeline */}
+                        {sameDay ? (
+                          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="font-medium">{fmtDate(app.startDate)}</span>
+                            <span className="text-xs text-muted-foreground">· single day</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                From
+                              </p>
+                              <p className="truncate text-sm font-medium">
+                                {fmtDate(app.startDate)}
+                              </p>
+                            </div>
+                            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                To
+                              </p>
+                              <p className="truncate text-sm font-medium">{fmtDate(app.endDate)}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Reason */}
+                        {app.reason && (
+                          <div className="rounded-lg bg-muted/50 px-3 py-2">
+                            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              <Quote className="h-3 w-3" /> Reason
+                            </p>
+                            <p className="text-sm text-muted-foreground">{app.reason}</p>
+                          </div>
+                        )}
+
+                        {/* Rejection reason (from the approver — separate from the employee's own submitted Reason above) */}
+                        {app.status === 'REJECTED' && app.rejectionReason && (
+                          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800/30 dark:bg-red-500/10">
+                            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600 dark:text-red-400" />
+                            <p className="flex-1 text-sm text-red-700 dark:text-red-300">
+                              <span className="font-medium">Rejection reason: </span>
+                              {app.rejectionReason}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Cancel reason (with edit while still awaiting approval) */}
+                        {app.status === 'CANCEL_REQUESTED' && app.cancelReason && (
+                          <div className="flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/30 dark:bg-orange-500/10">
+                            <Undo2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
+                            <p className="flex-1 text-sm text-orange-700 dark:text-orange-300">
+                              <span className="font-medium">Cancel reason: </span>
+                              {app.cancelReason}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setEditReasonModal({ id: app.id, currentReason: app.cancelReason! })
+                                setEditReasonText(app.cancelReason!)
+                              }}
+                              className="shrink-0 rounded p-0.5 text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                              title="Edit cancel reason"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Attachment */}
+                        {app.attachmentPath && (
+                          <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span className="truncate text-sm text-muted-foreground">
+                                Attachment
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleViewAttachment(app.id)}
+                              disabled={viewingAttachmentId === app.id}
+                              className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                            >
+                              {viewingAttachmentId === app.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : null}
+                              View
+                            </button>
+                          </div>
+                        )}
+                        {attachmentError?.id === app.id && (
+                          <p className="text-xs text-destructive">{attachmentError.message}</p>
+                        )}
+
+                        {/* Footer: status + actions */}
+                        <div className="flex items-center justify-between gap-2 border-t pt-2.5">
+                          <StatusBadge status={app.status} />
+                          <div className="flex items-center gap-3">
+                            {app.status === 'PENDING' && (
+                              <button
+                                onClick={() =>
+                                  setPendingCancelConfirm({
+                                    id: app.id,
+                                    leaveName: app.leaveType?.name ?? 'leave',
+                                  })
+                                }
+                                disabled={cancel.isPending}
+                                className="text-xs font-medium text-muted-foreground hover:text-destructive disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            {app.status === 'APPROVED' && app.startDate.slice(0, 10) > today && (
+                              <button
+                                onClick={() => {
+                                  setCancelModal({
+                                    id: app.id,
+                                    leaveName: app.leaveType?.name ?? 'leave',
+                                  })
+                                  setCancelReason('')
+                                }}
+                                disabled={cancel.isPending}
+                                className="text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 disabled:opacity-50"
+                              >
+                                Request Cancellation
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination */}
+              {appTotalPages > 1 && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {filteredApps.length} application{filteredApps.length !== 1 ? 's' : ''} · page{' '}
+                    {appPage} of {appTotalPages}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      disabled={appPage <= 1}
+                      onClick={() => setAppPage((p) => p - 1)}
+                      className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    {pageWindow(appPage, appTotalPages).map((p, i) =>
+                      p === '…' ? (
+                        <span key={`e${i}`} className="px-1 text-muted-foreground">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setAppPage(p as number)}
+                          className={cn(
+                            'min-w-8 rounded-md border px-2.5 py-1',
+                            p === appPage
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          )}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                    <button
+                      disabled={appPage >= appTotalPages}
+                      onClick={() => setAppPage((p) => p + 1)}
+                      className="rounded-md border px-3 py-1 hover:bg-muted disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
       </div>
 
       {/* ── Apply Leave Modal ───────────────────────────────────────── */}
       {showApply && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-2xl">
-            <SubmitOverlay show={isSubmitting} label={uploadFile.isPending ? 'Uploading…' : 'Submitting…'} />
+          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-card shadow-2xl">
+            <SubmitOverlay
+              show={isSubmitting}
+              label={uploadFile.isPending ? 'Uploading…' : 'Submitting…'}
+            />
             {/* Modal header */}
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
@@ -714,256 +822,273 @@ export default function LeavePage() {
                   <Skeleton className="h-20 w-full rounded-lg" />
                 </div>
               ) : (
-                <form id="apply-form" onSubmit={handleApplySubmit} className="space-y-4">
-                <fieldset disabled={isSubmitting} className="contents">
-                  {/* Row 1: Leave Type */}
-                  <div>
-                    <label className={labelCls}>
-                      Leave Type <span className="text-destructive">*</span>
-                    </label>
-                    <select
-                      value={leaveTypeId}
-                      onChange={(e) => {
-                        setLeaveTypeId(e.target.value)
-                        setApplyError('')
-                      }}
-                      className={inputCls}
-                    >
-                      <option value="">Select leave type…</option>
-                      {types.map((t: LeaveType) => {
-                        const bal = balances.find((b: LeaveBalance) => b.leaveTypeId === t.id)
-                        // CPL has no allowance to show a "(N available)" for.
-                        const avail =
-                          bal && t.code !== 'CPL'
-                            ? Number(bal.entitled) - Number(bal.taken) - Number(bal.pending)
-                            : null
-                        return (
-                          <option key={t.id} value={t.id}>
-                            {t.name} {avail !== null ? `(${avail} days available)` : ''}
-                          </option>
-                        )
-                      })}
-                    </select>
-                  </div>
+                <form id="apply-form" onSubmit={handleApplySubmit} className="space-y-5">
+                  <fieldset disabled={isSubmitting} className="contents">
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Leave Details
+                      </p>
 
-                  {/* Balance preview */}
-                  {selectedType && selectedBalance && (
-                    <div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-xs">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                      <div>
-                        <span className="font-medium">{selectedType.name}:</span>{' '}
-                        {isCplType ? (
-                          <span className="text-muted-foreground">
-                            Taken {Number(selectedBalance.taken)} · Pending{' '}
-                            {Number(selectedBalance.pending)} ·{' '}
-                            <span className="font-semibold text-foreground">No fixed allowance</span>
-                          </span>
-                        ) : (
-                          <>
-                            <span className="text-muted-foreground">
-                              Entitled {Number(selectedBalance.entitled)} · Taken{' '}
-                              {Number(selectedBalance.taken)} · Pending{' '}
-                              {Number(selectedBalance.pending)} ·
-                            </span>{' '}
-                            <span className="font-semibold text-foreground">Available {available}</span>
-                          </>
-                        )}
-                        {selectedType.minNoticeDays > 0 && (
-                          <p className="mt-0.5 text-amber-600 dark:text-amber-400">
-                            ⚠ Requires {selectedType.minNoticeDays} day(s) advance notice
-                          </p>
+                      {/* Leave Type + Consume Type — side by side once there's room,
+                        stacked on narrow screens so the consume-type labels
+                        (e.g. "1st Half Day") don't get squeezed/truncated. */}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className={labelCls}>
+                            Leave Type <span className="text-destructive">*</span>
+                          </label>
+                          <select
+                            value={leaveTypeId}
+                            onChange={(e) => {
+                              setLeaveTypeId(e.target.value)
+                              setApplyError('')
+                            }}
+                            className={inputCls}
+                          >
+                            <option value="">Select leave type…</option>
+                            {types.map((t: LeaveType) => {
+                              const bal = balances.find((b: LeaveBalance) => b.leaveTypeId === t.id)
+                              // CPL has no allowance to show a "(N available)" for.
+                              const avail =
+                                bal && t.code !== 'CPL'
+                                  ? Number(bal.entitled) - Number(bal.taken) - Number(bal.pending)
+                                  : null
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} {avail !== null ? `(${avail} days available)` : ''}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>
+                            Consume Type <span className="text-destructive">*</span>
+                          </label>
+                          <div className="flex gap-1.5">
+                            {CONSUME_TYPES.map((ct) => (
+                              <button
+                                key={ct.value}
+                                type="button"
+                                title={ct.label}
+                                onClick={() => {
+                                  setConsumeType(ct.value)
+                                  if (ct.value !== 'FULL_DAY') setEndDate('')
+                                }}
+                                className={cn(
+                                  'flex-1 truncate rounded-lg border px-1.5 py-2 text-[11px] font-medium transition',
+                                  consumeType === ct.value
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'hover:bg-muted'
+                                )}
+                              >
+                                {ct.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dates */}
+                      <div className={cn('grid gap-3', isHalfDay ? 'grid-cols-1' : 'grid-cols-2')}>
+                        <div>
+                          <label className={labelCls}>
+                            {isHalfDay ? 'Date' : 'From Date'}{' '}
+                            <span className="text-destructive">*</span>
+                          </label>
+                          <input
+                            type="date"
+                            value={startDate}
+                            min={minStartDate}
+                            onChange={(e) => {
+                              setStartDate(e.target.value)
+                              if (!endDate && !isHalfDay) setEndDate(e.target.value)
+                            }}
+                            className={inputCls}
+                          />
+                        </div>
+                        {!isHalfDay && (
+                          <div>
+                            <label className={labelCls}>
+                              To Date <span className="text-destructive">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={endDate || startDate}
+                              min={startDate || minStartDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className={inputCls}
+                            />
+                          </div>
                         )}
                       </div>
-                    </div>
-                  )}
 
-                  {/* Row 2: Consume type */}
-                  <div>
-                    <label className={labelCls}>
-                      Leave Consume Type <span className="text-destructive">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      {CONSUME_TYPES.map((ct) => (
-                        <button
-                          key={ct.value}
-                          type="button"
-                          onClick={() => {
-                            setConsumeType(ct.value)
-                            if (ct.value !== 'FULL_DAY') setEndDate('')
-                          }}
-                          className={cn(
-                            'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition',
-                            consumeType === ct.value
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'hover:bg-muted'
-                          )}
-                        >
-                          {ct.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      {/* Combined balance + day-count info — one box instead of two/three
+                        stacked ones, since they're all "how much leave am I using" info. */}
+                      {selectedType && (
+                        <div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-xs">
+                          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                          <div className="space-y-1">
+                            {selectedBalance && (
+                              <div>
+                                <span className="font-medium">{selectedType.name}:</span>{' '}
+                                {isCplType ? (
+                                  <span className="text-muted-foreground">
+                                    Taken {Number(selectedBalance.taken)} · Pending{' '}
+                                    {Number(selectedBalance.pending)} ·{' '}
+                                    <span className="font-semibold text-foreground">
+                                      No fixed allowance
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className="text-muted-foreground">
+                                      Entitled {Number(selectedBalance.entitled)} · Taken{' '}
+                                      {Number(selectedBalance.taken)} · Pending{' '}
+                                      {Number(selectedBalance.pending)} ·
+                                    </span>{' '}
+                                    <span className="font-semibold text-foreground">
+                                      Available {available}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {selectedType.minNoticeDays > 0 && (
+                              <p className="text-amber-600 dark:text-amber-400">
+                                ⚠ Requires {selectedType.minNoticeDays} day(s) advance notice
+                              </p>
+                            )}
+                            {startDate && days >= 0 && (
+                              <p
+                                className={cn(
+                                  'flex items-center gap-1.5 font-medium',
+                                  available !== null && days > available
+                                    ? 'text-destructive'
+                                    : 'text-emerald-700 dark:text-emerald-400'
+                                )}
+                              >
+                                <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                                {days} working day{days !== 1 ? 's' : ''} selected
+                                {available !== null &&
+                                  days > available &&
+                                  ` — exceeds balance by ${days - available}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Row 3: Dates */}
-                  <div className={cn('grid gap-3', isHalfDay ? 'grid-cols-1' : 'grid-cols-2')}>
-                    <div>
-                      <label className={labelCls}>
-                        {isHalfDay ? 'Date' : 'From Date'}{' '}
-                        <span className="text-destructive">*</span>
-                        {allowPastDates && (
-                          <span className="ml-1.5 text-[10px] font-normal text-blue-600 dark:text-blue-400">
-                            Past dates allowed
-                          </span>
-                        )}
-                      </label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        min={minStartDate}
-                        onChange={(e) => {
-                          setStartDate(e.target.value)
-                          if (!endDate && !isHalfDay) setEndDate(e.target.value)
-                        }}
-                        className={inputCls}
-                      />
+                      {/* Weekend / public-holiday warning */}
+                      {(startNote || endNote) && (
+                        <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div className="space-y-0.5">
+                            {startNote && (
+                              <p>
+                                Your {isHalfDay ? 'selected date' : 'start date'} (
+                                {fmtDayLabel(startDate)}) falls on {startNote}.
+                              </p>
+                            )}
+                            {endNote && (
+                              <p>
+                                Your end date ({fmtDayLabel(effectiveEnd)}) falls on {endNote}.
+                              </p>
+                            )}
+                            <p className="text-xs opacity-80">
+                              Weekends and public holidays aren&apos;t counted toward your leave
+                              balance.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {!isHalfDay && (
+
+                    <div className="space-y-3 border-t pt-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Additional Details
+                      </p>
+
                       <div>
                         <label className={labelCls}>
-                          To Date <span className="text-destructive">*</span>
+                          Location <span className="text-destructive">*</span>
                         </label>
                         <input
-                          type="date"
-                          value={endDate || startDate}
-                          min={startDate || minStartDate}
-                          onChange={(e) => setEndDate(e.target.value)}
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="e.g. Home, Dhaka, Abroad…"
                           className={inputCls}
                         />
                       </div>
-                    )}
-                  </div>
 
-                  {/* Days preview */}
-                  {startDate && days >= 0 && (
-                    <div
-                      className={cn(
-                        'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                        available !== null && days > available
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                      )}
-                    >
-                      <CalendarDays className="h-4 w-4" />
-                      {days} working day{days !== 1 ? 's' : ''} selected
-                      {available !== null &&
-                        days > available &&
-                        ` — exceeds balance by ${days - available}`}
-                    </div>
-                  )}
-
-                  {/* Weekend / public-holiday warning */}
-                  {(startNote || endNote) && (
-                    <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div className="space-y-0.5">
-                        {startNote && (
-                          <p>
-                            Your {isHalfDay ? 'selected date' : 'start date'} ({fmtDayLabel(startDate)}) falls on{' '}
-                            {startNote}.
-                          </p>
-                        )}
-                        {endNote && (
-                          <p>
-                            Your end date ({fmtDayLabel(effectiveEnd)}) falls on {endNote}.
-                          </p>
-                        )}
-                        <p className="text-xs opacity-80">
-                          Weekends and public holidays aren&apos;t counted toward your leave balance.
-                        </p>
+                      <div>
+                        <label className={labelCls}>
+                          Reason <span className="text-destructive">*</span>
+                        </label>
+                        <textarea
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          rows={3}
+                          placeholder="Briefly describe the reason for your leave…"
+                          className={cn(inputCls, 'resize-none')}
+                        />
                       </div>
-                    </div>
-                  )}
 
-                  {/* Row 4: Location */}
-                  <div>
-                    <label className={labelCls}>
-                      Location <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="e.g. Home, Dhaka, Abroad…"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  {/* Row 5: Reason */}
-                  <div>
-                    <label className={labelCls}>
-                      Reason <span className="text-destructive">*</span>
-                    </label>
-                    <textarea
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      rows={3}
-                      placeholder="Briefly describe the reason for your leave…"
-                      className={cn(inputCls, 'resize-none')}
-                    />
-                  </div>
-
-                  {/* Row 6: Attachment */}
-                  <div>
-                    <label className={labelCls}>
-                      Attachment
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">
-                        (PDF or image, max 2MB)
-                      </span>
-                    </label>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    {attachment ? (
-                      <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                        {attachment.type === 'application/pdf' ? (
-                          <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                      <div>
+                        <label className={labelCls}>
+                          Attachment
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            (PDF or image, max 2MB)
+                          </span>
+                        </label>
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                        {attachment ? (
+                          <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                            {attachment.type === 'application/pdf' ? (
+                              <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 shrink-0 text-blue-500" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-xs">
+                              {attachment.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttachment(null)
+                                if (fileRef.current) fileRef.current.value = ''
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         ) : (
-                          <ImageIcon className="h-4 w-4 shrink-0 text-blue-500" />
+                          <button
+                            type="button"
+                            onClick={() => fileRef.current?.click()}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+                          >
+                            <Upload className="h-4 w-4" />
+                            Click to upload attachment
+                          </button>
                         )}
-                        <span className="min-w-0 flex-1 truncate text-xs">{attachment.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAttachment(null)
-                            if (fileRef.current) fileRef.current.value = ''
-                          }}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
-                      >
-                        <Upload className="h-4 w-4" />
-                        Click to upload attachment
-                      </button>
-                    )}
-                  </div>
+                    </div>
 
-                  {applyError && (
-                    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                      {applyError}
-                    </p>
-                  )}
-                </fieldset>
+                    {applyError && (
+                      <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        {applyError}
+                      </p>
+                    )}
+                  </fieldset>
                 </form>
               )}
             </div>

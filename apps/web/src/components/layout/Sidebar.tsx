@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -10,7 +11,7 @@ import { usePendingApprovals } from '@/lib/api/hooks/useLeave'
 import { usePendingExcuses, usePendingAdjustments } from '@/lib/api/hooks/useAttendance'
 import { logout } from '@/lib/api/auth'
 import { UserRole } from '@hr-system/types'
-import { Avatar } from '@/components/ui/primitives'
+import { Avatar, RolePill } from '@/components/ui/primitives'
 import {
   LayoutDashboard,
   Users,
@@ -29,6 +30,8 @@ import {
   Banknote,
   Wallet,
   DollarSign,
+  User,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -57,8 +60,20 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'People',
     items: [
-      { href: '/employees', label: 'Employees', icon: Users, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD], exclude: null },
-      { href: '/departments', label: 'Departments', icon: Building2, roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN], exclude: null },
+      {
+        href: '/employees',
+        label: 'Employees',
+        icon: Users,
+        roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN, UserRole.DEPT_HEAD],
+        exclude: null,
+      },
+      {
+        href: '/departments',
+        label: 'Departments',
+        icon: Building2,
+        roles: [UserRole.HR_MANAGER, UserRole.SUPER_ADMIN],
+        exclude: null,
+      },
       { href: '/contact-book', label: 'Contact Book', icon: BookUser, roles: null, exclude: null },
     ],
   },
@@ -67,22 +82,63 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/attendance', label: 'Attendance', icon: Clock, roles: null, exclude: SA },
       { href: '/leave', label: 'My Leave', icon: CalendarDays, roles: null, exclude: SA },
-      { href: '/timemanagement', label: 'Time Management', icon: ClipboardList, roles: null, exclude: null },
-      { href: '/approvals', label: 'Approvals', icon: Inbox, roles: [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER], exclude: null },
+      {
+        href: '/timemanagement',
+        label: 'Time Management',
+        icon: ClipboardList,
+        roles: null,
+        exclude: null,
+      },
+      {
+        href: '/approvals',
+        label: 'Approvals',
+        icon: Inbox,
+        roles: [
+          UserRole.SUPER_ADMIN,
+          UserRole.HR_MANAGER,
+          UserRole.DEPT_HEAD,
+          UserRole.DEPT_MANAGER,
+        ],
+        exclude: null,
+      },
     ],
   },
   {
     label: 'Payroll',
     items: [
-      { href: '/payroll', label: 'Payroll', icon: Banknote, roles: [UserRole.SUPER_ADMIN], exclude: null },
-      { href: '/payroll/my-payslips', label: 'My Payslips', icon: Wallet, roles: null, exclude: SA },
-      { href: '/salary', label: 'Salary', icon: DollarSign, roles: [UserRole.SUPER_ADMIN], exclude: null },
+      {
+        href: '/payroll',
+        label: 'Payroll',
+        icon: Banknote,
+        roles: [UserRole.SUPER_ADMIN],
+        exclude: null,
+      },
+      {
+        href: '/payroll/my-payslips',
+        label: 'My Payslips',
+        icon: Wallet,
+        roles: null,
+        exclude: SA,
+      },
+      {
+        href: '/salary',
+        label: 'Salary',
+        icon: DollarSign,
+        roles: [UserRole.SUPER_ADMIN],
+        exclude: null,
+      },
     ],
   },
   {
     label: 'Company',
     items: [
-      { href: '/announcements', label: 'Announcements', icon: Megaphone, roles: null, exclude: null },
+      {
+        href: '/announcements',
+        label: 'Announcements',
+        icon: Megaphone,
+        roles: null,
+        exclude: null,
+      },
       { href: '/notifications', label: 'Notifications', icon: Bell, roles: null, exclude: null },
       { href: '/settings', label: 'Settings', icon: Settings, roles: null, exclude: null },
     ],
@@ -118,6 +174,28 @@ export function Sidebar() {
     await logout()
     router.replace('/login')
   }
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close on outside click or Escape — same compact-dropdown pattern as the
+  // Topbar's account menu, just anchored upward since this one sits at the
+  // bottom of the screen.
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDown(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   function itemVisible(item: NavItem): boolean {
     const roleOk = !item.roles || (user && item.roles.includes(user.role as UserRole))
@@ -166,12 +244,22 @@ export function Sidebar() {
           <item.icon className="h-[18px] w-[18px]" />
           {/* collapsed: show a dot instead of a numeric badge */}
           {badge > 0 && collapsed && (
-            <span className={cn('absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-card', badgeTone.dot)} />
+            <span
+              className={cn(
+                'absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-card',
+                badgeTone.dot
+              )}
+            />
           )}
         </span>
         {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
         {!collapsed && badge > 0 && (
-          <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold', badgeTone.pill)}>
+          <span
+            className={cn(
+              'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
+              badgeTone.pill
+            )}
+          >
             {badge > 99 ? '99+' : badge}
           </span>
         )}
@@ -225,30 +313,89 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User + Logout */}
+      {/* User menu */}
       {user && (
-        <div className="border-t p-2">
+        <div ref={menuRef} className="relative border-t p-2">
+          {menuOpen && (
+            <div className="absolute bottom-4 left-full z-50 ml-2 w-52 rounded-xl border bg-card p-2 shadow-xl">
+              <div className="flex flex-col items-center gap-1.5 border-b pb-2 text-center">
+                <Avatar
+                  firstName={user.firstName}
+                  lastName={user.lastName}
+                  url={user.avatarUrl}
+                  size={36}
+                />
+                <div>
+                  <p className="text-xs font-medium">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{user.email}</p>
+                </div>
+                <RolePill role={user.role} />
+              </div>
+
+              <nav className="mt-1.5 space-y-0.5">
+                <Link
+                  href="/settings/profile"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+                >
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  My Profile
+                </Link>
+                <Link
+                  href="/settings/security"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+                >
+                  <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                  Change Password
+                </Link>
+              </nav>
+
+              <div className="mt-1 border-t pt-1">
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Log out
+                </button>
+              </div>
+            </div>
+          )}
+
           {collapsed ? (
-            <div className="mb-1 flex justify-center">
-              <Link
-                href="/settings"
+            <div className="flex justify-center">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
                 title={`${user.firstName} ${user.lastName}${user.departmentName ? ` · ${user.departmentName}` : ''}`}
+                aria-label="Account menu"
               >
-                <Avatar firstName={user.firstName} lastName={user.lastName} url={user.avatarUrl} size={30} />
-              </Link>
+                <Avatar
+                  firstName={user.firstName}
+                  lastName={user.lastName}
+                  url={user.avatarUrl}
+                  size={30}
+                />
+              </button>
             </div>
           ) : (
-            <Link
-              href="/settings"
-              className="mb-1 flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted"
-              title="Profile & settings"
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-muted"
+              aria-label="Account menu"
             >
-              <Avatar firstName={user.firstName} lastName={user.lastName} url={user.avatarUrl} size={36} />
+              <Avatar
+                firstName={user.firstName}
+                lastName={user.lastName}
+                url={user.avatarUrl}
+                size={36}
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium">
                   {user.firstName} {user.lastName}
                 </p>
-                <p className="truncate text-[11px] text-muted-foreground">{user.role.replace(/_/g, ' ')}</p>
                 {user.departmentName && (
                   <p
                     className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground"
@@ -259,19 +406,8 @@ export function Sidebar() {
                   </p>
                 )}
               </div>
-            </Link>
+            </button>
           )}
-          <button
-            onClick={handleLogout}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive',
-              collapsed && 'justify-center px-2'
-            )}
-            title={collapsed ? 'Sign out' : undefined}
-          >
-            <LogOut className="h-[18px] w-[18px] shrink-0" />
-            {!collapsed && 'Sign out'}
-          </button>
         </div>
       )}
     </aside>

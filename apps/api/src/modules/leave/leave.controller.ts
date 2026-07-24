@@ -67,6 +67,13 @@ export async function getApplication(req: Request, res: Response) {
   } catch (err) { handle(res, err) }
 }
 
+export async function getAttachmentUrl(req: Request, res: Response) {
+  try {
+    const result = await service.getAttachmentUrl(req.params.id, user(req).employeeId, isManager(req), scope(req))
+    sendSuccess(res, result)
+  } catch (err) { handle(res, err) }
+}
+
 export async function getPending(req: Request, res: Response) {
   try {
     const u = user(req)

@@ -40,6 +40,7 @@ leaveRouter.get('/applications', officeScope, validate(leaveApplicationsQuery, '
 // since HR_MANAGER no longer has approval power despite outranking DEPT_MANAGER/DEPT_HEAD.
 leaveRouter.get('/applications/pending', requireRole(UserRole.DEPT_MANAGER), ctrl.getPending)
 leaveRouter.get('/applications/:id', officeScope, ctrl.getApplication)
+leaveRouter.get('/applications/:id/attachment-url', officeScope, ctrl.getAttachmentUrl)
 const CAN_APPROVE = requireExactRole(UserRole.DEPT_MANAGER, UserRole.DEPT_HEAD, UserRole.SUPER_ADMIN)
 leaveRouter.patch('/applications/:id/approve', CAN_APPROVE, validate(approveLeaveSchema), ctrl.approve)
 leaveRouter.patch('/applications/:id/reject', CAN_APPROVE, validate(rejectLeaveSchema), ctrl.reject)

@@ -46,8 +46,10 @@ export interface LeaveApplication {
   reason: string | null
   status: string
   approvalLevel: number
+  rejectionReason: string | null
   cancelReason: string | null
   cancelRequestedAt: string | null
+  attachmentPath: string | null
   createdAt: string
   employee?: {
     id: string; firstName: string; lastName: string; employeeId: string; avatarUrl: string | null
@@ -138,6 +140,16 @@ export function useUploadLeaveAttachment() {
       form.append('file', file)
       const { data } = await apiClient.post('/leave/attachments', form)
       return data.data.path as string
+    },
+  })
+}
+
+/** Signed, time-limited URL to view an already-submitted application's attachment. */
+export function useLeaveAttachmentUrl() {
+  return useMutation({
+    mutationFn: async (applicationId: string): Promise<string> => {
+      const { data } = await apiClient.get(`/leave/applications/${applicationId}/attachment-url`)
+      return data.data.url as string
     },
   })
 }

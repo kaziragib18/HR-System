@@ -6,6 +6,7 @@ import { parsePagination, buildPaginationMeta } from '@hr-system/utils'
 import { createNotification, notifyOfficeAdmins } from '../../services/notification.service'
 import { resolveTeamApprover, canActOnTeamRequest } from '../../services/approver-resolution.service'
 import { markLeaveDates, clearLeaveDates } from '../attendance/attendance.service'
+import { BUCKETS, createSignedReadUrl } from '../../services/storage.service'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery } from './leave.schemas'
 
 export class LeaveError extends Error {
@@ -617,6 +618,23 @@ export async function getApplication(id: string, requestingEmployeeId: string, i
   if (officeScope && app.employee.officeId !== officeScope) throw new LeaveError('Application not found', 404)
   if (!isManager && app.employeeId !== requestingEmployeeId) throw new LeaveError('Forbidden', 403)
   return app
+}
+
+/**
+ * Signed, time-limited URL to view a leave application's attachment — reuses
+ * getApplication's exact authorization (owner or in-scope manager), so a
+ * caller who couldn't see the application itself can't fetch its file either.
+ */
+export async function getAttachmentUrl(
+  id: string,
+  requestingEmployeeId: string,
+  isManager: boolean,
+  officeScope?: string
+) {
+  const app = await getApplication(id, requestingEmployeeId, isManager, officeScope)
+  if (!app.attachmentPath) throw new LeaveError('This application has no attachment', 404)
+  const url = await createSignedReadUrl(BUCKETS.DOCUMENTS, app.attachmentPath)
+  return { url }
 }
 
 /** Pending (new + cancel-requested) applications waiting for a specific approver. */
