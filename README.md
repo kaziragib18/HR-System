@@ -64,6 +64,7 @@ Fill in the required values (validated at API startup — it fails fast with a c
 | `SUPABASE_SERVICE_ROLE_KEY`                                                        | Supabase → Settings → API → service_role key                                      |
 | `JWT_SECRET`                                                                       | Any random 32+ character string                                                   |
 | `JWT_REFRESH_SECRET`                                                               | Any random 32+ character string (different from above)                            |
+| `TOTP_ENCRYPTION_KEY`                                                              | Any random 32+ character string (different from both above) — encrypts 2FA secrets at rest |
 | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Frontend-visible copies of the above (Next.js requires the `NEXT_PUBLIC_` prefix) |
 
 ### 3. (Optional) Start a local database
@@ -117,9 +118,13 @@ npx pm2 start ecosystem.config.js   # production process manager
 ### Auth & Security
 
 - Login with JWT access tokens (15 min, kept in memory only — never `localStorage`) and httpOnly-cookie refresh tokens (7 days), with silent refresh and a request queue to prevent parallel-refresh races.
-- TOTP-based two-factor authentication (setup/enable/disable, QR code enrollment).
+- Refresh tokens rotate on every use, with reuse detection — presenting an already-rotated-away-from token invalidates the whole session as a compromise signal.
+- CSRF protection (double-submit cookie) on the two cookie-only-authenticated routes (`/auth/refresh`, `/auth/logout`).
+- TOTP-based two-factor authentication (setup/enable/disable, QR code enrollment), with secrets encrypted at rest (AES-256-GCM).
 - Per-device session management — view and revoke your own active sessions.
 - HR-relay password reset (HR generates a one-time reset link from an employee's profile; there's no email delivery, so self-service "forgot password" just points users to contact HR).
+- Server-side password complexity enforcement, timing-safe login (no email-enumeration side channel), and rate limiting on login/refresh/2FA-verify.
+- File uploads are validated by both declared MIME type and real magic-byte signature, with sanitized filenames.
 
 ### Employees
 
@@ -221,6 +226,8 @@ Base URL: `http://localhost:4000/api/v1`. All protected routes require an `Autho
 
 - Several backend modules (salary, documents, notifications, dashboard, holidays, job-grades, auth) and all of the frontend still have no automated test coverage.
 - No CI pipeline runs tests/typecheck/lint automatically yet — everything is verified locally.
+- No 2FA backup/recovery codes exist — losing the authenticator device is a lockout risk, not a security vulnerability.
+- The `Notification` table's Supabase Realtime access needs an RLS policy (restricting reads to a row's own employee) configured directly in the Supabase dashboard — this can't be verified or set up from the repo itself, and without it, any authenticated client could in principle subscribe to every employee's notifications over Realtime.
 - **Not built** (deferred, no code exists): Onboarding workflow, Performance Reviews, Recruitment/ATS, Asset Management, mobile app.
 - **Intentionally removed**: Timesheets — it duplicated attendance-based Time Management and was never adopted by the frontend.
 

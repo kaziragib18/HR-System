@@ -137,6 +137,10 @@ npx pnpm@9 test
 npx pnpm@9 --filter @hr-system/utils test
 npx pnpm@9 --filter @hr-system/api test
 
+# Run a single test file (args pass through to the underlying `vitest run`)
+npx pnpm@9 --filter @hr-system/api test -- attendance.service.manualEntry.test.ts
+npx pnpm@9 --filter @hr-system/api test -- -t "reporting chain"   # filter by test name
+
 # Type-check a single package
 npx pnpm@9 --filter @hr-system/api typecheck
 
