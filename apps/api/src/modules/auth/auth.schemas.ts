@@ -6,6 +6,18 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+// Mirrors the client-side checklist in settings/security/page.tsx's
+// PASSWORD_REQUIREMENTS — that UI only *shows* the requirements, it doesn't
+// stop a weak password reaching the API directly, so the same rules must be
+// enforced here too.
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[a-z]/, 'Password must include a lowercase letter')
+  .regex(/[A-Z]/, 'Password must include an uppercase letter')
+  .regex(/\d/, 'Password must include a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must include a special character')
+
 export const twoFactorVerifySchema = z.object({
   tempToken: z.string().min(1),
   code: z.string().length(6),
@@ -17,12 +29,12 @@ export const twoFactorEnableSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  newPassword: passwordSchema,
 })
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  newPassword: passwordSchema,
 })
 
 export const updateThemeSchema = z.object({

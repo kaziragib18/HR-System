@@ -86,7 +86,7 @@ export function LoginForm() {
             type="email"
             autoComplete="email"
             placeholder="you@company.com"
-            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-3 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-3 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-[#3C7A96]/50"
             {...register('email')}
           />
         </div>
@@ -111,7 +111,7 @@ export function LoginForm() {
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             placeholder="••••••••"
-            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-10 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-10 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-[#3C7A96]/50"
             {...register('password')}
           />
           <button
@@ -138,7 +138,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#3C7A96] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#346a84] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? (
           <>

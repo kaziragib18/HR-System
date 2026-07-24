@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 import { prisma } from '../../config/prisma'
-import { comparePassword, hashPassword } from '../../utils/hash'
+import { comparePassword, hashPassword, compareAgainstDummyHash } from '../../utils/hash'
 import {
   signAccessToken,
   signRefreshToken,
@@ -12,6 +12,7 @@ import {
   generateQRCode,
   verifyTwoFactorToken,
 } from '../../services/twofa.service'
+import { encryptSecret, decryptSecret, isEncryptedSecret } from '../../utils/secret-encryption'
 import { env } from '../../config/env'
 import type { AuthUser, SessionInfo, Theme } from '@hr-system/types'
 import { UserRole, THEME_VALUES } from '@hr-system/types'
@@ -27,6 +28,24 @@ export class AuthError extends Error {
   ) {
     super(message)
   }
+}
+
+// Verifies a TOTP code against a stored secret that may still be legacy
+// plaintext (pre-dating encryption-at-rest) — and transparently migrates it to
+// an encrypted value on the first successful verify, with no separate
+// migration script needed.
+async function verifyAndMigrateTwoFactorSecret(
+  userId: string,
+  storedSecret: string,
+  code: string
+): Promise<boolean> {
+  const wasEncrypted = isEncryptedSecret(storedSecret)
+  const plaintext = wasEncrypted ? decryptSecret(storedSecret) : storedSecret
+  const valid = verifyTwoFactorToken(plaintext, code)
+  if (valid && !wasEncrypted) {
+    await prisma.user.update({ where: { id: userId }, data: { twoFactorSecret: encryptSecret(plaintext) } })
+  }
+  return valid
 }
 
 type UserWithEmployee = NonNullable<Awaited<ReturnType<typeof findUserWithEmployee>>>
@@ -111,6 +130,10 @@ export async function login(
 ): Promise<LoginResult> {
   const user = await findUserWithEmployee({ email })
   if (!user || !user.isActive) {
+    // Still perform a (dummy) bcrypt compare so this path takes roughly the
+    // same time as a real user's wrong-password path below — otherwise the
+    // response-time difference lets an attacker enumerate valid emails.
+    await compareAgainstDummyHash(password)
     throw new AuthError('Invalid email or password')
   }
 
@@ -169,7 +192,7 @@ export async function completeTwoFactorLogin(
     throw new AuthError('Invalid session')
   }
 
-  if (!verifyTwoFactorToken(user.twoFactorSecret, code)) {
+  if (!(await verifyAndMigrateTwoFactorSecret(user.id, user.twoFactorSecret, code))) {
     throw new AuthError('Invalid authentication code')
   }
 
@@ -182,7 +205,7 @@ export async function completeTwoFactorLogin(
   }
 }
 
-export async function refresh(refreshToken: string): Promise<{ accessToken: string }> {
+export async function refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
   let payload
   try {
     payload = verifyRefreshToken(refreshToken)
@@ -193,9 +216,21 @@ export async function refresh(refreshToken: string): Promise<{ accessToken: stri
   const session = await prisma.session.findUnique({
     where: { id: payload.sessionId },
   })
-  if (!session || !session.isValid || session.refreshToken !== refreshToken) {
+  if (!session || !session.isValid) {
     throw new AuthError('Session expired')
   }
+
+  if (session.refreshToken !== refreshToken) {
+    // Doesn't match the session's current token. If it matches the token we
+    // rotated *away from* last time, this is a replay of an already-used
+    // refresh token — most likely leaked/stolen — so kill the whole session
+    // rather than just rejecting this one request, forcing a real re-login.
+    if (session.previousRefreshToken && session.previousRefreshToken === refreshToken) {
+      await prisma.session.update({ where: { id: session.id }, data: { isValid: false } })
+    }
+    throw new AuthError('Session expired')
+  }
+
   if (session.expiresAt < new Date()) {
     await prisma.session.update({ where: { id: session.id }, data: { isValid: false } })
     throw new AuthError('Session expired')
@@ -206,12 +241,21 @@ export async function refresh(refreshToken: string): Promise<{ accessToken: stri
     throw new AuthError('User not found')
   }
 
+  // Rotate on every use: the presented token becomes the new "previous"
+  // (kept only to detect a replay, see above) and a fresh token takes its
+  // place — a stolen refresh token is only ever usable for one rotation
+  // before either party's next use invalidates the other's copy.
+  const newRefreshToken = signRefreshToken(user.id, session.id)
   await prisma.session.update({
     where: { id: session.id },
-    data: { lastUsedAt: new Date() },
+    data: {
+      refreshToken: newRefreshToken,
+      previousRefreshToken: session.refreshToken,
+      lastUsedAt: new Date(),
+    },
   })
 
-  return { accessToken: signAccessToken(toAuthUser(user)) }
+  return { accessToken: signAccessToken(toAuthUser(user)), refreshToken: newRefreshToken }
 }
 
 export async function logout(refreshToken: string): Promise<void> {
@@ -310,10 +354,12 @@ export async function setupTwoFactor(
   if (!user) throw new AuthError('User not found', 404)
 
   const { base32, otpauthUrl } = generateTwoFactorSecret(user.email)
-  // Store secret but keep 2FA disabled until verified
+  // Store the secret encrypted at rest but keep 2FA disabled until verified —
+  // the plaintext is only ever returned to the caller for the QR code/manual
+  // entry, never persisted unencrypted.
   await prisma.user.update({
     where: { id: userId },
-    data: { twoFactorSecret: base32 },
+    data: { twoFactorSecret: encryptSecret(base32) },
   })
   const qrCode = await generateQRCode(otpauthUrl)
   return { secret: base32, qrCode }
@@ -324,7 +370,7 @@ export async function enableTwoFactor(userId: string, code: string): Promise<voi
   if (!user || !user.twoFactorSecret) {
     throw new AuthError('Run 2FA setup first', 400)
   }
-  if (!verifyTwoFactorToken(user.twoFactorSecret, code)) {
+  if (!(await verifyAndMigrateTwoFactorSecret(user.id, user.twoFactorSecret, code))) {
     throw new AuthError('Invalid authentication code', 400)
   }
   await prisma.user.update({

@@ -24,9 +24,23 @@ const LEAVE_APPLICATIONS: Record<string, unknown> = {
   },
 }
 
-const EMPLOYEES: Record<string, { officeId: string }> = {
+interface MockEmployee {
+  officeId: string
+  departmentId?: string | null
+  reportingToId?: string | null
+}
+
+const EMPLOYEES: Record<string, MockEmployee> = {
   'emp-bd': { officeId: 'office-bd' },
   'emp-uk': { officeId: 'office-uk' },
+  // Team-scoped salary access fixture: mgr-bd manages report-bd directly;
+  // peer-bd is in the same department but reports to someone else (only a
+  // DEPT_HEAD, not mgr-bd, should be able to see peer-bd's salary);
+  // outside-bd is in a different department entirely.
+  'mgr-bd': { officeId: 'office-bd', departmentId: 'dept-a', reportingToId: null },
+  'report-bd': { officeId: 'office-bd', departmentId: 'dept-a', reportingToId: 'mgr-bd' },
+  'peer-bd': { officeId: 'office-bd', departmentId: 'dept-a', reportingToId: 'other-mgr-bd' },
+  'outside-bd': { officeId: 'office-bd', departmentId: 'dept-b', reportingToId: null },
 }
 
 vi.mock('../config/prisma', () => ({
@@ -36,6 +50,14 @@ vi.mock('../config/prisma', () => ({
     },
     employee: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => EMPLOYEES[where.id] ?? null),
+    },
+    salaryStructure: {
+      // Any authorized read reaches here — return a minimal, always-truthy
+      // structure so the response is a 200, not a 404 "no structure found".
+      findFirst: vi.fn(async () => ({
+        id: 'ss-1', employeeId: null, jobGradeId: null, basicSalary: '50000', components: [],
+        effectiveFrom: new Date('2020-01-01'), effectiveTo: null,
+      })),
     },
   },
 }))
@@ -49,19 +71,21 @@ beforeAll(async () => {
   app = createApp()
 })
 
-function tokenFor(overrides: { role: UserRole; officeId: string }) {
+function tokenFor(overrides: { role: UserRole; officeId: string; employeeId?: string; departmentId?: string | null }) {
+  const officeCode = overrides.officeId === 'office-bd' ? 'BD' : 'UK'
   return signAccessToken({
-    id: `user-${overrides.officeId}`,
-    employeeId: `emp-owner-${overrides.officeId === 'office-bd' ? 'bd' : 'uk'}`,
+    id: `user-${overrides.employeeId ?? overrides.officeId}`,
+    employeeId: overrides.employeeId ?? `emp-owner-${officeCode === 'BD' ? 'bd' : 'uk'}`,
     email: `${overrides.role.toLowerCase()}@test.com`,
     role: overrides.role,
     officeId: overrides.officeId,
-    officeCode: overrides.officeId === 'office-bd' ? 'BD' : 'UK',
+    officeCode,
     officeWorkStartTime: '09:00',
     officeWorkEndTime: '17:00',
     firstName: 'Test',
     lastName: 'User',
     theme: 'light',
+    departmentId: overrides.departmentId,
   })
 }
 
@@ -100,5 +124,74 @@ describe('tenant isolation — salary', () => {
       .get('/api/v1/salary/emp-uk')
       .set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(404)
+  })
+})
+
+// Regression guard for the salary-IDOR fix: a DEPT_MANAGER/DEPT_HEAD must only
+// see salary within their own team (direct reports / own department), not
+// anyone office-wide — see salary.controller.ts's getForEmployee.
+describe('team-scoped salary access', () => {
+  it('always allows an employee to read their own salary', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_MANAGER, officeId: 'office-bd', employeeId: 'mgr-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/mgr-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+  })
+
+  it('allows a DEPT_MANAGER to read a direct report\'s salary', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_MANAGER, officeId: 'office-bd', employeeId: 'mgr-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/report-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+  })
+
+  it('blocks a DEPT_MANAGER from reading a same-department peer who is not their direct report', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_MANAGER, officeId: 'office-bd', employeeId: 'mgr-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/peer-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('blocks a DEPT_MANAGER from reading salary outside their department entirely', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_MANAGER, officeId: 'office-bd', employeeId: 'mgr-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/outside-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('allows a DEPT_HEAD to read salary for anyone in their own department, even a non-direct-report', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_HEAD, officeId: 'office-bd', employeeId: 'head-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/peer-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+  })
+
+  it('blocks a DEPT_HEAD from reading salary outside their own department', async () => {
+    const token = tokenFor({ role: UserRole.DEPT_HEAD, officeId: 'office-bd', employeeId: 'head-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/outside-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('still allows HR_MANAGER to read anyone\'s salary within their office', async () => {
+    const token = tokenFor({ role: UserRole.HR_MANAGER, officeId: 'office-bd' })
+    const res = await request(app)
+      .get('/api/v1/salary/outside-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+  })
+
+  it('blocks a plain EMPLOYEE from reading anyone else\'s salary', async () => {
+    const token = tokenFor({ role: UserRole.EMPLOYEE, officeId: 'office-bd', employeeId: 'report-bd', departmentId: 'dept-a' })
+    const res = await request(app)
+      .get('/api/v1/salary/peer-bd')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(403)
   })
 })

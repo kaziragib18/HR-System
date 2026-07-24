@@ -190,10 +190,9 @@ export function Sidebar() {
       <div className="flex h-14 items-center gap-2 border-b px-3">
         {!collapsed && (
           <Link href="/" className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-              HR
-            </span>
-            <span className="truncate text-sm font-semibold">HR System</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/peoplegrid-icon.svg" alt="" className="h-8 w-8 shrink-0" />
+            <span className="truncate text-sm font-semibold">PeopleGrid</span>
           </Link>
         )}
         <button

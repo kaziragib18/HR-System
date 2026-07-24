@@ -348,15 +348,20 @@ model User {
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  refreshToken String   @unique
-  deviceInfo   String?
-  ipAddress    String?
-  isValid      Boolean  @default(true)
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  lastUsedAt   DateTime @default(now())
+  id                   String   @id @default(cuid())
+  userId               String
+  refreshToken         String   @unique
+  // The immediately-previous refresh token, kept only long enough to detect
+  // reuse: if a token gets presented again after it's already been rotated
+  // away from, that's a signal the token leaked (e.g. stolen, replayed from a
+  // second device) — see auth.service.ts's `refresh()`.
+  previousRefreshToken String?  @unique
+  deviceInfo           String?
+  ipAddress            String?
+  isValid              Boolean  @default(true)
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+  lastUsedAt           DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

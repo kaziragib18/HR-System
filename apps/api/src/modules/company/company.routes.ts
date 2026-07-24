@@ -6,10 +6,11 @@ import { authenticate, type AuthRequest } from '../../middleware/auth.middleware
 import { requireRole } from '../../middleware/rbac.middleware'
 import { validate } from '../../middleware/validate.middleware'
 import { sendSuccess, sendCreated, sendNotFound } from '../../utils/response'
-import { isAllowedImage, isAllowedImageOrPdf, ALLOWED_IMAGE_MESSAGE, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
-import { UserRole } from '@hr-system/types'
+import { isAllowedImage, isAllowedImageOrPdf, matchesFileSignature, ALLOWED_IMAGE_MESSAGE, ALLOWED_UPLOAD_MESSAGE, sanitizeFilename } from '../../utils/upload'
+import { auditFromRequest } from '../../utils/audit'
+import { AuditAction, UserRole } from '@hr-system/types'
 import * as controller from './company.controller'
-import { createOfficeSchema, updateOfficeSchema } from './company.schemas'
+import { createOfficeSchema, updateOfficeSchema, createComplianceDocSchema, type CreateComplianceDocInput } from './company.schemas'
 
 const router: RouterType = Router()
 router.use(authenticate)
@@ -37,11 +38,11 @@ router.post(
       const office = await prisma.office.findUnique({ where: { id: req.params.id } })
       if (!office) return sendNotFound(res, 'Office not found')
       if (!req.file) return res.status(400).json({ success: false, error: 'logo file is required' })
-      if (!isAllowedImage(req.file.mimetype)) {
+      if (!isAllowedImage(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer)) {
         return res.status(400).json({ success: false, error: ALLOWED_IMAGE_MESSAGE })
       }
 
-      const ext = req.file.originalname.split('.').pop()?.toLowerCase() ?? 'png'
+      const ext = sanitizeFilename(req.file.originalname).split('.').pop()?.toLowerCase() ?? 'png'
       const storagePath = `logos/${office.code.toLowerCase()}_${Date.now()}.${ext}`
 
       const { error: storageErr } = await supabase.storage
@@ -58,6 +59,7 @@ router.post(
         where: { id: req.params.id },
         data: { logoUrl: publicUrl },
       })
+      await auditFromRequest(req as AuthRequest, AuditAction.UPDATE, 'Office', updated.id, undefined, { logoUrl: publicUrl })
       sendSuccess(res, updated)
     } catch (err: unknown) {
       res.status(500).json({ success: false, error: `Logo upload failed: ${(err as Error).message}` })
@@ -81,22 +83,20 @@ router.post(
   '/compliance-docs',
   SA,
   upload.single('file'),
+  validate(createComplianceDocSchema),
   async (req: Request, res: Response) => {
     try {
       const authReq = req as AuthRequest
-      const { title, description } = req.body as { title?: string; description?: string }
+      const { title, description } = req.body as CreateComplianceDocInput
 
-      if (!title?.trim()) {
-        return res.status(400).json({ success: false, error: 'title is required' })
-      }
       if (!req.file) {
         return res.status(400).json({ success: false, error: 'file is required' })
       }
-      if (!isAllowedImageOrPdf(req.file.mimetype)) {
+      if (!isAllowedImageOrPdf(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer)) {
         return res.status(400).json({ success: false, error: ALLOWED_UPLOAD_MESSAGE })
       }
 
-      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const safeName = sanitizeFilename(req.file.originalname)
       const storagePath = `compliance-docs/${Date.now()}_${safeName}`
       const contentType = req.file.mimetype || 'application/octet-stream'
 
@@ -121,6 +121,7 @@ router.post(
         include: { uploadedBy: { select: { id: true, firstName: true, lastName: true } } },
       })
 
+      await auditFromRequest(authReq, AuditAction.CREATE, 'ComplianceDoc', doc.id, undefined, { title: doc.title, storagePath })
       sendCreated(res, doc)
     } catch (err: unknown) {
       res.status(500).json({ success: false, error: `Upload failed: ${(err as Error).message}` })
@@ -148,6 +149,7 @@ router.delete('/compliance-docs/:id', SA, async (req: Request, res: Response) =>
   const doc = await prisma.complianceDoc.findUnique({ where: { id: req.params.id } })
   if (!doc) return sendNotFound(res, 'Document not found')
   await prisma.complianceDoc.update({ where: { id: req.params.id }, data: { isActive: false } })
+  await auditFromRequest(req as AuthRequest, AuditAction.DELETE, 'ComplianceDoc', req.params.id, { title: doc.title })
   sendSuccess(res, null)
 })
 

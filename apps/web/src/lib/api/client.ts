@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth.store'
+import { getCsrfToken } from './csrf'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -14,11 +15,17 @@ export const apiClient = axios.create({
   timeout: 20000,
 })
 
-// Attach access token to every request
+// Attach access token + CSRF header to every request. The CSRF header is
+// only actually checked by the API on cookie-only routes (refresh/logout,
+// see csrf.middleware.ts) — harmless to send everywhere else.
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const csrfToken = getCsrfToken()
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken
   }
   return config
 })
@@ -66,7 +73,7 @@ apiClient.interceptors.response.use(
       const { data } = await axios.post(
         `${API_URL}/api/v1/auth/refresh`,
         {},
-        { withCredentials: true }
+        { withCredentials: true, headers: { 'X-CSRF-Token': getCsrfToken() } }
       )
       const newToken = data.data.accessToken
       useAuthStore.getState().setAccessToken(newToken)

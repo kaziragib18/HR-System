@@ -34,5 +34,11 @@ export const updateOfficeSchema = z.object({
   showOnClock: z.boolean().optional(),
 })
 
+export const createComplianceDocSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+})
+
 export type CreateOfficeInput = z.infer<typeof createOfficeSchema>
 export type UpdateOfficeInput = z.infer<typeof updateOfficeSchema>
+export type CreateComplianceDocInput = z.infer<typeof createComplianceDocSchema>

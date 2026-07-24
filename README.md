@@ -1,4 +1,4 @@
-# HR System
+# PeopleGrid
 
 A full-stack, multi-office Human Resources Management System. It ships today configured for two offices — **Bangladesh (BD)** and **United Kingdom (UK)** — each with its own tax regime, currency, shift hours, leave policy, and holiday calendar, but offices are no longer hardcoded: a Super Admin can add, deactivate, or reactivate offices directly from the app, and every office-scoped filter across the system reacts accordingly.
 

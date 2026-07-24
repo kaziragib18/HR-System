@@ -7,9 +7,11 @@ import {
   type CalendarRecord,
   type CalendarLeave,
 } from '@/lib/api/hooks/useAttendance'
+import { useHolidays, type Holiday } from '@/lib/api/hooks/useHolidays'
+import { useAuthStore } from '@/store/auth.store'
 import { Card, Spinner } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, XCircle, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, XCircle, X, PartyPopper } from 'lucide-react'
 
 const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -19,15 +21,21 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 // Mon-first week
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+// Mirrors StatusBadge's STATUS_MAP colors (apps/web/src/components/ui/primitives.tsx)
+// exactly, so a day's color here always means the same thing as its badge
+// elsewhere in the app — this used to drift (e.g. a slightly darker light-mode
+// text shade, and three different, mutually-inconsistent "weekend" tints
+// across the day cell/legend/badge) which made the calendar's colors not
+// actually match the legend key or any other status badge in the app.
 export const STATUS_CELL: Record<string, string> = {
-  PRESENT: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300',
-  LATE: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300',
-  ABSENT: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
-  ON_LEAVE: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300',
-  HOLIDAY: 'bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300',
-  HALF_DAY: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300',
-  EARLY_DEPARTURE: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300',
-  WEEKEND: 'text-muted-foreground/30',
+  PRESENT: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  LATE: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  ABSENT: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+  ON_LEAVE: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  HOLIDAY: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  HALF_DAY: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+  EARLY_DEPARTURE: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+  WEEKEND: 'bg-muted text-muted-foreground',
 }
 
 function fmtTimeLocal(iso: string | null): string {
@@ -61,6 +69,7 @@ interface DayInfo {
   date: string
   record: CalendarRecord | undefined
   leave: CalendarLeave | undefined
+  holiday: Holiday | undefined
   officeStartTime: string
   officeEndTime: string
   isWeekend: boolean
@@ -85,7 +94,7 @@ function DayDetailPanel({
   const [excuse, setExcuse] = useState('')
   const submitExcuse = useSubmitLateExcuse()
 
-  const { record, leave, officeStartTime, officeEndTime, isWeekend, isFuture } = info
+  const { record, leave, holiday, officeStartTime, officeEndTime, isWeekend, isFuture } = info
   const dateLabel = new Date(info.date).toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -114,9 +123,20 @@ function DayDetailPanel({
         <p className="text-muted-foreground text-xs">Weekend — office closed (Sat/Sun)</p>
       )}
 
-      {!isWeekend && isFuture && <p className="text-muted-foreground text-xs">No data yet.</p>}
+      {!isWeekend && !record && holiday && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className={cn('flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_CELL.HOLIDAY)}>
+            <PartyPopper className="h-3 w-3" /> HOLIDAY
+          </span>
+          <span className="text-muted-foreground">{holiday.name}</span>
+        </div>
+      )}
 
-      {!isWeekend && !isFuture && !record && !leave && (
+      {!isWeekend && !record && !holiday && isFuture && (
+        <p className="text-muted-foreground text-xs">No data yet.</p>
+      )}
+
+      {!isWeekend && !isFuture && !record && !leave && !holiday && (
         <p className="text-muted-foreground text-xs">No attendance record.</p>
       )}
 
@@ -335,7 +355,9 @@ export function AttendanceCalendar({ className }: { className?: string }) {
     return () => window.removeEventListener('scroll', onScroll, true)
   }, [tooltip])
 
+  const officeCode = useAuthStore((s) => s.user?.officeCode)
   const { data: calData, isLoading } = useAttendanceCalendar(month, year)
+  const { data: holidays } = useHolidays(year)
 
   const recordByDate: Record<string, CalendarRecord> = {}
   calData?.records.forEach((r) => { recordByDate[r.date] = r })
@@ -349,6 +371,13 @@ export function AttendanceCalendar({ className }: { className?: string }) {
       cur.setDate(cur.getDate() + 1)
     }
   })
+
+  // Scoped to the viewer's own office — a BD employee shouldn't see UK's
+  // holidays (or vice versa) marked on their personal calendar.
+  const holidayByDate: Record<string, Holiday> = {}
+  holidays
+    ?.filter((h) => !officeCode || h.office.code === officeCode)
+    .forEach((h) => { holidayByDate[h.date.slice(0, 10)] = h })
 
   const officeStart = calData?.officeStartTime ?? '09:00'
   const officeEnd = calData?.officeEndTime ?? '17:00'
@@ -372,7 +401,7 @@ export function AttendanceCalendar({ className }: { className?: string }) {
     { label: 'Absent', cls: STATUS_CELL.ABSENT },
     { label: 'Leave', cls: STATUS_CELL.ON_LEAVE },
     { label: 'Holiday', cls: STATUS_CELL.HOLIDAY },
-    { label: 'Weekend', cls: 'bg-rose-50/60 dark:bg-rose-950/10 text-muted-foreground/60' },
+    { label: 'Weekend', cls: STATUS_CELL.WEEKEND },
   ]
 
   return (
@@ -412,7 +441,7 @@ export function AttendanceCalendar({ className }: { className?: string }) {
                 key={w}
                 className={cn(
                   'py-1 text-center text-[10px] font-semibold',
-                  i >= 5 ? 'text-rose-500/70 dark:text-rose-400/60' : 'text-muted-foreground'
+                  i >= 5 ? 'text-foreground/70' : 'text-muted-foreground'
                 )}
               >
                 {w}
@@ -429,12 +458,16 @@ export function AttendanceCalendar({ className }: { className?: string }) {
 
               const record = recordByDate[dateStr]
               const leave = leaveByDate[dateStr]
+              const holiday = isWeekend ? undefined : holidayByDate[dateStr]
               const isToday =
                 dateStr ===
                 `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
               const isFuture = new Date(dateStr) > now
 
               const rawStatus = record?.status
+              // A holiday only wins when there's no actual attendance record —
+              // if someone actually checked in that day (worked the holiday),
+              // their real status is more informative and takes precedence.
               const displayStatus = isWeekend
                 ? null
                 : rawStatus === 'HALF_DAY'
@@ -442,13 +475,17 @@ export function AttendanceCalendar({ className }: { className?: string }) {
                   : rawStatus === 'EARLY_DEPARTURE'
                     ? 'PRESENT'
                     : rawStatus
+                      ? rawStatus
+                      : holiday
+                        ? 'HOLIDAY'
+                        : null
 
               const cellCls = isWeekend
-                ? 'bg-rose-50/80 dark:bg-rose-500/10 text-muted-foreground/40 dark:text-muted-foreground/30'
+                ? STATUS_CELL.WEEKEND
                 : displayStatus
                   ? (STATUS_CELL[displayStatus] ?? 'text-foreground')
                   : !isFuture
-                    ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300'
+                    ? STATUS_CELL.ABSENT
                     : 'text-muted-foreground/40'
 
               const info: DayInfo = {
@@ -456,6 +493,7 @@ export function AttendanceCalendar({ className }: { className?: string }) {
                 date: dateStr,
                 record: isWeekend ? undefined : record,
                 leave: isWeekend ? undefined : leave,
+                holiday,
                 officeStartTime: officeStart,
                 officeEndTime: officeEnd,
                 isWeekend,

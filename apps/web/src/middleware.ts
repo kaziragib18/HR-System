@@ -24,6 +24,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|login|forgot-password|reset-password|2fa).*)',
+    // Excludes API routes, Next internals, the public auth pages, and any
+    // static asset (by file extension) — public/*.svg|png|ico etc. previously
+    // fell through none of these exclusions except the one literal
+    // "favicon.ico", so any other logo/image referenced on an unauthenticated
+    // page (e.g. the login screen's own brand mark) got redirected to /login
+    // instead of served, breaking the image.
+    '/((?!api|_next/static|_next/image|login|forgot-password|reset-password|2fa|.*\\.(?:ico|svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

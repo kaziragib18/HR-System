@@ -1,9 +1,11 @@
+import { randomBytes } from 'crypto'
 import type { Request, Response } from 'express'
 import * as authService from './auth.service'
 import { AuthError, REFRESH_TOKEN_TTL_MS } from './auth.service'
 import { verifyTempToken } from '../../utils/jwt'
 import { sendSuccess, sendError, sendUnexpectedError } from '../../utils/response'
 import { env } from '../../config/env'
+import { CSRF_COOKIE } from '../../middleware/csrf.middleware'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type {
   LoginInput,
@@ -28,6 +30,25 @@ function setRefreshCookie(res: Response, token: string) {
 
 function clearRefreshCookie(res: Response) {
   res.clearCookie(REFRESH_COOKIE, { path: '/' })
+}
+
+// Companion cookie for requireCsrfToken (csrf.middleware.ts) — deliberately
+// NOT httpOnly, since the frontend must be able to read it and echo it back
+// as a header; that's the whole double-submit mechanism. Same lifetime/flags
+// as the refresh cookie otherwise, so it never outlives (or expires before)
+// the session it's protecting.
+function setCsrfCookie(res: Response, token: string) {
+  res.cookie(CSRF_COOKIE, token, {
+    httpOnly: false,
+    secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: REFRESH_TOKEN_TTL_MS,
+    path: '/',
+  })
+}
+
+function clearCsrfCookie(res: Response) {
+  res.clearCookie(CSRF_COOKIE, { path: '/' })
 }
 
 function getDeviceInfo(req: Request): string {
@@ -58,6 +79,7 @@ export async function login(req: Request, res: Response) {
     }
 
     setRefreshCookie(res, result.refreshToken!)
+    setCsrfCookie(res, randomBytes(24).toString('hex'))
     sendSuccess(res, {
       user: result.user,
       accessToken: result.accessToken,
@@ -86,6 +108,7 @@ export async function verifyTwoFactor(req: Request, res: Response) {
       req.ip
     )
     setRefreshCookie(res, result.refreshToken!)
+    setCsrfCookie(res, randomBytes(24).toString('hex'))
     sendSuccess(res, {
       user: result.user,
       accessToken: result.accessToken,
@@ -104,7 +127,12 @@ export async function refresh(req: Request, res: Response) {
       return
     }
     const result = await authService.refresh(token)
-    sendSuccess(res, result)
+    setRefreshCookie(res, result.refreshToken)
+    // Mints a CSRF cookie for any session that predates this protection
+    // (see csrf.middleware.ts) — no-op in practice for sessions that already
+    // have one, since we just re-set the same value.
+    setCsrfCookie(res, req.cookies?.[CSRF_COOKIE] ?? randomBytes(24).toString('hex'))
+    sendSuccess(res, { accessToken: result.accessToken })
   } catch (err) {
     handleError(res, err)
   }
@@ -115,6 +143,7 @@ export async function logout(req: Request, res: Response) {
     const token = req.cookies?.refreshToken
     if (token) await authService.logout(token)
     clearRefreshCookie(res)
+    clearCsrfCookie(res)
     sendSuccess(res, { message: 'Logged out' })
   } catch (err) {
     handleError(res, err)
@@ -125,6 +154,7 @@ export async function logoutAll(req: Request, res: Response) {
   try {
     await authService.logoutAll((req as AuthRequest).user.sub)
     clearRefreshCookie(res)
+    clearCsrfCookie(res)
     sendSuccess(res, { message: 'Logged out of all devices' })
   } catch (err) {
     handleError(res, err)
@@ -159,6 +189,7 @@ export async function changePassword(req: Request, res: Response) {
       newPassword
     )
     clearRefreshCookie(res)
+    clearCsrfCookie(res)
     sendSuccess(res, { message: 'Password changed. Please log in again.' })
   } catch (err) {
     handleError(res, err)

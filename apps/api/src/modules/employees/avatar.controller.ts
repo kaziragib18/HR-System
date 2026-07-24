@@ -3,7 +3,7 @@ import multer from 'multer'
 import { prisma } from '../../config/prisma'
 import { supabase } from '../../config/supabase'
 import { sendSuccess, sendError, sendUnexpectedError } from '../../utils/response'
-import { isAllowedImage, ALLOWED_IMAGE_MESSAGE } from '../../utils/upload'
+import { isAllowedImage, matchesFileSignature, ALLOWED_IMAGE_MESSAGE, sanitizeFilename } from '../../utils/upload'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import { getEmployee, EmployeeError } from './employees.service'
 
@@ -18,12 +18,12 @@ export async function uploadAvatar(req: Request, res: Response) {
       sendError(res, 'avatar file is required', 400)
       return
     }
-    if (!isAllowedImage(req.file.mimetype)) {
+    if (!isAllowedImage(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer)) {
       sendError(res, ALLOWED_IMAGE_MESSAGE, 400)
       return
     }
 
-    const ext = req.file.originalname.split('.').pop()?.toLowerCase() ?? 'png'
+    const ext = sanitizeFilename(req.file.originalname).split('.').pop()?.toLowerCase() ?? 'png'
     const storagePath = `employees/${employee.id}_${Date.now()}.${ext}`
 
     const { error: storageErr } = await supabase.storage

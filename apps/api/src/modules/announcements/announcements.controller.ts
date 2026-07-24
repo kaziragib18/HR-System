@@ -4,7 +4,7 @@ import { AnnouncementError } from './announcements.service'
 import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
 import { auditFromRequest } from '../../utils/audit'
 import { AuditAction } from '@hr-system/types'
-import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
+import { isAllowedImageOrPdf, matchesFileSignature, ALLOWED_UPLOAD_MESSAGE, sanitizeFilename } from '../../utils/upload'
 import { BUCKETS, uploadFile } from '../../services/storage.service'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
@@ -35,7 +35,7 @@ export async function create(req: Request, res: Response) {
     const authReq = req as AuthRequest
     const body = req.body as CreateAnnouncementInput
 
-    if (req.file && !isAllowedImageOrPdf(req.file.mimetype)) {
+    if (req.file && (!isAllowedImageOrPdf(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer))) {
       sendError(res, ALLOWED_UPLOAD_MESSAGE, 400)
       return
     }
@@ -43,7 +43,7 @@ export async function create(req: Request, res: Response) {
     let announcement = await service.createAnnouncement(body, authReq.user)
 
     if (req.file) {
-      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const safeName = sanitizeFilename(req.file.originalname)
       const storagePath = `announcements/${announcement.id}/${Date.now()}_${safeName}`
       await uploadFile(BUCKETS.DOCUMENTS, storagePath, req.file.buffer, req.file.mimetype)
       announcement = await service.attachFile(announcement.id, storagePath)

@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma'
 import { BUCKETS, uploadFile, createSignedReadUrl } from '../../services/storage.service'
+import { sanitizeFilename } from '../../utils/upload'
 import type { ListDocumentsQuery } from './documents.schemas'
 
 export class DocumentError extends Error {
@@ -28,7 +29,7 @@ interface UploadDocumentParams {
  * certification/identification create or update includes a file.
  */
 export async function uploadDocument(params: UploadDocumentParams) {
-  const safeName = params.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const safeName = sanitizeFilename(params.name)
   const storagePath = `documents/${params.employeeId}/${params.type.toLowerCase()}/${Date.now()}_${safeName}`
 
   await uploadFile(BUCKETS.DOCUMENTS, storagePath, params.buffer, params.mimeType)

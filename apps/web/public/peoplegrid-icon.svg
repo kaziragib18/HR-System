@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <style>
+      .navy  { fill: #EFD2B0; }
+      .amber { fill: #E8A23A; }
+      .red   { fill: #C1443A; }
+      .teal  { fill: #3C7A96; }
+    </style>
+  </defs>
+
+  <!-- heads + bodies -->
+  <g class="navy">
+    <circle cx="35" cy="35" r="23"/>
+    <rect x="48" y="48" width="52" height="52" rx="16"/>
+  </g>
+  <g class="amber">
+    <circle cx="165" cy="35" r="23"/>
+    <rect x="100" y="48" width="52" height="52" rx="16"/>
+  </g>
+  <g class="red">
+    <circle cx="35" cy="165" r="23"/>
+    <rect x="48" y="100" width="52" height="52" rx="16"/>
+  </g>
+  <g class="teal">
+    <circle cx="165" cy="165" r="23"/>
+    <rect x="100" y="100" width="52" height="52" rx="16"/>
+  </g>
+
+  <!-- linking "hand" dots, each poking into the next quadrant clockwise -->
+  <circle class="navy" cx="106" cy="94" r="9"/>
+  <circle class="amber" cx="106" cy="106" r="9"/>
+  <circle class="teal" cx="94" cy="106" r="9"/>
+  <circle class="red" cx="94" cy="94" r="9"/>
+</svg>

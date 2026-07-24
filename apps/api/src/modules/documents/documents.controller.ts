@@ -1,11 +1,12 @@
 import type { Request, Response } from 'express'
 import multer from 'multer'
-import { UserRole } from '@hr-system/types'
+import { AuditAction, UserRole } from '@hr-system/types'
 import * as service from './documents.service'
 import { DocumentError } from './documents.service'
 import { sendSuccess, sendCreated, sendError, sendForbidden, sendUnexpectedError } from '../../utils/response'
 import { isSelfOrRole } from '../../middleware/rbac.middleware'
-import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
+import { isAllowedImageOrPdf, matchesFileSignature, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
+import { auditFromRequest } from '../../utils/audit'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { CreateDocumentBody, ListDocumentsQuery } from './documents.schemas'
 
@@ -47,7 +48,7 @@ export async function create(req: Request, res: Response) {
       sendError(res, 'file is required', 400)
       return
     }
-    if (!isAllowedImageOrPdf(req.file.mimetype)) {
+    if (!isAllowedImageOrPdf(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer)) {
       sendError(res, ALLOWED_UPLOAD_MESSAGE, 400)
       return
     }
@@ -61,6 +62,7 @@ export async function create(req: Request, res: Response) {
       uploadedById: authReq.user.employeeId,
       requiresSignature: body.requiresSignature,
     })
+    await auditFromRequest(authReq, AuditAction.CREATE, 'Document', doc.id, undefined, { name: doc.name, type: doc.type, employeeId: doc.employeeId })
     sendCreated(res, doc)
   } catch (err) {
     handle(res, err)
@@ -91,6 +93,7 @@ export async function remove(req: Request, res: Response) {
       return
     }
     await service.deactivateDocument(doc.id)
+    await auditFromRequest(authReq, AuditAction.DELETE, 'Document', doc.id, { name: doc.name, type: doc.type, employeeId: doc.employeeId })
     sendSuccess(res, { message: 'Document removed' })
   } catch (err) {
     handle(res, err)

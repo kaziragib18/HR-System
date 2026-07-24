@@ -229,7 +229,11 @@ describe('POST /announcements — attachment upload', () => {
       .field('title', 'With image')
       .field('body', 'Body text')
       .field('category', 'GENERAL')
-      .attach('attachment', Buffer.from('fake-png-bytes'), { filename: 'photo.png', contentType: 'image/png' })
+      .attach(
+        'attachment',
+        Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('fake-png-bytes')]),
+        { filename: 'photo.png', contentType: 'image/png' }
+      )
 
     expect(res.status).toBe(201)
     expect(uploadFileMock).toHaveBeenCalledTimes(1)

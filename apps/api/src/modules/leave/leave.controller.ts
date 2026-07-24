@@ -9,6 +9,7 @@ import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import type { ApplyLeaveInput, ApproveLeaveInput, RejectLeaveInput, LeaveApplicationsQuery, RejectCancelLeaveInput, UpdateCancelReasonInput } from './leave.schemas'
 import { prisma } from '../../config/prisma'
 import { supabase } from '../../config/supabase'
+import { sanitizeFilename, isAllowedImageOrPdf, matchesFileSignature, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 
 const MANAGER_ROLES: string[] = [UserRole.SUPER_ADMIN, UserRole.HR_MANAGER, UserRole.DEPT_HEAD, UserRole.DEPT_MANAGER]
 
@@ -131,16 +132,15 @@ export async function uploadAttachment(req: Request, res: Response) {
     const file = (req as Request & { file?: Express.Multer.File }).file
     if (!file) { sendError(res, 'No file provided', 400); return }
 
-    const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.mimetype)) {
-      sendError(res, 'Only PDF and image files are allowed', 400); return
+    if (!isAllowedImageOrPdf(file.mimetype) || !matchesFileSignature(file.mimetype, file.buffer)) {
+      sendError(res, ALLOWED_UPLOAD_MESSAGE, 400); return
     }
     if (file.size > 5 * 1024 * 1024) {
       sendError(res, 'File size must be under 5MB', 400); return
     }
 
     const employeeId = user(req).employeeId
-    const ext = file.originalname.split('.').pop() ?? 'bin'
+    const ext = sanitizeFilename(file.originalname).split('.').pop() ?? 'bin'
     const path = `leave-attachments/${employeeId}/${Date.now()}.${ext}`
 
     const { error } = await supabase.storage.from('documents').upload(path, file.buffer, {

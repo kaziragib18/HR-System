@@ -3,7 +3,7 @@ import multer from 'multer'
 import * as service from './profile.service'
 import { EmployeeError } from './employees.service'
 import { sendSuccess, sendCreated, sendError, sendUnexpectedError } from '../../utils/response'
-import { isAllowedImageOrPdf, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
+import { isAllowedImageOrPdf, matchesFileSignature, ALLOWED_UPLOAD_MESSAGE } from '../../utils/upload'
 import type { AuthRequest } from '../../middleware/auth.middleware'
 import type { OfficeScopedRequest } from '../../middleware/office.middleware'
 import type {
@@ -35,7 +35,7 @@ function handle(res: Response, err: unknown) {
 
 function fileInput(req: Request) {
   if (!req.file) return undefined
-  if (!isAllowedImageOrPdf(req.file.mimetype)) {
+  if (!isAllowedImageOrPdf(req.file.mimetype) || !matchesFileSignature(req.file.mimetype, req.file.buffer)) {
     throw new EmployeeError(ALLOWED_UPLOAD_MESSAGE, 400)
   }
   return {

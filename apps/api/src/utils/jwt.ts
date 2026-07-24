@@ -9,6 +9,7 @@ export interface AccessTokenPayload {
   role: string
   officeId: string
   officeCode: string
+  departmentId?: string | null
 }
 
 export interface RefreshTokenPayload {
@@ -30,6 +31,7 @@ export function signAccessToken(user: AuthUser): string {
       role: user.role,
       officeId: user.officeId,
       officeCode: user.officeCode,
+      departmentId: user.departmentId,
     } satisfies AccessTokenPayload,
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN } as SignOptions

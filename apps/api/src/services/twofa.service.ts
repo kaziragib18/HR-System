@@ -1,7 +1,7 @@
 import speakeasy from 'speakeasy'
 import QRCode from 'qrcode'
 
-const APP_NAME = 'HR System'
+const APP_NAME = 'PeopleGrid'
 
 export function generateTwoFactorSecret(email: string) {
   const secret = speakeasy.generateSecret({

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { apiClient } from './client'
+import { getCsrfToken } from './csrf'
 import { useAuthStore } from '@/store/auth.store'
 import { queryClient } from '@/lib/queryClient'
 import type { AuthUser } from '@hr-system/types'
@@ -19,7 +20,7 @@ export async function bootstrapSession(): Promise<void> {
     const { data: refreshData } = await axios.post(
       `${API_URL}/api/v1/auth/refresh`,
       {},
-      { withCredentials: true }
+      { withCredentials: true, headers: { 'X-CSRF-Token': getCsrfToken() } }
     )
     const token = refreshData.data.accessToken as string
 
